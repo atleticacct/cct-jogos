@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#07110b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="CCT Jogos" />
+  <title>CCT Jogos</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="splash" class="splash">
+    <div class="splash-glow"></div>
+    <img src="assets/mascote.png" alt="Mascote CCT" class="splash-mascot" />
+    <div class="splash-copy">
+      <div class="eyebrow">ATLÉTICA CCT</div>
+      <h1>CCT JOGOS</h1>
+      <p>A cachorrada está on.</p>
+    </div>
+  </div>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <button class="icon-btn" id="menuBtn" aria-label="Abrir menu">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="brand">
+        <img src="assets/logo-cct.jpg" alt="Atlética CCT" />
+        <div><strong>CCT JOGOS</strong><small>UDESC JOINVILLE</small></div>
+      </div>
+      <button class="icon-btn bell" id="alertBtn" aria-label="Avisos">🔔<b>2</b></button>
+    </header>
+
+    <main id="content">
+      <section class="screen active" data-screen="inicio">
+        <div class="hero" style="--hero:url('assets/volei-praia-2.jpg')">
+          <div class="hero-overlay"></div>
+          <div class="hero-content">
+            <span class="chip live">EM DESTAQUE</span>
+            <h2>INTERLAJE 2026</h2>
+            <p>Acompanhe jogos, classificação e tudo da CCT.</p>
+            <button class="primary" data-go="jogos">VER COMPETIÇÃO <span>›</span></button>
+          </div>
+        </div>
+
+        <div class="urgent-card">
+          <div class="urgent-icon">!</div>
+          <div>
+            <small>AVISO IMPORTANTE</small>
+            <strong>Horário do Futsal Masculino alterado</strong>
+            <p>Novo horário: hoje, 19:30.</p>
+          </div>
+          <span class="arrow">›</span>
+        </div>
+
+        <div class="section-head">
+          <div><i></i><h3>SEU PRÓXIMO JOGO</h3></div>
+          <button data-go="perfil">PERFIL</button>
+        </div>
+
+        <article class="match-card">
+          <div class="match-top">
+            <span class="chip">VÔLEI MASCULINO</span>
+            <span class="muted">INTERLAJE 2026</span>
+          </div>
+          <div class="teams">
+            <div class="team"><img src="assets/logo-cct.jpg" /><strong>CCT</strong></div>
+            <div class="score"><b>18:30</b><small>HOJE</small></div>
+            <div class="team opponent"><div class="opponent-badge">ENG</div><strong>Engenharia</strong></div>
+          </div>
+          <div class="match-foot">
+            <span>📍 Ginásio Central</span>
+            <button class="ghost" data-open="scenario">🎯 Vale classificação</button>
+          </div>
+        </article>
+
+        <div class="section-head">
+          <div><i></i><h3>COMPETIÇÕES</h3></div>
+          <button data-go="jogos">VER TODAS ›</button>
+        </div>
+        <div class="horizontal">
+          <article class="visual-card" style="--bg:url('assets/levantamento-1.jpg')">
+            <div><span class="chip live">ATIVA</span><h4>INTERLAJE 2026</h4><p>Jogos, grupos e classificação</p></div>
+          </article>
+          <article class="visual-card" style="--bg:url('assets/volei-praia-1.jpg')">
+            <div><span class="chip">PRÓXIMA</span><h4>JIUDESC 2026</h4><p>30/10 a 02/11</p></div>
+          </article>
+        </div>
+
+        <div class="section-head">
+          <div><i></i><h3>AGENDA DE HOJE</h3></div>
+          <button data-go="agenda">VER AGENDA ›</button>
+        </div>
+        <div class="timeline mini">
+          <div><time>12:00</time><span class="dot"></span><section><small>TREINO</small><strong>Vôlei Masculino</strong><p>Ginásio CCT</p></section></div>
+          <div><time>17:00</time><span class="dot"></span><section><small>ATENDIMENTO</small><strong>Salinha da Atlética</strong><p>Até 19:00</p></section></div>
+          <div><time>18:30</time><span class="dot"></span><section><small>JOGO</small><strong>CCT × Engenharia</strong><p>Vôlei Masculino</p></section></div>
+        </div>
+
+        <div class="section-head">
+          <div><i></i><h3>EVENTOS</h3></div>
+          <button data-go="eventos">VER TODOS ›</button>
+        </div>
+        <article class="event-card" style="--event:url('assets/evento-verde.jpg')">
+          <div class="event-gradient"></div>
+          <div class="event-copy">
+            <span class="chip">PRÓXIMO EVENTO</span>
+            <h4>Integração CCT</h4>
+            <p>Sex • 23:00 • Joinville</p>
+            <button class="light">VER DETALHES ›</button>
+          </div>
+        </article>
+
+        <div class="section-head">
+          <div><i></i><h3>MÍDIA CCT</h3></div>
+          <button data-open="media">VER TUDO ›</button>
+        </div>
+        <div class="media-grid">
+          <article style="--media:url('assets/skate.jpg')"><span>▶</span><div><strong>Vídeos</strong><small>ASSISTA AGORA</small></div></article>
+          <article style="--media:url('assets/volei-praia-1.jpg')"><span>▧</span><div><strong>Galeria</strong><small>CONFIRA AS FOTOS</small></div></article>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="jogos">
+        <div class="page-title"><div><i></i><div><small>COMPETIÇÃO</small><h2>Jogos</h2></div></div></div>
+        <button class="select-card">Interlaje 2026 <span>⌄</span></button>
+
+        <div class="segmented">
+          <button class="selected">Todos os Jogos</button><button>Meus Jogos</button>
+        </div>
+        <div class="filters">
+          <button class="selected">Hoje</button><button>Amanhã</button><button>Todos</button><button>Vôlei</button><button>Futsal</button>
+        </div>
+
+        <article class="match-card compact">
+          <div class="match-top"><span class="chip">VÔLEI MASCULINO</span><span class="muted">GRUPO A</span></div>
+          <div class="teams">
+            <div class="team"><img src="assets/logo-cct.jpg" /><strong>CCT</strong></div>
+            <div class="score"><b>18:30</b><small>HOJE</small></div>
+            <div class="team opponent"><div class="opponent-badge">ENG</div><strong>Engenharia</strong></div>
+          </div>
+          <div class="match-foot"><span>📍 Ginásio Central</span><button class="ghost" data-open="scenario">Situação do grupo ›</button></div>
+        </article>
+
+        <article class="match-card compact finished">
+          <div class="match-top"><span class="chip result">FINALIZADO</span><span class="muted">FUTSAL MASCULINO</span></div>
+          <div class="teams">
+            <div class="team"><img src="assets/logo-cct.jpg" /><strong>CCT</strong></div>
+            <div class="score"><b>4 × 2</b><small class="win">VITÓRIA</small></div>
+            <div class="team opponent"><div class="opponent-badge">DIR</div><strong>Direito</strong></div>
+          </div>
+          <div class="match-foot"><span>Ontem • 20:00</span><button class="ghost">Ver detalhes ›</button></div>
+        </article>
+
+        <div class="section-head"><div><i></i><h3>CLASSIFICAÇÃO — GRUPO A</h3></div></div>
+        <div class="standings">
+          <div class="stand-head"><span>#</span><span>Equipe</span><span>J</span><span>V</span><span>Pts</span></div>
+          <div class="qual"><span>1</span><b>CCT</b><span>2</span><span>2</span><strong>6</strong></div>
+          <div class="qual"><span>2</span><b>Engenharia</b><span>2</span><span>1</span><strong>3</strong></div>
+          <div><span>3</span><b>Direito</b><span>2</span><span>1</span><strong>3</strong></div>
+          <div><span>4</span><b>Medicina</b><span>2</span><span>0</span><strong>0</strong></div>
+        </div>
+
+        <div class="scenario-card">
+          <span class="target">🎯</span>
+          <div><small>CENÁRIO DE CLASSIFICAÇÃO</small><strong>Vitória por 2×0 garante a vaga</strong><p>Vitória por 2×1 pode depender do outro resultado do grupo.</p></div>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="agenda">
+        <div class="page-title"><div><i></i><div><small>CCT</small><h2>Agenda</h2></div></div></div>
+        <div class="date-row"><button>SEG<small>31</small></button><button class="selected">TER<small>01</small></button><button>QUA<small>02</small></button><button>QUI<small>03</small></button><button>SEX<small>04</small></button></div>
+        <div class="filters"><button class="selected">Tudo</button><button>Treinos</button><button>Atendimento</button></div>
+        <div class="timeline">
+          <div><time>12:00</time><span class="dot"></span><section><small>TREINO</small><strong>Vôlei Masculino</strong><p>📍 Ginásio da CCT</p></section></div>
+          <div><time>17:00</time><span class="dot"></span><section><small>ATENDIMENTO CCT</small><strong>Salinha aberta</strong><p>Retiradas, pagamentos e dúvidas • até 19:00</p></section></div>
+          <div><time>20:30</time><span class="dot"></span><section><small>TREINO</small><strong>Futsal Masculino</strong><p>📍 Ginásio 2</p></section></div>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="eventos">
+        <div class="page-title"><div><i></i><div><small>VIVA A CCT</small><h2>Eventos</h2></div></div></div>
+        <article class="event-card large" style="--event:url('assets/evento-verde.jpg')">
+          <div class="event-gradient"></div><div class="event-copy"><span class="chip live">DESTAQUE</span><h4>Integração CCT</h4><p>Sex • 23:00 • Joinville</p><button class="light">DETALHES ›</button></div>
+        </article>
+        <article class="event-card large" style="--event:url('assets/volei-praia-2.jpg')">
+          <div class="event-gradient"></div><div class="event-copy"><span class="chip">COMPETIÇÃO</span><h4>Encontro da Delegação</h4><p>Dom • 08:00 • Arena</p><button class="light">DETALHES ›</button></div>
+        </article>
+      </section>
+
+      <section class="screen" data-screen="perfil">
+        <div class="profile-hero">
+          <img src="assets/logo-cct.jpg" />
+          <div><small>MEU PERFIL</small><h2>Guilherme</h2><p>Experiência personalizada da CCT</p></div>
+        </div>
+        <div class="profile-card">
+          <div class="section-head"><div><i></i><h3>MINHAS MODALIDADES</h3></div><button>EDITAR</button></div>
+          <label><span>🏐</span><div><strong>Vôlei Masculino</strong><small>Jogos e notificações</small></div><input type="checkbox" checked /></label>
+          <label><span>⚽</span><div><strong>Futsal Masculino</strong><small>Jogos e notificações</small></div><input type="checkbox" checked /></label>
+          <label><span>🏀</span><div><strong>Basquete Masculino</strong><small>Não selecionado</small></div><input type="checkbox" /></label>
+        </div>
+        <div class="profile-card">
+          <div class="section-head"><div><i></i><h3>PREFERÊNCIAS</h3></div></div>
+          <label><span>🔔</span><div><strong>Avisos importantes</strong><small>Mudanças de horário, local e urgências</small></div><input type="checkbox" checked /></label>
+          <label><span>🎉</span><div><strong>Eventos</strong><small>Novidades de festas e integrações</small></div><input type="checkbox" checked /></label>
+        </div>
+        <button class="primary full">SALVAR ALTERAÇÕES</button>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="active" data-go="inicio">⌂<span>Início</span></button>
+      <button data-go="jogos">🏆<span>Jogos</span></button>
+      <button data-go="agenda">▣<span>Agenda</span></button>
+      <button data-go="eventos">★<span>Eventos</span></button>
+      <button data-go="perfil">◎<span>Perfil</span></button>
+    </nav>
+  </div>
+
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <aside class="drawer" id="drawer">
+    <div class="drawer-head"><img src="assets/logo-cct.jpg" /><div><strong>ATLÉTICA CCT</strong><small>UDESC • JOINVILLE</small></div><button id="closeDrawer">×</button></div>
+    <div class="drawer-banner" style="--db:url('assets/levantamento-2.jpg')"><img src="assets/mascote.png" alt="" /><div><small>DESDE 2005</small><strong>Paixão que move a CCT</strong></div></div>
+    <div class="drawer-links">
+      <button data-go="jogos">🏆 <span>Competições</span><b>›</b></button>
+      <button data-open="media">▧ <span>Mídia CCT</span><b>›</b></button>
+      <button data-open="docs">▤ <span>Documentos</span><b>›</b></button>
+      <button data-open="places">⌖ <span>Locais</span><b>›</b></button>
+      <button data-open="about">◉ <span>Sobre a Atlética</span><b>›</b></button>
+      <button data-open="partners">🤝 <span>Parceiros</span><b>›</b></button>
+      <button data-open="contacts">✉ <span>Contatos</span><b>›</b></button>
+      <button data-open="help">? <span>Ajuda</span><b>›</b></button>
+    </div>
+  </aside>
+
+  <div class="modal" id="modal">
+    <div class="modal-sheet">
+      <button class="modal-close" id="modalClose">×</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
