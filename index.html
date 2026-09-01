@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#07110b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="CCT Jogos" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>CCT Jogos</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="logo.jpeg" alt="Logo Atlética CCT" />
+        <div>
+          <span class="eyebrow">ATLÉTICA CCT</span>
+          <strong>CCT Jogos</strong>
+        </div>
+      </div>
+      <button class="icon-btn" aria-label="Avisos" onclick="goTo('infos')">🔔</button>
+    </header>
+
+    <main id="content">
+      <!-- HOME -->
+      <section class="screen active" id="home">
+        <div class="welcome">
+          <span class="eyebrow">JUDESC 2026</span>
+          <h1>Fala, atleta! 👋</h1>
+          <p>Tudo que você precisa para acompanhar os jogos da CCT.</p>
+        </div>
+
+        <article class="hero-card">
+          <div class="hero-top">
+            <span>PRÓXIMO JOGO</span>
+            <span class="live-dot">HOJE</span>
+          </div>
+          <div class="sport-row">
+            <div class="sport-icon">🏐</div>
+            <div>
+              <h2>Vôlei Masculino</h2>
+              <p>UDESC × UFSC</p>
+            </div>
+          </div>
+          <div class="meta">
+            <span>🕑 14:30</span>
+            <span>📍 Ginásio 2</span>
+          </div>
+        </article>
+
+        <div class="section-head">
+          <h3>Próximos jogos</h3>
+          <button onclick="goTo('jogos')">Ver todos</button>
+        </div>
+
+        <div class="card-list">
+          <article class="game-card">
+            <span class="game-icon">⚽</span>
+            <div class="grow">
+              <strong>Futsal Masculino</strong>
+              <small>UDESC × UNIVILLE</small>
+            </div>
+            <div class="right">
+              <strong>17:00</strong>
+              <small>Quadra 1</small>
+            </div>
+          </article>
+          <article class="game-card">
+            <span class="game-icon">🏀</span>
+            <div class="grow">
+              <strong>Basquete Masculino</strong>
+              <small>UDESC × UNOESC</small>
+            </div>
+            <div class="right">
+              <strong>19:30</strong>
+              <small>Ginásio 3</small>
+            </div>
+          </article>
+        </div>
+
+        <div class="section-head">
+          <h3>Aviso importante</h3>
+        </div>
+        <article class="alert-card">
+          <div>⚠️</div>
+          <div>
+            <strong>Alteração de horário</strong>
+            <p>O jogo de Futsal Masculino passou para 17:00.</p>
+          </div>
+        </article>
+      </section>
+
+      <!-- JOGOS -->
+      <section class="screen" id="jogos">
+        <div class="page-title">
+          <span class="eyebrow">COMPETIÇÃO</span>
+          <h1>Jogos</h1>
+          <p>Confira os confrontos e filtre pela modalidade.</p>
+        </div>
+
+        <div class="chips" id="sportFilters">
+          <button class="chip active" data-filter="Todos">Todos</button>
+          <button class="chip" data-filter="Vôlei">Vôlei</button>
+          <button class="chip" data-filter="Futsal">Futsal</button>
+          <button class="chip" data-filter="Basquete">Basquete</button>
+          <button class="chip" data-filter="Handebol">Handebol</button>
+        </div>
+
+        <div class="date-label">18 DE OUTUBRO — HOJE</div>
+        <div class="card-list" id="gamesList"></div>
+      </section>
+
+      <!-- AGENDA -->
+      <section class="screen" id="agenda">
+        <div class="page-title">
+          <span class="eyebrow">SEU DIA</span>
+          <h1>Agenda</h1>
+          <p>Jogos, refeições, reuniões e programação.</p>
+        </div>
+
+        <div class="timeline">
+          <div class="timeline-item">
+            <time>07:00</time><span class="dot"></span>
+            <div><strong>Café da manhã</strong><small>Alojamento</small></div>
+          </div>
+          <div class="timeline-item">
+            <time>08:00</time><span class="dot"></span>
+            <div><strong>Reunião técnica</strong><small>Sala de reuniões</small></div>
+          </div>
+          <div class="timeline-item highlight">
+            <time>14:30</time><span class="dot"></span>
+            <div><strong>🏐 Jogo — UDESC × UFSC</strong><small>Ginásio 2</small></div>
+          </div>
+          <div class="timeline-item">
+            <time>19:30</time><span class="dot"></span>
+            <div><strong>Jantar</strong><small>Alojamento</small></div>
+          </div>
+          <div class="timeline-item">
+            <time>22:00</time><span class="dot"></span>
+            <div><strong>Confraternização</strong><small>Espaço da Atlética</small></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- INFOS -->
+      <section class="screen" id="infos">
+        <div class="page-title">
+          <span class="eyebrow">CENTRAL CCT</span>
+          <h1>Informações</h1>
+          <p>Documentos e informações úteis durante os jogos.</p>
+        </div>
+
+        <div class="info-list">
+          <button>📄 <span>Regulamento</span><b>›</b></button>
+          <button>🚌 <span>Transporte</span><b>›</b></button>
+          <button>🛏️ <span>Alojamento</span><b>›</b></button>
+          <button>🍽️ <span>Alimentação</span><b>›</b></button>
+          <button>📍 <span>Locais das competições</span><b>›</b></button>
+          <button>👕 <span>Uniformes</span><b>›</b></button>
+          <button>☎️ <span>Contatos importantes</span><b>›</b></button>
+          <button>🏆 <span>Classificação</span><b>›</b></button>
+          <button>🎉 <span>Programação social</span><b>›</b></button>
+        </div>
+      </section>
+
+      <!-- PERFIL -->
+      <section class="screen" id="perfil">
+        <div class="profile">
+          <div class="profile-logo"><img src="logo.jpeg" alt="" /></div>
+          <h1>Meu perfil</h1>
+          <p>Personalize quais modalidades aparecem para você.</p>
+        </div>
+
+        <div class="profile-card">
+          <h3>Minhas modalidades</h3>
+          <label><input type="checkbox" value="Vôlei" checked> 🏐 Vôlei</label>
+          <label><input type="checkbox" value="Futsal" checked> ⚽ Futsal</label>
+          <label><input type="checkbox" value="Basquete"> 🏀 Basquete</label>
+          <label><input type="checkbox" value="Handebol"> 🤾 Handebol</label>
+          <button class="primary" id="saveSports">Salvar preferências</button>
+          <small id="savedMsg"></small>
+        </div>
+
+        <div class="install-card">
+          <strong>📲 Instalar CCT Jogos</strong>
+          <p>No iPhone: abra no Safari → Compartilhar → Adicionar à Tela de Início.</p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-item active" data-screen="home"><span>⌂</span><small>Início</small></button>
+      <button class="nav-item" data-screen="jogos"><span>◉</span><small>Jogos</small></button>
+      <button class="nav-item" data-screen="agenda"><span>▣</span><small>Agenda</small></button>
+      <button class="nav-item" data-screen="infos"><span>ⓘ</span><small>Infos</small></button>
+      <button class="nav-item" data-screen="perfil"><span>●</span><small>Perfil</small></button>
+    </nav>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
