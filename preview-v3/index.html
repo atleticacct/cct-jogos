@@ -68,13 +68,17 @@
             <span class="muted">INTERLAJE 2026</span>
           </div>
           <div class="teams">
-            <div class="team"><img src="assets/logo-cct.jpg" /><strong>CCT</strong></div>
+            <div class="team"><img src="assets/logo-jogos-cct.png" /><strong>CCT</strong></div>
             <div class="score"><b>18:30</b><small>HOJE</small></div>
             <div class="team opponent"><div class="opponent-badge">ENG</div><strong>Engenharia</strong></div>
           </div>
           <div class="match-foot">
             <span>📍 Ginásio Central</span>
             <button class="ghost" data-open="scenario">🎯 Vale classificação</button>
+          </div>
+          <div class="match-representative">
+            <img src="assets/representante-demo.png" alt="Representante da Atlética" />
+            <div><small>REPRESENTANTE</small><strong>Guilherme</strong></div>
           </div>
         </article>
 
@@ -83,12 +87,11 @@
           <button data-go="jogos">VER TODAS ›</button>
         </div>
         <div class="horizontal">
-          <article class="visual-card" style="--bg:url('assets/levantamento-1.jpg')">
-            <div><span class="chip live">ATIVA</span><h4>INTERLAJE 2026</h4><p>Jogos, grupos e classificação</p></div>
-          </article>
-          <article class="visual-card" style="--bg:url('assets/volei-praia-1.jpg')">
-            <div><span class="chip">PRÓXIMA</span><h4>JIUDESC 2026</h4><p>30/10 a 02/11</p></div>
-          </article>
+          <article class="visual-card" style="--bg:url('assets/levantamento-1.jpg')"><div><span class="chip live">ATIVA</span><h4>INTERLAJE</h4><p>Edição 2026</p></div></article>
+          <article class="visual-card" style="--bg:url('assets/volei-praia-1.jpg')"><div><span class="chip">COMPETIÇÃO</span><h4>JIUDESC</h4><p>Edições por ano</p></div></article>
+          <article class="visual-card" style="--bg:url('assets/volei-praia-2.jpg')"><div><span class="chip">COMPETIÇÃO</span><h4>JIU PRAIA</h4><p>Edições por ano</p></div></article>
+          <article class="visual-card" style="--bg:url('assets/skate.jpg')"><div><span class="chip">COMPETIÇÃO</span><h4>COPA LAJE DE VERÃO</h4><p>Edições por ano</p></div></article>
+          <article class="visual-card" style="--bg:url('assets/levantamento-2.jpg')"><div><span class="chip">COMPETIÇÃO</span><h4>COPA LAJE DE SOCIETY</h4><p>Edições por ano</p></div></article>
         </div>
 
         <div class="section-head">
@@ -139,17 +142,21 @@
         <article class="match-card compact">
           <div class="match-top"><span class="chip">VÔLEI MASCULINO</span><span class="muted">GRUPO A</span></div>
           <div class="teams">
-            <div class="team"><img src="assets/logo-cct.jpg" /><strong>CCT</strong></div>
+            <div class="team"><img src="assets/logo-jogos-cct.png" /><strong>CCT</strong></div>
             <div class="score"><b>18:30</b><small>HOJE</small></div>
             <div class="team opponent"><div class="opponent-badge">ENG</div><strong>Engenharia</strong></div>
           </div>
           <div class="match-foot"><span>📍 Ginásio Central</span><button class="ghost" data-open="scenario">Situação do grupo ›</button></div>
+          <div class="match-representative">
+            <img src="assets/representante-demo.png" alt="Representante da Atlética" />
+            <div><small>REPRESENTANTE</small><strong>Guilherme</strong></div>
+          </div>
         </article>
 
         <article class="match-card compact finished">
           <div class="match-top"><span class="chip result">FINALIZADO</span><span class="muted">FUTSAL MASCULINO</span></div>
           <div class="teams">
-            <div class="team"><img src="assets/logo-cct.jpg" /><strong>CCT</strong></div>
+            <div class="team"><img src="assets/logo-jogos-cct.png" /><strong>CCT</strong></div>
             <div class="score"><b>4 × 2</b><small class="win">VITÓRIA</small></div>
             <div class="team opponent"><div class="opponent-badge">DIR</div><strong>Direito</strong></div>
           </div>
@@ -210,6 +217,38 @@
         </div>
         <button class="primary full">SALVAR ALTERAÇÕES</button>
       </section>
+
+      <section class="screen" data-screen="membros">
+        <div class="page-title"><div><i></i><div><small>ACESSO RESTRITO</small><h2>Área da Atlética</h2></div></div></div>
+        <div class="member-lock" id="memberLock">
+          <div class="lock-icon">🔒</div>
+          <h3>Área exclusiva para membros</h3>
+          <p>Na versão final, somente membros autorizados poderão acessar esta área. Nesta prévia, o botão abaixo libera uma demonstração visual.</p>
+          <button class="primary" id="demoMemberAccess">ENTRAR NA DEMONSTRAÇÃO</button>
+        </div>
+        <div class="member-dashboard" id="memberDashboard" hidden>
+          <div class="member-summary">
+            <div><small>HOJE</small><strong>3</strong><span>compromissos</span></div>
+            <div><small>JOGOS</small><strong>2</strong><span>responsáveis</span></div>
+            <div><small>PENDÊNCIAS</small><strong>4</strong><span>tarefas</span></div>
+          </div>
+          <div class="section-head"><div><i></i><h3>ATALHOS INTERNOS</h3></div></div>
+          <div class="member-grid">
+            <button><span>📅</span><strong>Agenda interna</strong><small>Reuniões, montagens e compromissos</small></button>
+            <button><span>🏆</span><strong>Escala dos jogos</strong><small>Responsáveis por partida</small></button>
+            <button><span>🏠</span><strong>Escala da salinha</strong><small>Horários e responsáveis</small></button>
+            <button><span>📄</span><strong>Documentos internos</strong><small>Arquivos exclusivos da equipe</small></button>
+            <button><span>✅</span><strong>Tarefas</strong><small>Pendências e responsáveis</small></button>
+            <button data-open="forms"><span>🧾</span><strong>Forms e pedidos</strong><small>Vendas, kits, uniformes e retiradas</small></button>
+          </div>
+          <div class="section-head"><div><i></i><h3>PRÓXIMOS RESPONSÁVEIS</h3></div></div>
+          <div class="internal-list">
+            <div><img src="assets/representante-demo.png"><span><strong>Guilherme</strong><small>Vôlei Masculino • 18:30</small></span></div>
+            <div><div class="avatar-placeholder">M</div><span><strong>Membro 2</strong><small>Futsal Masculino • 20:00</small></span></div>
+          </div>
+        </div>
+      </section>
+
     </main>
 
     <nav class="bottom-nav">
@@ -224,9 +263,11 @@
   <div class="drawer-backdrop" id="drawerBackdrop"></div>
   <aside class="drawer" id="drawer">
     <div class="drawer-head"><img src="assets/logo-cct-header.png" /><div><strong>ATLÉTICA CCT</strong><small>UDESC • JOINVILLE</small></div><button id="closeDrawer">×</button></div>
-    <div class="drawer-banner" style="--db:url('assets/logo-cct-header.png')"><div><small>DESDE 2005</small><strong>Paixão que move a CCT</strong></div></div>
+    <div class="drawer-banner" style="--db:url('assets/logo-cct-header.png')"><div><small>DESDE 2005</small><strong>PAIXÃO QUE MOVE O CCT</strong></div></div>
     <div class="drawer-links">
       <button data-go="jogos">🏆 <span>Competições</span><b>›</b></button>
+      <button data-go="membros">🔒 <span>Área da Atlética</span><b>›</b></button>
+      <button data-open="forms">▣ <span>Pedidos e Formulários</span><b>›</b></button>
       <button data-open="media">▧ <span>Mídia CCT</span><b>›</b></button>
       <button data-open="docs">▤ <span>Documentos</span><b>›</b></button>
       <button data-open="places">⌖ <span>Locais</span><b>›</b></button>
