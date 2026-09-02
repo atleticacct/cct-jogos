@@ -57,15 +57,20 @@ function eventMeta(e){return [e.DATA,e.HORA,e.LOCAL].filter(Boolean).join(' • 
 function normalizeImageUrl(url){
   const raw=String(url||'').trim();
   if(!raw)return '';
+
+  // Link comum do Google Drive: /file/d/ID/view...
   const driveFile=raw.match(/drive\.google\.com\/file\/d\/([^/?#]+)/i);
-  if(driveFile)return `https://drive.google.com/thumbnail?id=${encodeURIComponent(driveFile[1])}&sz=w1600`;
+  if(driveFile)return `https://lh3.googleusercontent.com/d/${encodeURIComponent(driveFile[1])}=w1600`;
+
+  // Outros links do Drive que usam ?id=ID
   try{
     const u=new URL(raw);
     if(/(^|\.)drive\.google\.com$/i.test(u.hostname)){
       const id=u.searchParams.get('id');
-      if(id)return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w1600`;
+      if(id)return `https://lh3.googleusercontent.com/d/${encodeURIComponent(id)}=w1600`;
     }
   }catch(e){}
+
   return raw;
 }
 function eventCard(e,home=false){const img=normalizeImageUrl(e.IMAGEM_URL)||'assets/evento-verde.jpg';const badge=e.DESTAQUE==='SIM'?'DESTAQUE':(e.STATUS||e.TIPO||'EVENTO');return `<article class="event-card ${home?'':'large'} dynamic-event" style="--event:url('${img.replace(/'/g,"%27")}')"><div class="event-gradient"></div><div class="event-copy"><span class="chip ${e.DESTAQUE==='SIM'?'live':''}">${badge}</span><h4>${escapeHtml(e.NOME||'Evento CCT')}</h4><p>${escapeHtml(eventMeta(e))}</p>${e.AVISO?`<small class="event-alert">${escapeHtml(e.AVISO)}</small>`:''}<button class="light" data-event-id="${escapeHtml(e.ID_EVENTO||'')}">VER DETALHES ›</button></div></article>`}
