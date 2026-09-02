@@ -17,10 +17,54 @@ async function carregarDadosAPI() {
     apiData.classificacao = dados.classificacao || [];
     apiData.cenarios = dados.cenarios || [];
 
+    renderizarJogos();
+
     console.log('API CCT carregada:', apiData);
   } catch (erro) {
     console.error('Erro ao carregar API CCT:', erro);
   }
+}
+function renderizarJogos() {
+  const container = document.querySelector('#jogosContainer');
+  if (!container) return;
+
+  const jogos = apiData.jogos.filter(jogo =>
+    jogo.ID_COMPETICAO === 'INTERLAJE-2026'
+  );
+
+  if (!jogos.length) {
+    container.innerHTML = '<p>Nenhum jogo encontrado.</p>';
+    return;
+  }
+
+  container.innerHTML = jogos.map(jogo => `
+    <article class="match-card compact">
+      <div class="match-top">
+        <span class="chip">${jogo.ID_MODALIDADE || ''}</span>
+        <span class="muted">${jogo.GRUPO ? 'GRUPO ' + jogo.GRUPO : jogo.FASE || ''}</span>
+      </div>
+
+      <div class="teams">
+        <div class="team">
+          <strong>${jogo.EQUIPE_A || 'A DEFINIR'}</strong>
+        </div>
+
+        <div class="score">
+          <b>${jogo.PLACAR_A !== '' && jogo.PLACAR_B !== '' ? `${jogo.PLACAR_A} × ${jogo.PLACAR_B}` : jogo.HORA || '--:--'}</b>
+          <small>${jogo.STATUS || ''}</small>
+        </div>
+
+        <div class="team opponent">
+          <strong>${jogo.EQUIPE_B || 'A DEFINIR'}</strong>
+        </div>
+      </div>
+
+      <div class="match-foot">
+        <span>📍 ${jogo.LOCAL || 'Local a definir'}</span>
+        <span>${jogo.DATA || ''}</span>
+      </div>
+    </article>
+  `).join('');
 }
 carregarDadosAPI();
 function go(screen){
