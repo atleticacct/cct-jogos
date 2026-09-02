@@ -1,6 +1,28 @@
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
+const API_URL = 'https://script.google.com/macros/s/AKfycbwanjoMA8Kd9pdtGWlraMN7agGTdlY_8zMaXBQQQL_7zRBPwZltu8oVMfUQFHgAQOKzbA/exec';
 
+let apiData = {
+  jogos: [],
+  classificacao: [],
+  cenarios: []
+};
+
+async function carregarDadosAPI() {
+  try {
+    const resposta = await fetch(API_URL);
+    const dados = await resposta.json();
+
+    apiData.jogos = dados.jogos || [];
+    apiData.classificacao = dados.classificacao || [];
+    apiData.cenarios = dados.cenarios || [];
+
+    console.log('API CCT carregada:', apiData);
+  } catch (erro) {
+    console.error('Erro ao carregar API CCT:', erro);
+  }
+}
+carregarDadosAPI();
 function go(screen){
   $$('.screen').forEach(x=>x.classList.toggle('active',x.dataset.screen===screen));
   $$('.bottom-nav button[data-go]').forEach(x=>x.classList.toggle('active',x.dataset.go===screen));
