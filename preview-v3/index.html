@@ -62,25 +62,9 @@
           <button data-go="perfil">PERFIL</button>
         </div>
 
-        <article class="match-card">
-          <div class="match-top">
-            <span class="chip">VÔLEI MASCULINO</span>
-            <span class="muted">INTERLAJE 2026</span>
-          </div>
-          <div class="teams">
-            <div class="team"><img src="assets/logo-jogos-cct.png" /><strong>CCT</strong></div>
-            <div class="score"><b>18:30</b><small>HOJE</small></div>
-            <div class="team opponent"><div class="opponent-badge">ENG</div><strong>Engenharia</strong></div>
-          </div>
-          <div class="match-foot">
-            <span>📍 Ginásio Central</span>
-            <button class="ghost" data-open="scenario">🎯 Vale classificação</button>
-          </div>
-          <div class="match-representative">
-            <img src="assets/representante-demo.png" alt="Representante da Atlética" />
-            <div><small>REPRESENTANTE</small><strong>Guilherme</strong></div>
-          </div>
-        </article>
+        <div id="homeNextGameContainer" class="home-next-game-container">
+          <div class="games-loading">Carregando próximo jogo...</div>
+        </div>
 
         <div class="section-head">
           <div><i></i><h3>COMPETIÇÕES</h3></div>
@@ -124,54 +108,26 @@
 
       <section class="screen" data-screen="jogos">
         <div class="page-title"><div><i></i><div><small>COMPETIÇÃO</small><h2>Jogos</h2></div></div></div>
-        <button class="select-card">Interlaje 2026 <span>⌄</span></button>
 
-        <div class="segmented">
-          <button class="selected">Todos os Jogos</button><button>Meus Jogos</button>
-        </div>
-        <div class="filters">
-          <button class="selected">Hoje</button><button>Amanhã</button><button>Todos</button><button>Vôlei</button><button>Futsal</button>
-        </div>
+        <button class="select-card" id="competicaoBtn" type="button">
+          <span id="competicaoNome">Interlaje 2026</span><span>⌄</span>
+        </button>
 
-        <div id="jogosContainer"></div>
-
-        <article class="match-card compact">
-          <div class="match-top"><span class="chip">VÔLEI MASCULINO</span><span class="muted">GRUPO A</span></div>
-          <div class="teams">
-            <div class="team"><img src="assets/logo-jogos-cct.png" /><strong>CCT</strong></div>
-            <div class="score"><b>18:30</b><small>HOJE</small></div>
-            <div class="team opponent"><div class="opponent-badge">ENG</div><strong>Engenharia</strong></div>
-          </div>
-          <div class="match-foot"><span>📍 Ginásio Central</span><button class="ghost" data-open="scenario">Situação do grupo ›</button></div>
-          <div class="match-representative">
-            <img src="assets/representante-demo.png" alt="Representante da Atlética" />
-            <div><small>REPRESENTANTE</small><strong>Guilherme</strong></div>
-          </div>
-        </article>
-
-        <article class="match-card compact finished">
-          <div class="match-top"><span class="chip result">FINALIZADO</span><span class="muted">FUTSAL MASCULINO</span></div>
-          <div class="teams">
-            <div class="team"><img src="assets/logo-jogos-cct.png" /><strong>CCT</strong></div>
-            <div class="score"><b>4 × 2</b><small class="win">VITÓRIA</small></div>
-            <div class="team opponent"><div class="opponent-badge">DIR</div><strong>Direito</strong></div>
-          </div>
-          <div class="match-foot"><span>Ontem • 20:00</span><button class="ghost">Ver detalhes ›</button></div>
-        </article>
-
-        <div class="section-head"><div><i></i><h3>CLASSIFICAÇÃO — GRUPO A</h3></div></div>
-        <div class="standings">
-          <div class="stand-head"><span>#</span><span>Equipe</span><span>J</span><span>V</span><span>Pts</span></div>
-          <div class="qual"><span>1</span><b>CCT</b><span>2</span><span>2</span><strong>6</strong></div>
-          <div class="qual"><span>2</span><b>Engenharia</b><span>2</span><span>1</span><strong>3</strong></div>
-          <div><span>3</span><b>Direito</b><span>2</span><span>1</span><strong>3</strong></div>
-          <div><span>4</span><b>Medicina</b><span>2</span><span>0</span><strong>0</strong></div>
+        <div class="segmented" id="tipoJogos">
+          <button class="selected" data-tipo-jogos="todos" type="button">Todos os Jogos</button>
+          <button data-tipo-jogos="meus" type="button">Meus Jogos</button>
         </div>
 
-        <div class="scenario-card">
-          <span class="target">🎯</span>
-          <div><small>CENÁRIO DE CLASSIFICAÇÃO</small><strong>Vitória por 2×0 garante a vaga</strong><p>Vitória por 2×1 pode depender do outro resultado do grupo.</p></div>
+        <div class="filters" id="filtrosJogos">
+          <button class="selected" data-filtro="hoje" type="button">Hoje</button>
+          <button data-filtro="amanha" type="button">Amanhã</button>
+          <button data-filtro="todos" type="button">Todos</button>
+          <button data-filtro="VOL" type="button">Vôlei</button>
+          <button data-filtro="FUT" type="button">Futsal</button>
         </div>
+
+        <div id="jogosResumo" class="games-summary"></div>
+        <div id="jogosContainer"><div class="games-loading">Carregando jogos...</div></div>
       </section>
 
       <section class="screen" data-screen="agenda">

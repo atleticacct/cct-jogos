@@ -45,3 +45,23 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
 
 /* Eventos dinâmicos — Painel Administrativo */
 .events-dynamic{display:grid;gap:13px}.event-loading,.event-empty,.event-error{background:#101512;border:1px solid #273029;border-radius:18px;padding:22px;text-align:center;color:#8d9a91;font-size:11px}.event-error small{display:block;margin-top:5px;color:#667168}.dynamic-event{margin-bottom:0}.event-alert{display:block;margin:8px 0 16px;color:#b9c5bc;font-size:9px;font-weight:800}.event-modal-image{width:100%;max-height:280px;object-fit:cover;border-radius:18px;margin:14px 0;border:1px solid #2b372f}.event-detail-list{display:grid;gap:8px;margin:12px 0}.event-detail-list>div{display:grid;grid-template-columns:105px 1fr;gap:10px;background:#121814;border:1px solid #273029;border-radius:13px;padding:11px}.event-detail-list b{font-size:10px;color:#7dde98}.event-detail-list span{font-size:11px;color:#d9dfda}.event-detail-list small{display:block;color:#829087;margin-top:3px}.event-notice{margin:12px 0;background:#17261b;border:1px solid #315b3d;border-radius:13px;padding:11px;color:#85e39f;font-size:11px;font-weight:800}.event-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:16px}.event-action{display:grid;place-items:center;text-decoration:none;min-height:44px;border-radius:13px;font-size:10px;font-weight:900}.event-actions .ghost{border:1px solid #31513b;background:#111b14;color:#8ee6a8}.event-actions .primary{background:var(--green);color:#07110b;border:0}@media(max-width:370px){.event-actions{grid-template-columns:1fr}}
+
+
+/* Jogos dinâmicos — API CCT */
+.home-next-game-container{display:grid;gap:12px}
+.games-loading,.games-empty{background:#101512;border:1px solid #273029;border-radius:18px;padding:20px;text-align:center;color:#8d9a91;font-size:11px}
+.games-summary{min-height:18px;margin:2px 2px 10px;color:#7f8c83;font-size:10px;font-weight:800}
+#jogosContainer{display:grid;gap:14px}
+#jogosContainer .match-card.compact{margin-bottom:0}
+.teams{grid-template-columns:minmax(0,1fr) 108px minmax(0,1fr)}
+.team{min-width:0}.team strong{overflow-wrap:anywhere;line-height:1.2}
+.score{min-width:108px}.score b{white-space:nowrap;font-size:clamp(22px,7vw,28px);line-height:1}
+.score small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.match-foot>span{min-width:0}.match-foot>span:first-child{overflow-wrap:anywhere}
+.match-card.is-cct{border-color:#315b3d;box-shadow:0 14px 35px rgba(0,0,0,.2),inset 3px 0 0 var(--green)}
+.match-card .team.cct-team strong{color:#c8f8d5}
+.competition-list{display:grid;gap:9px;margin-top:14px}
+.competition-option{width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;background:#131915;color:#fff;border:1px solid #273029;border-radius:14px;padding:14px;text-align:left;font-weight:800}
+.competition-option small{display:block;color:#7f8c83;font-size:9px;margin-top:3px}.competition-option.active{border-color:#347d49;background:#112017}
+.home-next-game-container .match-card{margin:0}
+@media(max-width:390px){.teams{grid-template-columns:minmax(0,1fr) 96px minmax(0,1fr)}.score{min-width:96px}.score b{font-size:24px}.team strong{font-size:12px}}
