@@ -200,22 +200,14 @@
       </section>
 
       <section class="screen" data-screen="perfil">
-        <div class="profile-hero">
-          <img src="assets/logo-cct.jpg" />
-          <div><small>MEU PERFIL</small><h2>Guilherme</h2><p>Experiência personalizada da CCT</p></div>
-        </div>
-        <div class="profile-card">
-          <div class="section-head"><div><i></i><h3>MINHAS MODALIDADES</h3></div><button>EDITAR</button></div>
-          <label><span>🏐</span><div><strong>Vôlei Masculino</strong><small>Jogos e notificações</small></div><input type="checkbox" checked /></label>
-          <label><span>⚽</span><div><strong>Futsal Masculino</strong><small>Jogos e notificações</small></div><input type="checkbox" checked /></label>
-          <label><span>🏀</span><div><strong>Basquete Masculino</strong><small>Não selecionado</small></div><input type="checkbox" /></label>
-        </div>
-        <div class="profile-card">
-          <div class="section-head"><div><i></i><h3>PREFERÊNCIAS</h3></div></div>
-          <label><span>🔔</span><div><strong>Avisos importantes</strong><small>Mudanças de horário, local e urgências</small></div><input type="checkbox" checked /></label>
-          <label><span>🎉</span><div><strong>Eventos</strong><small>Novidades de festas e integrações</small></div><input type="checkbox" checked /></label>
-        </div>
-        <button class="primary full">SALVAR ALTERAÇÕES</button>
+        <div class="profile-hero profile-hero-new"><div class="profile-avatar-wrap"><img src="assets/representante-demo.png" alt="Foto do perfil"><span class="profile-online"></span></div><div class="profile-identity"><small>MEU PERFIL CCT</small><h2 id="profileNameDisplay">Guilherme</h2><p id="profileSummary">2 modalidades selecionadas</p></div><button class="profile-edit-btn" id="editProfileBtn" aria-label="Editar nome">✎</button></div>
+        <div class="profile-card focus-card"><div class="profile-card-title"><div><span class="profile-title-icon">⭐</span><div><strong>SÓ MEUS ESPORTES</strong><small>Priorize no app apenas o que você acompanha</small></div></div><label class="switch"><input id="onlyMySports" type="checkbox" checked><span class="slider"></span></label></div><p class="profile-helper">Quando ativado, seus próximos jogos, competições e avisos esportivos dão prioridade às modalidades escolhidas abaixo.</p></div>
+        <div class="profile-card"><div class="section-head"><div><i></i><h3>MINHAS MODALIDADES</h3></div><span class="profile-count" id="sportsCount">2 selecionadas</span></div><p class="profile-intro">Escolha tudo o que você joga ou quer acompanhar.</p><div class="sport-grid" id="sportGrid">
+          <label class="sport-choice"><input type="checkbox" data-sport="Futsal Feminino"><span class="sport-icon">⚽</span><strong>Futsal</strong><small>Feminino</small><b>✓</b></label><label class="sport-choice"><input type="checkbox" data-sport="Futsal Masculino" checked><span class="sport-icon">⚽</span><strong>Futsal</strong><small>Masculino</small><b>✓</b></label><label class="sport-choice"><input type="checkbox" data-sport="Vôlei Feminino"><span class="sport-icon">🏐</span><strong>Vôlei</strong><small>Feminino</small><b>✓</b></label><label class="sport-choice"><input type="checkbox" data-sport="Vôlei Masculino" checked><span class="sport-icon">🏐</span><strong>Vôlei</strong><small>Masculino</small><b>✓</b></label><label class="sport-choice"><input type="checkbox" data-sport="Basquete Feminino"><span class="sport-icon">🏀</span><strong>Basquete</strong><small>Feminino</small><b>✓</b></label><label class="sport-choice"><input type="checkbox" data-sport="Basquete Masculino"><span class="sport-icon">🏀</span><strong>Basquete</strong><small>Masculino</small><b>✓</b></label><label class="sport-choice"><input type="checkbox" data-sport="Handebol Feminino"><span class="sport-icon">🤾</span><strong>Handebol</strong><small>Feminino</small><b>✓</b></label><label class="sport-choice"><input type="checkbox" data-sport="Handebol Masculino"><span class="sport-icon">🤾</span><strong>Handebol</strong><small>Masculino</small><b>✓</b></label>
+        </div></div>
+        <div class="profile-card"><div class="section-head"><div><i></i><h3>MINHA EXPERIÊNCIA</h3></div></div><button class="profile-link-row" data-go="jogos"><span>🏆</span><div><strong>Meus jogos</strong><small>Partidas das modalidades selecionadas</small></div><b>›</b></button><button class="profile-link-row" data-go="agenda"><span>📅</span><div><strong>Minha programação</strong><small>Treinos, jogos e compromissos</small></div><b>›</b></button></div>
+        <div class="profile-card"><div class="section-head"><div><i></i><h3>NOTIFICAÇÕES</h3></div></div><label class="setting-row"><span>🚨</span><div><strong>Avisos importantes</strong><small>Mudança de horário, local e urgências</small></div><label class="switch"><input id="notifyUrgent" type="checkbox" checked><span class="slider"></span></label></label><label class="setting-row"><span>🏆</span><div><strong>Jogos e resultados</strong><small>Lembretes e placares dos meus esportes</small></div><label class="switch"><input id="notifyGames" type="checkbox" checked><span class="slider"></span></label></label><label class="setting-row"><span>🎉</span><div><strong>Eventos da CCT</strong><small>Festas, integrações e novidades</small></div><label class="switch"><input id="notifyEvents" type="checkbox" checked><span class="slider"></span></label></label></div>
+        <button class="member-entry" data-go="membros"><span class="member-entry-icon">🔒</span><div><small>MEMBROS DA ATLÉTICA</small><strong>Área da Atlética</strong><p>Agenda interna, escalas, tarefas e pedidos</p></div><b>›</b></button><button class="primary full profile-save" id="saveProfileBtn">SALVAR PREFERÊNCIAS</button><div class="save-feedback" id="saveFeedback">✓ Preferências salvas neste aparelho</div>
       </section>
 
       <section class="screen" data-screen="membros">
