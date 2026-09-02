@@ -108,15 +108,9 @@
           <div><i></i><h3>EVENTOS</h3></div>
           <button data-go="eventos">VER TODOS ›</button>
         </div>
-        <article class="event-card" style="--event:url('assets/evento-verde.jpg')">
-          <div class="event-gradient"></div>
-          <div class="event-copy">
-            <span class="chip">PRÓXIMO EVENTO</span>
-            <h4>Integração CCT</h4>
-            <p>Sex • 23:00 • Joinville</p>
-            <button class="light">VER DETALHES ›</button>
-          </div>
-        </article>
+        <div id="homeEventContainer" class="events-dynamic">
+          <div class="event-loading">Carregando próximo evento...</div>
+        </div>
 
         <div class="section-head">
           <div><i></i><h3>MÍDIA CCT</h3></div>
@@ -191,12 +185,9 @@
 
       <section class="screen" data-screen="eventos">
         <div class="page-title"><div><i></i><div><small>VIVA A CCT</small><h2>Eventos</h2></div></div></div>
-        <article class="event-card large" style="--event:url('assets/evento-verde.jpg')">
-          <div class="event-gradient"></div><div class="event-copy"><span class="chip live">DESTAQUE</span><h4>Integração CCT</h4><p>Sex • 23:00 • Joinville</p><button class="light">DETALHES ›</button></div>
-        </article>
-        <article class="event-card large" style="--event:url('assets/volei-praia-2.jpg')">
-          <div class="event-gradient"></div><div class="event-copy"><span class="chip">COMPETIÇÃO</span><h4>Encontro da Delegação</h4><p>Dom • 08:00 • Arena</p><button class="light">DETALHES ›</button></div>
-        </article>
+        <div id="eventsContainer" class="events-dynamic">
+          <div class="event-loading">Carregando eventos...</div>
+        </div>
       </section>
 
       <section class="screen" data-screen="perfil">
