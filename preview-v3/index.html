@@ -47,15 +47,7 @@
           </div>
         </div>
 
-        <div class="urgent-card">
-          <div class="urgent-icon">!</div>
-          <div>
-            <small>AVISO IMPORTANTE</small>
-            <strong>Horário do Futsal Masculino alterado</strong>
-            <p>Novo horário: hoje, 19:30.</p>
-          </div>
-          <span class="arrow">›</span>
-        </div>
+        <div id="homeUrgentContainer"></div>
 
         <div class="section-head">
           <div><i></i><h3>SEU PRÓXIMO JOGO</h3></div>
@@ -70,23 +62,13 @@
           <div><i></i><h3>COMPETIÇÕES</h3></div>
           <button data-go="jogos">VER TODAS ›</button>
         </div>
-        <div class="horizontal">
-          <article class="visual-card" style="--bg:url('assets/levantamento-1.jpg')"><div><span class="chip live">ATIVA</span><h4>INTERLAJE</h4><p>Edição 2026</p></div></article>
-          <article class="visual-card" style="--bg:url('assets/volei-praia-1.jpg')"><div><span class="chip">COMPETIÇÃO</span><h4>JIUDESC</h4><p>Edições por ano</p></div></article>
-          <article class="visual-card" style="--bg:url('assets/volei-praia-2.jpg')"><div><span class="chip">COMPETIÇÃO</span><h4>JIU PRAIA</h4><p>Edições por ano</p></div></article>
-          <article class="visual-card" style="--bg:url('assets/skate.jpg')"><div><span class="chip">COMPETIÇÃO</span><h4>COPA LAJE DE VERÃO</h4><p>Edições por ano</p></div></article>
-          <article class="visual-card" style="--bg:url('assets/levantamento-2.jpg')"><div><span class="chip">COMPETIÇÃO</span><h4>COPA LAJE DE SOCIETY</h4><p>Edições por ano</p></div></article>
-        </div>
+        <div class="horizontal" id="homeCompetitionsContainer"><div class="games-loading">Carregando competições...</div></div>
 
         <div class="section-head">
           <div><i></i><h3>AGENDA DE HOJE</h3></div>
           <button data-go="agenda">VER AGENDA ›</button>
         </div>
-        <div class="timeline mini">
-          <div><time>12:00</time><span class="dot"></span><section><small>TREINO</small><strong>Vôlei Masculino</strong><p>Ginásio CCT</p></section></div>
-          <div><time>17:00</time><span class="dot"></span><section><small>ATENDIMENTO</small><strong>Salinha da Atlética</strong><p>Até 19:00</p></section></div>
-          <div><time>18:30</time><span class="dot"></span><section><small>JOGO</small><strong>CCT × Engenharia</strong><p>Vôlei Masculino</p></section></div>
-        </div>
+        <div class="timeline mini" id="homeAgendaContainer"><div class="games-loading">Carregando agenda...</div></div>
 
         <div class="section-head">
           <div><i></i><h3>EVENTOS</h3></div>
@@ -167,13 +149,8 @@
 
       <section class="screen" data-screen="agenda">
         <div class="page-title"><div><i></i><div><small>CCT</small><h2>Agenda</h2></div></div></div>
-        <div class="date-row"><button>SEG<small>31</small></button><button class="selected">TER<small>01</small></button><button>QUA<small>02</small></button><button>QUI<small>03</small></button><button>SEX<small>04</small></button></div>
-        <div class="filters"><button class="selected">Tudo</button><button>Treinos</button><button>Atendimento</button></div>
-        <div class="timeline">
-          <div><time>12:00</time><span class="dot"></span><section><small>TREINO</small><strong>Vôlei Masculino</strong><p>📍 Ginásio da CCT</p></section></div>
-          <div><time>17:00</time><span class="dot"></span><section><small>ATENDIMENTO CCT</small><strong>Salinha aberta</strong><p>Retiradas, pagamentos e dúvidas • até 19:00</p></section></div>
-          <div><time>20:30</time><span class="dot"></span><section><small>TREINO</small><strong>Futsal Masculino</strong><p>📍 Ginásio 2</p></section></div>
-        </div>
+        <div class="panel-intro"><span>📅</span><div><strong>Programação da CCT</strong><small>Treinos, atendimentos, reuniões e compromissos publicados pelo painel.</small></div></div>
+        <div class="timeline" id="agendaContainer"><div class="games-loading">Carregando agenda...</div></div>
       </section>
 
       <section class="screen" data-screen="eventos">

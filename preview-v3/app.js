@@ -20,7 +20,13 @@ let apiData = {
   classificacao_geral: [],
   cenarios: [],
   competicoes: [],
-  modalidades: []
+  modalidades: [],
+  agenda: [],
+  avisos: [],
+  conteudos: [],
+  locais: [],
+  pessoas: [],
+  eventos: []
 };
 
 let jogosUI = {
@@ -535,6 +541,12 @@ async function carregarDadosAPI(){
     apiData.cenarios=dados.cenarios||[];
     apiData.competicoes=dados.competicoes||[];
     apiData.modalidades=dados.modalidades||[];
+    apiData.agenda=dados.agenda||[];
+    apiData.avisos=dados.avisos||[];
+    apiData.conteudos=dados.conteudos||[];
+    apiData.locais=dados.locais||[];
+    apiData.pessoas=dados.pessoas||[];
+    apiData.eventos=dados.eventos||[];
 
     if(!apiData.competicoes.some(c=>c.ID_COMPETICAO===jogosUI.competicao) && apiData.competicoes[0]){
       jogosUI.competicao=apiData.competicoes[0].ID_COMPETICAO;
@@ -547,6 +559,7 @@ async function carregarDadosAPI(){
     renderizarSeletorClassificacao();
     renderizarAbaCompeticao();
     renderizarProximoJogoHome();
+    renderizarModulosGerais();
 
     console.log('API CCT carregada:',apiData);
   }catch(erro){
@@ -594,7 +607,7 @@ function openModal(type){ mc.innerHTML=modalData[type]||modalData.help; modal.cl
 $$('[data-open]').forEach(b=>b.addEventListener('click',()=>openModal(b.dataset.open)));
 $('#modalClose').onclick=()=>modal.classList.remove('open');
 modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('open')});
-$('#alertBtn').onclick=()=>{mc.innerHTML=`<span class="chip live">2 NOVOS</span><h2>🔔 Avisos</h2><div class="modal-list"><div><strong>Futsal Masculino alterado</strong><small>Novo horário: hoje, 19:30.</small></div><div><strong>Interlaje 2026</strong><small>Tabela de jogos atualizada.</small></div></div>`;modal.classList.add('open')};
+$('#alertBtn').onclick=()=>abrirAvisos();
 
 setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}
@@ -638,4 +651,43 @@ function escapeHtml(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;',
 function showEventDetails(id){const e=cctEvents.find(x=>x.ID_EVENTO===id);if(!e)return;const body=document.getElementById('modalContent');if(!body)return;body.innerHTML=`<span class="chip live">${escapeHtml(e.STATUS||e.TIPO||'EVENTO')}</span><h2>${escapeHtml(e.NOME)}</h2>${normalizeImageUrl(e.IMAGEM_URL)?`<img class="event-modal-image" src="${escapeHtml(normalizeImageUrl(e.IMAGEM_URL))}" alt="${escapeHtml(e.NOME)}">`:''}<div class="event-detail-list"><div><b>📅 Data</b><span>${escapeHtml(e.DATA)}${e.DATA_FIM?` até ${escapeHtml(e.DATA_FIM)}`:''}</span></div><div><b>🕒 Horário</b><span>${escapeHtml(e.HORA)}${e.HORA_FIM?` às ${escapeHtml(e.HORA_FIM)}`:''}</span></div><div><b>📍 Local</b><span>${escapeHtml(e.LOCAL)}${e.ENDERECO?`<small>${escapeHtml(e.ENDERECO)}</small>`:''}</span></div></div>${e.DESCRICAO?`<p>${escapeHtml(e.DESCRICAO)}</p>`:''}${e.AVISO?`<div class="event-notice">${escapeHtml(e.AVISO)}</div>`:''}<div class="event-actions">${e.LINK_MAPS?`<a class="ghost event-action" href="${escapeHtml(e.LINK_MAPS)}" target="_blank" rel="noopener">ABRIR MAPA</a>`:''}${e.LINK_COMPRA?`<a class="primary event-action" href="${escapeHtml(e.LINK_COMPRA)}" target="_blank" rel="noopener">${escapeHtml(e.TEXTO_BOTAO||'SAIBA MAIS')}</a>`:''}</div>`;document.getElementById('modal')?.classList.add('open')}
 function bindEventButtons(){document.querySelectorAll('[data-event-id]').forEach(b=>b.addEventListener('click',()=>showEventDetails(b.dataset.eventId)))}
 async function loadCctEvents(){const all=document.getElementById('eventsContainer'),home=document.getElementById('homeEventContainer');try{const r=await fetch(EVENTS_API,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const data=await r.json();if(!data.sucesso)throw new Error(data.erro||'API');cctEvents=(data.eventos||[]).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||eventDateValue(a)-eventDateValue(b));if(all)all.innerHTML=cctEvents.length?cctEvents.map(e=>eventCard(e)).join(''):'<div class="event-empty">Nenhum evento publicado no momento.</div>';const featured=cctEvents.find(e=>e.DESTAQUE==='SIM')||cctEvents[0];if(home)home.innerHTML=featured?eventCard(featured,true):'<div class="event-empty">Novos eventos em breve.</div>';bindEventButtons()}catch(err){console.error('Eventos:',err);const msg='<div class="event-error">Não foi possível atualizar os eventos agora.<small>Tente novamente em instantes.</small></div>';if(all)all.innerHTML=msg;if(home)home.innerHTML=msg}}
-loadCctEvents();
+// Eventos agora são carregados junto com a API principal.
+
+
+/* v22 — módulos administrativos dinâmicos */
+function dataVal(v,h='00:00'){ return parseBrDate(v,h)?.getTime() || Number.MAX_SAFE_INTEGER; }
+function isSim(v){ return String(v||'').trim().toUpperCase()==='SIM'; }
+function linkSeguro(v){ const x=String(v||'').trim(); return /^https?:\/\//i.test(x)?x:''; }
+function agendaIcon(tipo){ const t=String(tipo||'').toUpperCase(); if(t.includes('TREINO'))return '🏃'; if(t.includes('ATEND'))return '🏠'; if(t.includes('REUNI'))return '👥'; if(t.includes('JOGO'))return '🏆'; return '📅'; }
+function agendaItemHtml(a){
+  const mod=a.ID_MODALIDADE?modalidadeNome(a.ID_MODALIDADE):'';
+  const local=a.LOCAL||a.ENDERECO||'';
+  return `<div class="agenda-row"><time>${escapeHtml(a.HORA_INICIO||'--:--')}</time><span class="dot"></span><section><small>${escapeHtml(a.TIPO||'AGENDA')}</small><strong>${escapeHtml(a.TITULO||mod||'Compromisso CCT')}</strong>${mod&&a.TITULO!==mod?`<em>${escapeHtml(mod)}</em>`:''}${local?`<p>📍 ${escapeHtml(local)}</p>`:''}${a.DESCRICAO?`<p>${escapeHtml(a.DESCRICAO)}</p>`:''}${linkSeguro(a.LINK_MAPS)?`<a href="${escapeHtml(a.LINK_MAPS)}" target="_blank" rel="noopener">ABRIR MAPA ›</a>`:''}</section></div>`;
+}
+function renderizarAgenda(){
+ const c=$('#agendaContainer'); if(!c)return;
+ const linhas=[...apiData.agenda].sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
+ c.innerHTML=linhas.length?linhas.map(agendaItemHtml).join(''):'<div class="games-empty">Nenhum compromisso publicado na agenda.</div>';
+ const h=$('#homeAgendaContainer'); if(h){const hoje=new Date(); let itens=linhas.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA_INICIO),hoje)); if(!itens.length) itens=linhas.filter(a=>dataVal(a.DATA,a.HORA_INICIO)>=Date.now()).slice(0,3); h.innerHTML=itens.length?itens.slice(0,3).map(agendaItemHtml).join(''):'<div class="games-empty">Nada na agenda por enquanto.</div>';}
+}
+function avisosAtivos(){ const now=Date.now(); return apiData.avisos.filter(a=>{const ini=a.DATA_INICIO?dataVal(a.DATA_INICIO,a.HORA_INICIO||'00:00'):0; const fim=a.DATA_FIM?dataVal(a.DATA_FIM,a.HORA_FIM||'23:59'):Number.MAX_SAFE_INTEGER; return now>=ini&&now<=fim;}).sort((a,b)=>(isSim(b.URGENTE)-isSim(a.URGENTE))||((Number(a.ORDEM)||999)-(Number(b.ORDEM)||999))); }
+function renderizarAvisos(){
+ const av=avisosAtivos(); const bell=$('#alertBtn'); if(bell){let b=bell.querySelector('b'); if(b)b.textContent=av.length; bell.classList.toggle('has-alerts',!!av.length);}
+ const box=$('#homeUrgentContainer'); if(box){const a=av.find(x=>isSim(x.URGENTE)||isSim(x.DESTAQUE))||av[0]; box.innerHTML=a?`<button class="urgent-card urgent-dynamic" type="button" data-open-alerts><div class="urgent-icon">!</div><div><small>${isSim(a.URGENTE)?'AVISO URGENTE':'AVISO CCT'}</small><strong>${escapeHtml(a.TITULO||'Aviso')}</strong><p>${escapeHtml(a.MENSAGEM||'')}</p></div><span class="arrow">›</span></button>`:''; box.querySelector('[data-open-alerts]')?.addEventListener('click',abrirAvisos);}
+}
+function abrirAvisos(){ const av=avisosAtivos(); mc.innerHTML=`<span class="chip ${av.some(x=>isSim(x.URGENTE))?'live':''}">${av.length} ${av.length===1?'AVISO':'AVISOS'}</span><h2>🔔 Avisos</h2><div class="modal-list">${av.length?av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso CCT')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join(''):'<div><strong>Nenhum aviso ativo</strong><small>Quando houver novidades elas aparecerão aqui.</small></div>'}</div>`; modal.classList.add('open'); }
+function conteudosHtml(categoria=''){
+ const itens=apiData.conteudos.filter(x=>!categoria||String(x.CATEGORIA||'').toUpperCase().includes(categoria));
+ return itens.length?itens.map(x=>`<div class="content-item">${normalizeImageUrl(x.IMAGEM_URL)?`<img src="${escapeHtml(normalizeImageUrl(x.IMAGEM_URL))}" alt="">`:''}<div><strong>${escapeHtml(x.TITULO||'Conteúdo')}</strong><small>${escapeHtml(x.DESCRICAO||x.CATEGORIA||'')}</small>${linkSeguro(x.LINK)?`<a class="content-link" href="${escapeHtml(x.LINK)}" target="_blank" rel="noopener">${escapeHtml(x.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div></div>`).join(''):'<div><strong>Nenhum conteúdo publicado</strong><small>Cadastre itens na aba CONTEUDOS.</small></div>';
+}
+function abrirConteudos(categoria='',titulo='Conteúdos'){ mc.innerHTML=`<span class="chip">CCT</span><h2>${escapeHtml(titulo)}</h2><div class="modal-list dynamic-content-list">${conteudosHtml(categoria)}</div>`; modal.classList.add('open'); closeDrawer(); }
+function abrirLocais(){ const itens=apiData.locais; mc.innerHTML=`<span class="chip">LOCAIS</span><h2>Onde precisamos estar?</h2><div class="modal-list dynamic-content-list">${itens.length?itens.map(x=>`<div class="content-item">${normalizeImageUrl(x.IMAGEM_URL)?`<img src="${escapeHtml(normalizeImageUrl(x.IMAGEM_URL))}" alt="">`:''}<div><strong>📍 ${escapeHtml(x.NOME||'Local')}</strong><small>${escapeHtml([x.TIPO,x.ENDERECO,x.OBSERVACAO].filter(Boolean).join(' • '))}</small>${linkSeguro(x.LINK_MAPS)?`<a class="content-link" href="${escapeHtml(x.LINK_MAPS)}" target="_blank" rel="noopener">ABRIR NO MAPA ›</a>`:''}</div></div>`).join(''):'<div><strong>Nenhum local publicado</strong><small>Cadastre locais na aba LOCAIS.</small></div>'}</div>`; modal.classList.add('open'); closeDrawer(); }
+function abrirContatos(){ const itens=apiData.pessoas.filter(x=>String(x.ATIVO||'SIM').toUpperCase()!=='NÃO'); mc.innerHTML=`<span class="chip">CONTATOS</span><h2>Fale com a CCT</h2><div class="modal-list dynamic-content-list">${itens.length?itens.map(p=>`<div class="person-contact">${normalizeImageUrl(p.FOTO_URL)?`<img src="${escapeHtml(normalizeImageUrl(p.FOTO_URL))}" alt="">`:`<span class="contact-avatar">${escapeHtml((p.NOME||'C').charAt(0))}</span>`}<div><strong>${escapeHtml(p.NOME||'Contato')}</strong><small>${escapeHtml([p.CARGO,p.TIPO].filter(Boolean).join(' • '))}</small>${linkSeguro(p.LINK_WHATSAPP)?`<a class="content-link" href="${escapeHtml(p.LINK_WHATSAPP)}" target="_blank" rel="noopener">WHATSAPP ›</a>`:''}${p.EMAIL?`<a class="content-link" href="mailto:${escapeHtml(p.EMAIL)}">E-MAIL ›</a>`:''}</div></div>`).join(''):'<div><strong>Nenhum contato publicado</strong><small>Cadastre membros na aba PESSOAS.</small></div>'}</div>`; modal.classList.add('open'); closeDrawer(); }
+function renderizarCompeticoesHome(){ const c=$('#homeCompetitionsContainer'); if(!c)return; const comps=apiData.competicoes.filter(x=>!('PUBLICADO'in x)||isSim(x.PUBLICADO)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)); c.innerHTML=comps.length?comps.map(x=>`<article class="visual-card competition-home-card" style="--bg:url('${normalizeImageUrl(x.IMAGEM_URL)||'assets/levantamento-1.jpg'}')" data-home-competition="${escapeHtml(x.ID_COMPETICAO)}"><div><span class="chip ${isSim(x.DESTAQUE)?'live':''}">${escapeHtml(x.STATUS||'COMPETIÇÃO')}</span><h4>${escapeHtml(x.NOME||x.ID_COMPETICAO)}</h4><p>${escapeHtml(x.ANO||'')}</p></div></article>`).join(''):'<div class="games-empty">Nenhuma competição publicada.</div>'; c.querySelectorAll('[data-home-competition]').forEach(el=>el.addEventListener('click',()=>{jogosUI.competicao=el.dataset.homeCompetition; go('jogos'); renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();})); }
+function renderizarModulosGerais(){ renderizarAgenda(); renderizarAvisos(); renderizarCompeticoesHome(); if(apiData.eventos.length){cctEvents=apiData.eventos.sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||eventDateValue(a)-eventDateValue(b)); const all=$('#eventsContainer'),home=$('#homeEventContainer'); if(all)all.innerHTML=cctEvents.length?cctEvents.map(e=>eventCard(e)).join(''):'<div class="event-empty">Nenhum evento publicado no momento.</div>'; const featured=cctEvents.find(e=>isSim(e.DESTAQUE))||cctEvents[0]; if(home)home.innerHTML=featured?eventCard(featured,true):'<div class="event-empty">Novos eventos em breve.</div>'; bindEventButtons(); } }
+// Conecta atalhos do menu aos dados do Sheets.
+document.querySelectorAll('[data-open="docs"]').forEach(b=>b.onclick=()=>abrirConteudos('DOCUMENT','Documentos'));
+document.querySelectorAll('[data-open="media"]').forEach(b=>b.onclick=()=>abrirConteudos('MID','Mídia CCT'));
+document.querySelectorAll('[data-open="forms"]').forEach(b=>b.onclick=()=>abrirConteudos('FORM','Pedidos e Formulários'));
+document.querySelectorAll('[data-open="places"]').forEach(b=>b.onclick=abrirLocais);
+document.querySelectorAll('[data-open="contacts"]').forEach(b=>b.onclick=abrirContatos);
