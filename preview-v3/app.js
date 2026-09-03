@@ -33,7 +33,8 @@ let apiData = {
 let jogosUI = {
   competicao: 'INTERLAJE-2026',
   tipo: 'todos',
-  filtro: 'todos',
+  dataFiltro: 'todos',
+  modalidadeFiltro: '',
   aba: 'jogos',
   classificacaoModalidade: '',
   classificacaoTipo: 'modalidade'
@@ -114,10 +115,13 @@ function cenarioDaModalidade(idModalidade){
   );
 }
 
-function pessoaJogoHtml(nome,foto,titulo,classe=''){
+function pessoaJogoHtml(nome,foto,titulo,classe='',pendente=''){
   nome=String(nome||'').trim();
-  if(!nome) return '';
   foto=normalizeImageUrl(foto||'');
+  if(!nome){
+    if(!pendente) return '';
+    return `<div class="representation-pending ${classe}"><small>${escapeHtml(titulo)}</small><strong>${escapeHtml(pendente)}</strong></div>`;
+  }
   const iniciais=nome.split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase();
   return `
     <div class="match-representative ${classe}">
@@ -128,18 +132,36 @@ function pessoaJogoHtml(nome,foto,titulo,classe=''){
     </div>`;
 }
 
+function representanteModalidadeDados(jogo){
+  return {
+    nome:String(jogo.REPRESENTANTE || jogo.RESPONSAVEL_MODALIDADE || jogo.REPRESENTANTE_MODALIDADE || '').trim(),
+    foto:jogo.FOTO_REPRESENTANTE || jogo.FOTO_RESPONSAVEL_MODALIDADE || jogo.FOTO_REPRESENTANTE_MODALIDADE || ''
+  };
+}
+
+function responsavelRepresentacaoDados(jogo){
+  return {
+    nome:String(jogo.RESPONSAVEL_REPRESENTACAO || jogo.REPRESENTACAO_RESPONSAVEL || jogo.REPRESENTANTE_CCT || '').trim(),
+    foto:jogo.FOTO_RESP_REPRESENTACAO || jogo.FOTO_RESPONSAVEL_REPRESENTACAO || jogo.FOTO_REPRESENTACAO || jogo.FOTO_REPRESENTANTE_CCT || ''
+  };
+}
+
+function jogoEhRepresentacaoCCT(jogo){
+  const marcado=String(jogo.REPRESENTACAO_CCT||'').trim().toUpperCase();
+  const resp=responsavelRepresentacaoDados(jogo).nome;
+  return marcado==='SIM' || marcado==='S' || marcado==='YES' || marcado==='TRUE' || marcado==='1' || !!resp;
+}
+
 function representanteHtml(jogo){
   if(!jogoTemCCT(jogo)) return '';
-  return pessoaJogoHtml(jogo.REPRESENTANTE,jogo.FOTO_REPRESENTANTE,'REPRESENTANTE DA MODALIDADE');
+  const d=representanteModalidadeDados(jogo);
+  return pessoaJogoHtml(d.nome,d.foto,'REPRESENTANTE DA MODALIDADE','is-modality-rep','Representante a definir');
 }
 
 function representacaoCctHtml(jogo){
-  const nome=String(jogo.RESPONSAVEL_REPRESENTACAO || jogo.REPRESENTACAO_RESPONSAVEL || '').trim();
-  const foto=jogo.FOTO_RESP_REPRESENTACAO || jogo.FOTO_RESPONSAVEL_REPRESENTACAO || jogo.FOTO_REPRESENTACAO || '';
-  const marcado=String(jogo.REPRESENTACAO_CCT||'').trim().toUpperCase()==='SIM';
-  if(!marcado && !nome) return '';
-  if(!nome) return `<div class="representation-pending"><small>REPRESENTAÇÃO CCT</small><strong>Responsável a definir</strong></div>`;
-  return pessoaJogoHtml(nome,foto,'REPRESENTAÇÃO CCT','is-representation');
+  if(!jogoEhRepresentacaoCCT(jogo)) return '';
+  const d=responsavelRepresentacaoDados(jogo);
+  return pessoaJogoHtml(d.nome,d.foto,'RESPONSÁVEL PELA REPRESENTAÇÃO','is-representation','Responsável a definir');
 }
 
 function matchCard(jogo,{home=false}={}){
@@ -150,12 +172,13 @@ function matchCard(jogo,{home=false}={}){
   const comp=competitionName(jogo.ID_COMPETICAO);
   const modalidade=modalidadeNome(jogo.ID_MODALIDADE);
   const cenario=jogoTemCCT(jogo) ? cenarioDaModalidade(jogo.ID_MODALIDADE) : null;
+  const representacao=jogoEhRepresentacaoCCT(jogo);
 
   return `
-    <article class="match-card ${home?'':'compact'} ${jogoTemCCT(jogo)?'is-cct':''}">
+    <article class="match-card ${home?'':'compact'} ${jogoTemCCT(jogo)?'is-cct':''} ${representacao?'is-representation-game':''}">
       <div class="match-top">
         <span class="chip">${escapeHtml(modalidade)}</span>
-        <span class="muted">${escapeHtml(home?comp:fase)}</span>
+        <span class="match-top-meta">${representacao?'<em>REPRESENTAÇÃO CCT</em>':''}<span class="muted">${escapeHtml(home?comp:fase)}</span></span>
       </div>
       <div class="teams">
         <div class="team ${cctA?'cct-team':''}">
@@ -181,31 +204,34 @@ function matchCard(jogo,{home=false}={}){
     </article>`;
 }
 
-function jogosFiltrados(){
-  const now=new Date();
-  const tomorrow=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
-  const sports=profileSportIds();
+function jogoCombinaModalidadeBase(jogo,prefixo){
+  if(!prefixo) return true;
+  const id=String(jogo.ID_MODALIDADE||'');
+  return id===prefixo || id.startsWith(prefixo+'-');
+}
 
+function jogosDoTipo(){
+  const sports=profileSportIds();
   return apiData.jogos
     .filter(j=>j.ID_COMPETICAO===jogosUI.competicao)
     .filter(j=>{
-      if(jogosUI.tipo==='representacoes') {
-        return String(j.REPRESENTACAO_CCT||'').trim().toUpperCase()==='SIM';
-      }
-      if(jogosUI.tipo==='meus') {
-        return jogoTemCCT(j) && sports.includes(j.ID_MODALIDADE);
-      }
+      if(jogosUI.tipo==='representacoes') return jogoEhRepresentacaoCCT(j);
+      if(jogosUI.tipo==='meus') return jogoTemCCT(j) && sports.includes(j.ID_MODALIDADE);
       return true;
-    })
+    });
+}
+
+function jogosFiltrados(){
+  const now=new Date();
+  const tomorrow=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
+
+  return jogosDoTipo()
+    .filter(j=>jogoCombinaModalidadeBase(j,jogosUI.modalidadeFiltro))
     .filter(j=>{
-      if(jogosUI.filtro==='todos') return true;
-      if(jogosUI.filtro.startsWith('modalidade:')){
-        const prefixo=jogosUI.filtro.split(':')[1]||'';
-        return String(j.ID_MODALIDADE||'').startsWith(prefixo+'-');
-      }
+      if(jogosUI.dataFiltro==='todos') return true;
       const d=parseBrDate(j.DATA,j.HORA);
-      if(jogosUI.filtro==='hoje') return sameDay(d,now);
-      if(jogosUI.filtro==='amanha') return sameDay(d,tomorrow);
+      if(jogosUI.dataFiltro==='hoje') return sameDay(d,now);
+      if(jogosUI.dataFiltro==='amanha') return sameDay(d,tomorrow);
       return true;
     })
     .sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
@@ -215,13 +241,7 @@ function renderizarFiltrosModalidades(){
   const select=$('#modalidadeFiltro');
   if(!select) return;
 
-  const ids=[...new Set(
-    apiData.jogos
-      .filter(j=>j.ID_COMPETICAO===jogosUI.competicao)
-      .map(j=>j.ID_MODALIDADE)
-      .filter(Boolean)
-  )];
-
+  const ids=[...new Set(jogosDoTipo().map(j=>j.ID_MODALIDADE).filter(Boolean))];
   const bases=[];
   const vistos=new Set();
 
@@ -233,26 +253,58 @@ function renderizarFiltrosModalidades(){
   });
 
   bases.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
-
-  const atual=jogosUI.filtro.startsWith('modalidade:')
-    ? jogosUI.filtro.split(':')[1]
-    : '';
+  if(jogosUI.modalidadeFiltro && !bases.some(x=>x.prefixo===jogosUI.modalidadeFiltro)) jogosUI.modalidadeFiltro='';
 
   select.innerHTML=[
     '<option value="">Todas</option>',
-    ...bases.map(x=>`<option value="${escapeHtml(x.prefixo)}" ${x.prefixo===atual?'selected':''}>${escapeHtml(x.nome)}</option>`)
+    ...bases.map(x=>`<option value="${escapeHtml(x.prefixo)}" ${x.prefixo===jogosUI.modalidadeFiltro?'selected':''}>${escapeHtml(x.nome)}</option>`)
   ].join('');
+}
+
+function atualizarContadoresTiposJogos(){
+  const todos=apiData.jogos.filter(j=>j.ID_COMPETICAO===jogosUI.competicao);
+  const sports=profileSportIds();
+  const meus=todos.filter(j=>jogoTemCCT(j) && sports.includes(j.ID_MODALIDADE));
+  const reps=todos.filter(j=>jogoEhRepresentacaoCCT(j));
+  const mapa={gamesAllCount:todos.length,myGamesCount:meus.length,representationsCount:reps.length};
+  Object.entries(mapa).forEach(([id,n])=>{const el=document.getElementById(id);if(el)el.textContent=n;});
+}
+
+function resumoJogosTexto(jogos){
+  const base=jogos.length===1?'1 jogo':`${jogos.length} jogos`;
+  if(jogosUI.tipo==='meus') return `${base} nas suas modalidades`;
+  if(jogosUI.tipo==='representacoes'){
+    const pendentes=jogos.filter(j=>!responsavelRepresentacaoDados(j).nome).length;
+    return pendentes?`${base} • ${pendentes} ${pendentes===1?'responsável pendente':'responsáveis pendentes'}`:`${base} de representação CCT`;
+  }
+  const cct=jogos.filter(j=>jogoTemCCT(j)).length;
+  return cct?`${base} • ${cct} ${cct===1?'jogo da CCT':'jogos da CCT'}`:base;
+}
+
+function mensagemVaziaJogos(){
+  if(jogosUI.tipo==='meus' && !profileSportIds().length){
+    return `<div class="games-empty games-empty-action"><strong>Escolha suas modalidades no Perfil</strong><span>Depois disso, “Meus Jogos” mostra somente as partidas que importam para você.</span><button type="button" data-empty-go-profile>ABRIR PERFIL ›</button></div>`;
+  }
+  if(jogosUI.tipo==='representacoes') return '<div class="games-empty"><strong>Nenhuma representação CCT encontrada.</strong><span>Quando um jogo exigir presença da Atlética, ele aparecerá aqui com o responsável.</span></div>';
+  if(jogosUI.tipo==='meus') return '<div class="games-empty"><strong>Nenhum jogo nas suas modalidades.</strong><span>Tente alterar a data ou o filtro de modalidade.</span></div>';
+  return '<div class="games-empty"><strong>Nenhum jogo encontrado.</strong><span>Tente alterar a data ou o filtro de modalidade.</span></div>';
 }
 
 function renderizarJogos(){
   const container=$('#jogosContainer');
   if(!container) return;
+  renderizarFiltrosModalidades();
+  atualizarContadoresTiposJogos();
+  $$('#filtrosJogos [data-filtro]').forEach(x=>x.classList.toggle('selected',x.dataset.filtro===jogosUI.dataFiltro));
+  $$('#tipoJogos [data-tipo-jogos]').forEach(x=>x.classList.toggle('selected',x.dataset.tipoJogos===jogosUI.tipo));
+  const select=$('#modalidadeFiltro');
+  if(select) select.value=jogosUI.modalidadeFiltro||'';
+
   const jogos=jogosFiltrados();
   const resumo=$('#jogosResumo');
-  if(resumo) resumo.textContent=`${jogos.length} ${jogos.length===1?'jogo encontrado':'jogos encontrados'}`;
-  container.innerHTML=jogos.length
-    ? jogos.map(j=>matchCard(j)).join('')
-    : '<div class="games-empty">Nenhum jogo encontrado com esses filtros.</div>';
+  if(resumo) resumo.textContent=resumoJogosTexto(jogos);
+  container.innerHTML=jogos.length ? jogos.map(j=>matchCard(j)).join('') : mensagemVaziaJogos();
+  container.querySelector('[data-empty-go-profile]')?.addEventListener('click',()=>go('perfil'));
 }
 
 function renderizarProximoJogoHome(){
@@ -279,7 +331,7 @@ function modalidadesClassificacao(){
       .filter(x=>x.ID_COMPETICAO===jogosUI.competicao)
       .map(x=>x.ID_MODALIDADE)
       .filter(Boolean)
-  )];
+  )].sort((a,b)=>modalidadeNome(a).localeCompare(modalidadeNome(b),'pt-BR'));
 }
 
 function renderizarSeletorClassificacao(){
@@ -295,7 +347,10 @@ function renderizarSeletorClassificacao(){
   }
 
   select.disabled=false;
-  if(!ids.includes(jogosUI.classificacaoModalidade)) jogosUI.classificacaoModalidade=ids[0];
+  if(!ids.includes(jogosUI.classificacaoModalidade)){
+    const preferida=profileSportIds().find(id=>ids.includes(id));
+    jogosUI.classificacaoModalidade=preferida||ids[0];
+  }
   select.innerHTML=ids.map(id=>`<option value="${escapeHtml(id)}" ${id===jogosUI.classificacaoModalidade?'selected':''}>${escapeHtml(modalidadeNome(id))}</option>`).join('');
 }
 
@@ -401,7 +456,7 @@ function proximoJogoCenarioHtml(idJogo){
 function renderizarCenarios(){
   const container=$('#cenariosContainer');
   if(!container) return;
-  const linhas=apiData.cenarios.filter(c=>c.ID_COMPETICAO===jogosUI.competicao);
+  const linhas=apiData.cenarios.filter(c=>c.ID_COMPETICAO===jogosUI.competicao).sort((a,b)=>modalidadeNome(a.ID_MODALIDADE).localeCompare(modalidadeNome(b.ID_MODALIDADE),'pt-BR'));
 
   container.innerHTML=linhas.length ? linhas.map(c=>`
     <article class="scenario-detail-card" data-scenario-card="${escapeHtml(c.ID_MODALIDADE||'')}">
@@ -500,24 +555,18 @@ function bindCompeticaoUI(){
     const btn=e.target.closest('[data-tipo-jogos]');
     if(!btn) return;
     jogosUI.tipo=btn.dataset.tipoJogos;
-    $$('#tipoJogos [data-tipo-jogos]').forEach(x=>x.classList.toggle('selected',x===btn));
     renderizarJogos();
   });
 
   $('#filtrosJogos')?.addEventListener('click',e=>{
     const btn=e.target.closest('[data-filtro]');
     if(!btn) return;
-    jogosUI.filtro=btn.dataset.filtro;
-    $$('#filtrosJogos [data-filtro]').forEach(x=>x.classList.toggle('selected',x===btn));
-    const select=$('#modalidadeFiltro');
-    if(select) select.value='';
+    jogosUI.dataFiltro=btn.dataset.filtro;
     renderizarJogos();
   });
 
   $('#modalidadeFiltro')?.addEventListener('change',e=>{
-    const prefixo=e.target.value;
-    jogosUI.filtro=prefixo ? `modalidade:${prefixo}` : 'todos';
-    $$('#filtrosJogos [data-filtro]').forEach(x=>x.classList.toggle('selected',!prefixo && x.dataset.filtro==='todos'));
+    jogosUI.modalidadeFiltro=e.target.value||'';
     renderizarJogos();
   });
 
@@ -567,7 +616,8 @@ function abrirSeletorCompeticao(){
 
   $$('[data-competition-id]').forEach(btn=>btn.addEventListener('click',()=>{
     jogosUI.competicao=btn.dataset.competitionId;
-    jogosUI.filtro='todos';
+    jogosUI.dataFiltro='todos';
+    jogosUI.modalidadeFiltro='';
     jogosUI.classificacaoModalidade='';
     jogosUI.classificacaoTipo='modalidade';
     const filtroModalidade=$('#modalidadeFiltro');
@@ -851,14 +901,9 @@ async function atualizarAvatar(file){
 
 function abrirMeusJogosPerfil(){
   jogosUI.tipo='meus';
-  jogosUI.filtro='todos';
+  jogosUI.dataFiltro='todos';
+  jogosUI.modalidadeFiltro='';
   jogosUI.aba='jogos';
-
-  $$('#tipoJogos [data-tipo-jogos]').forEach(x=>x.classList.toggle('selected',x.dataset.tipoJogos==='meus'));
-  $$('#filtrosJogos [data-filtro]').forEach(x=>x.classList.toggle('selected',x.dataset.filtro==='todos'));
-  const filtroModalidade=$('#modalidadeFiltro');
-  if(filtroModalidade) filtroModalidade.value='';
-
   go('jogos');
   renderizarAbaCompeticao();
 }
@@ -1065,15 +1110,15 @@ function abrirAvisosMembros(){
   modal.classList.add('open');
 }
 function abrirRepresentacoesMembros(){
-  const itens=apiData.jogos.filter(j=>String(j.REPRESENTACAO_CCT||'').trim().toUpperCase()==='SIM').sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
-  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>🏆 Representações CCT</h2><div>${itens.length?itens.map(j=>matchCard(j)).join(''):'<div class="games-empty">Nenhuma representação CCT cadastrada.</div>'}</div>`;
+  const itens=apiData.jogos.filter(j=>jogoEhRepresentacaoCCT(j)).sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
+  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>🏆 Representações CCT</h2><div>${itens.length?itens.map(j=>matchCard(j)).join(''):'<div class="games-empty"><strong>Nenhuma representação CCT cadastrada.</strong><span>Os jogos marcados para representação aparecerão aqui.</span></div>'}</div>`;
   modal.classList.add('open');
 }
 function renderizarAreaMembros(){
   const hoje=new Date();
   const agendaM=somenteMembros(apiData.agenda);
   const hojeCount=agendaM.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA_INICIO),hoje)).length;
-  const reps=apiData.jogos.filter(j=>String(j.REPRESENTACAO_CCT||'').trim().toUpperCase()==='SIM');
+  const reps=apiData.jogos.filter(j=>jogoEhRepresentacaoCCT(j));
   const repsFuturas=reps.filter(j=>{const d=parseBrDate(j.DATA,j.HORA);return d && d.getTime()>=Date.now() && !isFinalizado(j);});
   const alertas=avisosAtivos('membros');
 
@@ -1086,10 +1131,11 @@ function renderizarAreaMembros(){
   if(lista){
     const proximas=repsFuturas.sort((a,b)=>parseBrDate(a.DATA,a.HORA)-parseBrDate(b.DATA,b.HORA)).slice(0,4);
     lista.innerHTML=proximas.length?proximas.map(j=>{
-      const nome=String(j.RESPONSAVEL_REPRESENTACAO||'Responsável a definir').trim();
-      const foto=normalizeImageUrl(j.FOTO_RESP_REPRESENTACAO||'');
+      const dados=responsavelRepresentacaoDados(j);
+      const nome=dados.nome||'Responsável a definir';
+      const foto=normalizeImageUrl(dados.foto||'');
       const iniciais=nome.split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase();
-      return `<div>${foto?`<img src="${escapeHtml(foto)}" alt="">`:`<div class="avatar-placeholder">${escapeHtml(iniciais||'CCT')}</div>`}<span><strong>${escapeHtml(nome)}</strong><small>${escapeHtml(modalidadeNome(j.ID_MODALIDADE))} • ${escapeHtml(j.DATA||'')} ${escapeHtml(j.HORA||'')}</small></span></div>`;
+      return `<div>${foto?`<img src="${escapeHtml(foto)}" alt="">`:`<div class="avatar-placeholder">${escapeHtml(iniciais||'CCT')}</div>`}<span><strong>${escapeHtml(nome)}</strong><small>${escapeHtml(competitionName(j.ID_COMPETICAO))} • ${escapeHtml(modalidadeNome(j.ID_MODALIDADE))} • ${escapeHtml(j.DATA||'')} ${escapeHtml(j.HORA||'')}</small></span></div>`;
     }).join(''):'<div class="games-empty">Nenhuma representação futura cadastrada.</div>';
   }
 }

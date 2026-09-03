@@ -10,7 +10,7 @@
   <title>Atlética CCT</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=26" />
+  <link rel="stylesheet" href="styles.css?v=27" />
 </head>
 <body>
   <div id="splash" class="splash">
@@ -102,10 +102,10 @@
         </div>
 
         <div id="painelJogos" class="competition-panel">
-          <div class="segmented" id="tipoJogos">
-            <button class="selected" data-tipo-jogos="todos" type="button">Todos os Jogos</button>
-            <button data-tipo-jogos="meus" type="button">Meus Jogos</button>
-            <button data-tipo-jogos="representacoes" type="button">Representações CCT</button>
+          <div class="segmented games-type-tabs" id="tipoJogos">
+            <button class="selected" data-tipo-jogos="todos" type="button"><span>Todos os Jogos</span><b id="gamesAllCount">0</b></button>
+            <button data-tipo-jogos="meus" type="button"><span>Meus Jogos</span><b id="myGamesCount">0</b></button>
+            <button data-tipo-jogos="representacoes" type="button"><span>Representações CCT</span><b id="representationsCount">0</b></button>
           </div>
 
           <div class="game-filter-row">
@@ -291,6 +291,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=26"></script>
+  <script src="app.js?v=27"></script>
 </body>
 </html>
