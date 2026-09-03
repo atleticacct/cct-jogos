@@ -118,11 +118,11 @@ function representanteHtml(jogo){
 }
 
 function representacaoCctHtml(jogo){
-  const nome=jogo.RESPONSAVEL_REPRESENTACAO || jogo.REPRESENTACAO_RESPONSAVEL || '';
-  const foto=jogo.FOTO_RESPONSAVEL_REPRESENTACAO || jogo.FOTO_REPRESENTACAO || '';
+  const nome=String(jogo.RESPONSAVEL_REPRESENTACAO || jogo.REPRESENTACAO_RESPONSAVEL || '').trim();
+  const foto=jogo.FOTO_RESP_REPRESENTACAO || jogo.FOTO_RESPONSAVEL_REPRESENTACAO || jogo.FOTO_REPRESENTACAO || '';
   const marcado=String(jogo.REPRESENTACAO_CCT||'').trim().toUpperCase()==='SIM';
-  if(!marcado && !String(nome).trim()) return '';
-  if(!String(nome).trim()) return `<div class="representation-pending"><small>REPRESENTAÇÃO CCT</small><strong>Responsável a definir</strong></div>`;
+  if(!marcado && !nome) return '';
+  if(!nome) return `<div class="representation-pending"><small>REPRESENTAÇÃO CCT</small><strong>Responsável a definir</strong></div>`;
   return pessoaJogoHtml(nome,foto,'REPRESENTAÇÃO CCT','is-representation');
 }
 
