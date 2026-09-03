@@ -10,7 +10,7 @@
   <title>Atlética CCT</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=25" />
+  <link rel="stylesheet" href="styles.css?v=26" />
 </head>
 <body>
   <div id="splash" class="splash">
@@ -169,12 +169,58 @@
       </section>
 
       <section class="screen" data-screen="perfil">
-        <div class="profile-hero profile-hero-new"><div class="profile-avatar-wrap"><img src="assets/representante-demo.png" alt="Foto do perfil"><span class="profile-online"></span></div><div class="profile-identity"><small>MEU PERFIL CCT</small><h2 id="profileNameDisplay">Guilherme</h2><p id="profileSummary">2 modalidades selecionadas</p></div><button class="profile-edit-btn" id="editProfileBtn" aria-label="Editar nome">✎</button></div>
-        <div class="profile-card focus-card"><div class="profile-card-title"><div><span class="profile-title-icon">⭐</span><div><strong>SÓ MEUS ESPORTES</strong><small>Priorize no app apenas o que você acompanha</small></div></div><label class="switch"><input id="onlyMySports" type="checkbox" checked><span class="slider"></span></label></div><p class="profile-helper">Quando ativado, seus próximos jogos, competições e avisos esportivos dão prioridade às modalidades escolhidas abaixo.</p></div>
-        <div class="profile-card"><div class="section-head"><div><i></i><h3>MINHAS MODALIDADES</h3></div><span class="profile-count" id="sportsCount">2 selecionadas</span></div><p class="profile-intro">Escolha tudo o que você joga ou quer acompanhar.</p><div class="sport-grid" id="sportGrid"><div class="games-loading profile-sports-loading">Carregando modalidades...</div></div></div>
-        <div class="profile-card"><div class="section-head"><div><i></i><h3>MINHA EXPERIÊNCIA</h3></div></div><button class="profile-link-row" data-go="jogos"><span>🏆</span><div><strong>Meus jogos</strong><small>Partidas das modalidades selecionadas</small></div><b>›</b></button><button class="profile-link-row" data-go="agenda"><span>📅</span><div><strong>Minha programação</strong><small>Treinos, jogos e compromissos</small></div><b>›</b></button></div>
-        <div class="profile-card"><div class="section-head"><div><i></i><h3>NOTIFICAÇÕES</h3></div></div><label class="setting-row"><span>🚨</span><div><strong>Avisos importantes</strong><small>Mudança de horário, local e urgências</small></div><label class="switch"><input id="notifyUrgent" type="checkbox" checked><span class="slider"></span></label></label><label class="setting-row"><span>🏆</span><div><strong>Jogos e resultados</strong><small>Lembretes e placares dos meus esportes</small></div><label class="switch"><input id="notifyGames" type="checkbox" checked><span class="slider"></span></label></label><label class="setting-row"><span>🎉</span><div><strong>Eventos da CCT</strong><small>Festas, integrações e novidades</small></div><label class="switch"><input id="notifyEvents" type="checkbox" checked><span class="slider"></span></label></label></div>
-        <button class="member-entry" data-go="membros"><span class="member-entry-icon">🔒</span><div><small>MEMBROS DA ATLÉTICA</small><strong>Área da Atlética</strong><p>Agenda interna, escalas, tarefas e pedidos</p></div><b>›</b></button><button class="primary full profile-save" id="saveProfileBtn">SALVAR PREFERÊNCIAS</button><div class="save-feedback" id="saveFeedback">✓ Preferências salvas neste aparelho</div>
+        <div class="profile-hero profile-hero-new">
+          <button class="profile-avatar-button" id="profileAvatarBtn" type="button" aria-label="Alterar foto do perfil">
+            <span class="profile-avatar-wrap">
+              <img id="profileAvatarImage" src="assets/representante-demo.png" alt="Foto do perfil">
+              <span class="profile-online"></span>
+              <span class="profile-camera" aria-hidden="true">＋</span>
+            </span>
+          </button>
+          <input id="profileAvatarInput" class="profile-avatar-input" type="file" accept="image/*">
+          <div class="profile-identity">
+            <small>MEU PERFIL CCT</small>
+            <h2 id="profileNameDisplay">Seu nome</h2>
+            <div class="profile-meta">
+              <span class="profile-role-badge" id="profileRoleBadge">ATLETA</span>
+              <p id="profileSummary">Escolha suas modalidades</p>
+            </div>
+          </div>
+          <button class="profile-edit-btn" id="editProfileBtn" type="button" aria-label="Editar perfil">✎</button>
+        </div>
+
+        <div class="profile-card focus-card">
+          <div class="profile-card-title">
+            <div><span class="profile-title-icon">★</span><div><strong>SÓ MEUS ESPORTES</strong><small>Priorize no app apenas o que você acompanha</small></div></div>
+            <label class="switch"><input id="onlyMySports" type="checkbox" checked><span class="slider"></span></label>
+          </div>
+          <p class="profile-helper">Quando ativado, a tela inicial prioriza as modalidades escolhidas. A área “Meus Jogos” continua mostrando somente as suas modalidades.</p>
+        </div>
+
+        <div class="profile-card">
+          <div class="section-head"><div><i></i><h3>MINHAS MODALIDADES</h3></div><span class="profile-count" id="sportsCount">0 selecionadas</span></div>
+          <p class="profile-intro">Escolha tudo o que você joga ou quer acompanhar. As alterações atualizam “Meus Jogos” automaticamente.</p>
+          <div class="sport-grid" id="sportGrid"><div class="games-loading profile-sports-loading">Carregando modalidades...</div></div>
+        </div>
+
+        <div class="profile-card">
+          <div class="section-head"><div><i></i><h3>MINHA EXPERIÊNCIA</h3></div></div>
+          <button class="profile-link-row" data-profile-action="my-games" type="button"><span class="profile-row-icon">◇</span><div><strong>Meus jogos</strong><small>Partidas das modalidades selecionadas</small></div><b>›</b></button>
+          <button class="profile-link-row" data-go="agenda" type="button"><span class="profile-row-icon">□</span><div><strong>Minha programação</strong><small>Treinos, jogos e compromissos</small></div><b>›</b></button>
+          <button class="profile-link-row" data-profile-action="documents" type="button"><span class="profile-row-icon">≡</span><div><strong>Documentos</strong><small>Regulamentos e arquivos publicados</small></div><b>›</b></button>
+          <button class="profile-link-row" data-profile-action="notification-settings" type="button"><span class="profile-row-icon">!</span><div><strong>Notificações</strong><small>Escolha o que você quer acompanhar</small></div><b>›</b></button>
+        </div>
+
+        <div class="profile-card" id="profileNotificationsCard">
+          <div class="section-head"><div><i></i><h3>NOTIFICAÇÕES</h3></div><button class="profile-alert-link" data-profile-action="active-alerts" type="button">VER AVISOS ›</button></div>
+          <label class="setting-row"><span>!</span><div><strong>Avisos importantes</strong><small>Mudança de horário, local e urgências</small></div><label class="switch"><input id="notifyUrgent" type="checkbox" checked><span class="slider"></span></label></label>
+          <label class="setting-row"><span>◇</span><div><strong>Jogos e resultados</strong><small>Lembretes e placares dos meus esportes</small></div><label class="switch"><input id="notifyGames" type="checkbox" checked><span class="slider"></span></label></label>
+          <label class="setting-row"><span>★</span><div><strong>Eventos da CCT</strong><small>Festas, integrações e novidades</small></div><label class="switch"><input id="notifyEvents" type="checkbox" checked><span class="slider"></span></label></label>
+        </div>
+
+        <button class="member-entry" data-go="membros"><span class="member-entry-icon">▣</span><div><small>MEMBROS DA ATLÉTICA</small><strong>Área da Atlética</strong><p>Agenda interna, escalas, tarefas e pedidos</p></div><b>›</b></button>
+        <button class="primary full profile-save" id="saveProfileBtn" type="button">SALVAR PREFERÊNCIAS</button>
+        <div class="save-feedback" id="saveFeedback">✓ Preferências salvas neste aparelho</div>
       </section>
 
       <section class="screen" data-screen="membros">
@@ -245,6 +291,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=25"></script>
+  <script src="app.js?v=26"></script>
 </body>
 </html>

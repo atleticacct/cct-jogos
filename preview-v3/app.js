@@ -50,11 +50,19 @@ function sameDay(a,b){
   return a && b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
 }
 
-function selectedSportIds(){
+function profileSportIds(){
   try{
     const p=JSON.parse(localStorage.getItem(PROFILE_KEY)||'null');
     if(Array.isArray(p?.sportIds) && p.sportIds.length) return p.sportIds.filter(Boolean);
     return (p?.sports||[]).map(x=>MODALIDADE_IDS[x]||x).filter(Boolean);
+  }catch(e){ return []; }
+}
+
+function selectedSportIds(){
+  try{
+    const p=JSON.parse(localStorage.getItem(PROFILE_KEY)||'null')||{};
+    if(p.onlyMySports===false) return [];
+    return profileSportIds();
   }catch(e){ return []; }
 }
 
@@ -176,7 +184,7 @@ function matchCard(jogo,{home=false}={}){
 function jogosFiltrados(){
   const now=new Date();
   const tomorrow=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
-  const sports=selectedSportIds();
+  const sports=profileSportIds();
 
   return apiData.jogos
     .filter(j=>j.ID_COMPETICAO===jogosUI.competicao)
@@ -185,7 +193,7 @@ function jogosFiltrados(){
         return String(j.REPRESENTACAO_CCT||'').trim().toUpperCase()==='SIM';
       }
       if(jogosUI.tipo==='meus') {
-        return jogoTemCCT(j) && (!sports.length || sports.includes(j.ID_MODALIDADE));
+        return jogoTemCCT(j) && sports.includes(j.ID_MODALIDADE);
       }
       return true;
     })
@@ -675,9 +683,28 @@ function modalidadeEmoji(id,nome=''){
   if(n.includes('FUT'))return '⚽'; if(n.includes('VÔLE')||n.includes('VOLE'))return '🏐'; if(n.includes('BASQ'))return '🏀'; if(n.includes('HAND'))return '🤾';
   return '🏅';
 }
+
 function perfilAtual(){
   try{return JSON.parse(localStorage.getItem(PROFILE_KEY)||'null')||{};}catch(e){return {};}
 }
+
+function roleLabel(role='Atleta'){
+  const r=String(role||'Atleta').trim().toLowerCase();
+  if(r.startsWith('torc')) return 'TORCEDOR(A)';
+  if(r.startsWith('membro')) return 'MEMBRO DA ATLÉTICA';
+  return 'ATLETA';
+}
+
+function aplicarIdentidadePerfil(){
+  const p=perfilAtual();
+  const name=$('#profileNameDisplay');
+  const badge=$('#profileRoleBadge');
+  const avatar=$('#profileAvatarImage');
+  if(name) name.textContent=(p.name||'Seu nome').trim()||'Seu nome';
+  if(badge) badge.textContent=roleLabel(p.role);
+  if(avatar) avatar.src=p.avatar||'assets/representante-demo.png';
+}
+
 function renderizarModalidadesPerfil(){
   const grid=$('#sportGrid'); if(!grid)return;
   const p=perfilAtual();
@@ -691,32 +718,192 @@ function renderizarModalidadesPerfil(){
     const id=m.ID_MODALIDADE||''; const nome=m.NOME||modalidadeBase(id).nome||id; const naipe=m.NAIPE||'';
     return `<label class="sport-choice"><input type="checkbox" data-sport-id="${escapeHtml(id)}" ${selecionados.has(id)?'checked':''}><span class="sport-icon">${modalidadeEmoji(id,nome)}</span><strong>${escapeHtml(nome)}</strong><small>${escapeHtml(naipe)}</small><b>✓</b></label>`;
   }).join('');
-  grid.querySelectorAll('input[data-sport-id]').forEach(x=>x.addEventListener('change',atualizarResumoPerfil));
+  grid.querySelectorAll('input[data-sport-id]').forEach(x=>x.addEventListener('change',()=>{
+    atualizarResumoPerfil();
+    salvarPerfil({silent:true});
+  }));
   atualizarResumoPerfil();
 }
+
 function atualizarResumoPerfil(){
-  const n=$$('#sportGrid input[data-sport-id]:checked').length;
+  const inputs=$$('#sportGrid input[data-sport-id]');
+  const n=inputs.length ? inputs.filter(x=>x.checked).length : profileSportIds().length;
   const count=$('#sportsCount'), summary=$('#profileSummary');
   if(count)count.textContent=`${n} ${n===1?'selecionada':'selecionadas'}`;
   if(summary)summary.textContent=n?`${n} ${n===1?'modalidade selecionada':'modalidades selecionadas'}`:'Escolha suas modalidades';
 }
-function salvarPerfil(){
+
+function feedbackPerfil(texto='✓ Preferências salvas neste aparelho'){
+  const feedback=$('#saveFeedback');
+  if(!feedback)return;
+  feedback.textContent=texto;
+  feedback.classList.add('show');
+  clearTimeout(feedback._timer);
+  feedback._timer=setTimeout(()=>feedback.classList.remove('show'),2200);
+}
+
+function salvarPerfil({silent=false}={}){
   const name=$('#profileNameDisplay');
   const p=perfilAtual();
-  p.name=name?.textContent?.trim()||'Guilherme';
-  p.sportIds=$$('#sportGrid input[data-sport-id]:checked').map(x=>x.dataset.sportId).filter(Boolean);
-  p.sports=p.sportIds.map(id=>modalidadeNome(id)); // compatibilidade com versões anteriores
-  ['onlyMySports','notifyUrgent','notifyGames','notifyEvents'].forEach(k=>p[k]=!!document.getElementById(k)?.checked);
-  localStorage.setItem(PROFILE_KEY,JSON.stringify(p));
-  atualizarResumoPerfil(); renderizarJogos(); renderizarProximoJogoHome();
-  const feedback=$('#saveFeedback'); if(feedback){feedback.classList.add('show');setTimeout(()=>feedback.classList.remove('show'),2200);}
+  p.name=name?.textContent?.trim()||p.name||'Seu nome';
+
+  const sportInputs=$$('#sportGrid input[data-sport-id]');
+  if(sportInputs.length){
+    p.sportIds=sportInputs.filter(x=>x.checked).map(x=>x.dataset.sportId).filter(Boolean);
+    p.sports=p.sportIds.map(id=>modalidadeNome(id)); // compatibilidade com versões anteriores
+  }
+
+  ['onlyMySports','notifyUrgent','notifyGames','notifyEvents'].forEach(k=>{
+    const el=document.getElementById(k);
+    if(el) p[k]=!!el.checked;
+  });
+  p.updatedAt=new Date().toISOString();
+
+  try{
+    localStorage.setItem(PROFILE_KEY,JSON.stringify(p));
+  }catch(e){
+    console.error('Não foi possível salvar o perfil:',e);
+    feedbackPerfil('Não foi possível salvar. Tente novamente.');
+    return;
+  }
+
+  atualizarResumoPerfil();
+  aplicarIdentidadePerfil();
+  renderizarJogos();
+  renderizarProximoJogoHome();
+  if(!silent) feedbackPerfil();
 }
+
+function abrirEditorPerfil(){
+  const p=perfilAtual();
+  mc.innerHTML=`
+    <span class="chip">PERFIL</span>
+    <h2>Editar perfil</h2>
+    <div class="profile-editor">
+      <label><span>Nome exibido</span><input id="profileNameInput" type="text" maxlength="40" value="${escapeHtml(p.name||'')}" placeholder="Seu nome"></label>
+      <label><span>Como você usa o app?</span><select id="profileRoleInput">
+        <option value="Atleta" ${!p.role||String(p.role).toLowerCase().startsWith('atleta')?'selected':''}>Atleta</option>
+        <option value="Torcedor(a)" ${String(p.role||'').toLowerCase().startsWith('torc')?'selected':''}>Torcedor(a)</option>
+        <option value="Membro da Atlética" ${String(p.role||'').toLowerCase().startsWith('membro')?'selected':''}>Membro da Atlética</option>
+      </select></label>
+      <p>A identificação do perfil é apenas visual e não libera o acesso restrito da Área da Atlética.</p>
+      <button class="primary full" id="saveProfileIdentity" type="button">SALVAR PERFIL</button>
+    </div>`;
+
+  modal.classList.add('open');
+
+  $('#saveProfileIdentity')?.addEventListener('click',()=>{
+    const atual=perfilAtual();
+    const nome=$('#profileNameInput')?.value?.trim();
+    atual.name=nome||'Seu nome';
+    atual.role=$('#profileRoleInput')?.value||'Atleta';
+    atual.updatedAt=new Date().toISOString();
+    try{
+      localStorage.setItem(PROFILE_KEY,JSON.stringify(atual));
+      aplicarIdentidadePerfil();
+      modal.classList.remove('open');
+      feedbackPerfil('✓ Perfil atualizado neste aparelho');
+    }catch(e){
+      console.error('Não foi possível salvar o perfil:',e);
+    }
+  });
+}
+
+function redimensionarAvatar(file){
+  return new Promise((resolve,reject)=>{
+    if(!file || !String(file.type||'').startsWith('image/')) return reject(new Error('Arquivo inválido'));
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error('Falha ao ler a imagem'));
+    reader.onload=()=>{
+      const img=new Image();
+      img.onerror=()=>reject(new Error('Imagem inválida'));
+      img.onload=()=>{
+        const size=320;
+        const canvas=document.createElement('canvas');
+        canvas.width=size; canvas.height=size;
+        const ctx=canvas.getContext('2d');
+        const side=Math.min(img.naturalWidth||img.width,img.naturalHeight||img.height);
+        const sx=((img.naturalWidth||img.width)-side)/2;
+        const sy=((img.naturalHeight||img.height)-side)/2;
+        ctx.drawImage(img,sx,sy,side,side,0,0,size,size);
+        resolve(canvas.toDataURL('image/jpeg',0.82));
+      };
+      img.src=reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function atualizarAvatar(file){
+  try{
+    const dataUrl=await redimensionarAvatar(file);
+    const p=perfilAtual();
+    p.avatar=dataUrl;
+    p.updatedAt=new Date().toISOString();
+    localStorage.setItem(PROFILE_KEY,JSON.stringify(p));
+    aplicarIdentidadePerfil();
+    feedbackPerfil('✓ Foto do perfil atualizada');
+  }catch(e){
+    console.error('Erro ao atualizar foto:',e);
+    feedbackPerfil('Não foi possível usar essa foto.');
+  }
+}
+
+function abrirMeusJogosPerfil(){
+  jogosUI.tipo='meus';
+  jogosUI.filtro='todos';
+  jogosUI.aba='jogos';
+
+  $$('#tipoJogos [data-tipo-jogos]').forEach(x=>x.classList.toggle('selected',x.dataset.tipoJogos==='meus'));
+  $$('#filtrosJogos [data-filtro]').forEach(x=>x.classList.toggle('selected',x.dataset.filtro==='todos'));
+  const filtroModalidade=$('#modalidadeFiltro');
+  if(filtroModalidade) filtroModalidade.value='';
+
+  go('jogos');
+  renderizarAbaCompeticao();
+}
+
+function focarPreferenciasNotificacao(){
+  const card=$('#profileNotificationsCard');
+  if(!card)return;
+  card.scrollIntoView({behavior:'smooth',block:'center'});
+  card.classList.add('profile-card-focus');
+  setTimeout(()=>card.classList.remove('profile-card-focus'),1400);
+}
+
+function bindAcoesPerfil(){
+  $$('[data-profile-action]').forEach(btn=>{
+    btn.onclick=()=>{
+      const action=btn.dataset.profileAction;
+      if(action==='my-games') return abrirMeusJogosPerfil();
+      if(action==='documents') return abrirConteudos('DOCUMENT','Documentos');
+      if(action==='notification-settings') return focarPreferenciasNotificacao();
+      if(action==='active-alerts') return abrirAvisos();
+    };
+  });
+}
+
 function inicializarPerfil(){
-  const p=perfilAtual(); const name=$('#profileNameDisplay');
-  if(p.name&&name)name.textContent=p.name;
-  ['onlyMySports','notifyUrgent','notifyGames','notifyEvents'].forEach(k=>{const e=document.getElementById(k);if(e&&typeof p[k]==='boolean')e.checked=p[k];});
-  $('#saveProfileBtn')?.addEventListener('click',salvarPerfil);
-  $('#editProfileBtn')?.addEventListener('click',()=>{const v=prompt('Como você quer aparecer no app?',name?.textContent||'Guilherme');if(v&&v.trim()){name.textContent=v.trim();salvarPerfil();}});
+  const p=perfilAtual();
+  aplicarIdentidadePerfil();
+
+  ['onlyMySports','notifyUrgent','notifyGames','notifyEvents'].forEach(k=>{
+    const e=document.getElementById(k);
+    if(!e)return;
+    if(typeof p[k]==='boolean') e.checked=p[k];
+    e.addEventListener('change',()=>salvarPerfil({silent:true}));
+  });
+
+  $('#saveProfileBtn')?.addEventListener('click',()=>salvarPerfil());
+  $('#editProfileBtn')?.addEventListener('click',abrirEditorPerfil);
+  $('#profileAvatarBtn')?.addEventListener('click',()=>$('#profileAvatarInput')?.click());
+  $('#profileAvatarInput')?.addEventListener('change',e=>{
+    const file=e.target.files?.[0];
+    if(file) atualizarAvatar(file);
+    e.target.value='';
+  });
+
+  bindAcoesPerfil();
   atualizarResumoPerfil();
 }
 inicializarPerfil();
