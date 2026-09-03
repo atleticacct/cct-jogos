@@ -175,8 +175,8 @@ function jogosFiltrados(){
 }
 
 function renderizarFiltrosModalidades(){
-  const filtros=$('#filtrosJogos');
-  if(!filtros) return;
+  const select=$('#modalidadeFiltro');
+  if(!select) return;
 
   const ids=[...new Set(
     apiData.jogos
@@ -187,6 +187,7 @@ function renderizarFiltrosModalidades(){
 
   const bases=[];
   const vistos=new Set();
+
   ids.forEach(id=>{
     const base=modalidadeBase(id);
     if(!base.prefixo || vistos.has(base.prefixo)) return;
@@ -194,15 +195,15 @@ function renderizarFiltrosModalidades(){
     bases.push(base);
   });
 
-  const fixos=[
-    {valor:'hoje',rotulo:'Hoje'},
-    {valor:'amanha',rotulo:'Amanhã'},
-    {valor:'todos',rotulo:'Todos'}
-  ];
+  bases.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
 
-  filtros.innerHTML=[
-    ...fixos.map(x=>`<button data-filtro="${x.valor}" type="button" class="${jogosUI.filtro===x.valor?'selected':''}">${x.rotulo}</button>`),
-    ...bases.map(x=>`<button data-filtro="modalidade:${escapeHtml(x.prefixo)}" type="button" class="${jogosUI.filtro===`modalidade:${x.prefixo}`?'selected':''}">${escapeHtml(x.nome)}</button>`)
+  const atual=jogosUI.filtro.startsWith('modalidade:')
+    ? jogosUI.filtro.split(':')[1]
+    : '';
+
+  select.innerHTML=[
+    '<option value="">Todas</option>',
+    ...bases.map(x=>`<option value="${escapeHtml(x.prefixo)}" ${x.prefixo===atual?'selected':''}>${escapeHtml(x.nome)}</option>`)
   ].join('');
 }
 
@@ -412,6 +413,15 @@ function bindCompeticaoUI(){
     if(!btn) return;
     jogosUI.filtro=btn.dataset.filtro;
     $$('#filtrosJogos [data-filtro]').forEach(x=>x.classList.toggle('selected',x===btn));
+    const select=$('#modalidadeFiltro');
+    if(select) select.value='';
+    renderizarJogos();
+  });
+
+  $('#modalidadeFiltro')?.addEventListener('change',e=>{
+    const prefixo=e.target.value;
+    jogosUI.filtro=prefixo ? `modalidade:${prefixo}` : 'todos';
+    $$('#filtrosJogos [data-filtro]').forEach(x=>x.classList.toggle('selected',!prefixo && x.dataset.filtro==='todos'));
     renderizarJogos();
   });
 
@@ -456,6 +466,8 @@ function abrirSeletorCompeticao(){
     jogosUI.competicao=btn.dataset.competitionId;
     jogosUI.filtro='todos';
     jogosUI.classificacaoModalidade='';
+    const filtroModalidade=$('#modalidadeFiltro');
+    if(filtroModalidade) filtroModalidade.value='';
     const nome=$('#competicaoNome');
     if(nome) nome.textContent=competitionName(jogosUI.competicao);
     $('#modal')?.classList.remove('open');

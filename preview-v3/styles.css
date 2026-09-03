@@ -165,3 +165,55 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
   .classification-toolbar{align-items:flex-start;flex-direction:column}
   .classification-toolbar select{max-width:100%;width:100%}
 }
+
+
+/* Ajuste v20 — filtros escolhidos pelo usuário */
+.game-filter-row{display:grid;gap:10px;margin-bottom:14px}
+.game-filter-row .filters{margin-bottom:0}
+.modality-filter{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  background:#101512;border:1px solid #273029;border-radius:14px;padding:10px 12px
+}
+.modality-filter>span{color:#7f8c83;font-size:9px;font-weight:900;letter-spacing:.8px;text-transform:uppercase}
+.modality-filter select{
+  min-width:150px;max-width:65%;background:#172019;color:#f6f8f6;
+  border:1px solid #31513b;border-radius:10px;padding:9px 10px;
+  font-size:10px;font-weight:800
+}
+
+/* Corrige leitura de Pts e Saldo na classificação */
+.standings-wide>div{
+  column-gap:7px;
+  padding-left:10px;
+  padding-right:10px;
+}
+.standings-wide>div>span,
+.standings-wide>div>strong{
+  text-align:center;
+}
+.standings-wide>div>b{
+  text-align:left;
+}
+.standings-wide>div>strong{
+  padding-right:2px;
+}
+.standings-wide>div>span:last-child{
+  border-left:1px solid #273029;
+  padding-left:8px;
+  min-width:52px;
+}
+.standings-wide .stand-head>span:nth-last-child(2){
+  text-align:center;
+}
+.standings-wide .stand-head>span:last-child{
+  text-align:center;
+}
+@media(max-width:390px){
+  .modality-filter{align-items:flex-start;flex-direction:column}
+  .modality-filter select{max-width:100%;width:100%}
+  .standings-wide>div{
+    min-width:540px;
+    grid-template-columns:28px minmax(120px,1fr) 30px 30px 30px 30px 46px 58px;
+    column-gap:8px;
+  }
+}

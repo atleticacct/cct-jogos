@@ -125,10 +125,18 @@
             <button data-tipo-jogos="meus" type="button">Meus Jogos</button>
           </div>
 
-          <div class="filters" id="filtrosJogos">
-            <button data-filtro="hoje" type="button">Hoje</button>
-            <button data-filtro="amanha" type="button">Amanhã</button>
-            <button class="selected" data-filtro="todos" type="button">Todos</button>
+          <div class="game-filter-row">
+            <div class="filters" id="filtrosJogos">
+              <button data-filtro="hoje" type="button">Hoje</button>
+              <button data-filtro="amanha" type="button">Amanhã</button>
+              <button class="selected" data-filtro="todos" type="button">Todos</button>
+            </div>
+            <label class="modality-filter">
+              <span>Modalidade</span>
+              <select id="modalidadeFiltro" aria-label="Filtrar jogos por modalidade">
+                <option value="">Todas</option>
+              </select>
+            </label>
           </div>
 
           <div id="jogosResumo" class="games-summary"></div>
