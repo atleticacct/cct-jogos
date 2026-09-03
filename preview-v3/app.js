@@ -28,7 +28,8 @@ let jogosUI = {
   tipo: 'todos',
   filtro: 'todos',
   aba: 'jogos',
-  classificacaoModalidade: ''
+  classificacaoModalidade: '',
+  classificacaoTipo: 'modalidade'
 };
 
 function parseBrDate(data, hora='00:00'){
@@ -97,18 +98,32 @@ function cenarioDaModalidade(idModalidade){
   );
 }
 
-function representanteHtml(jogo){
-  const nome=String(jogo.REPRESENTANTE||'').trim();
+function pessoaJogoHtml(nome,foto,titulo,classe=''){
+  nome=String(nome||'').trim();
   if(!nome) return '';
-  const foto=normalizeImageUrl(jogo.FOTO_REPRESENTANTE||'');
+  foto=normalizeImageUrl(foto||'');
   const iniciais=nome.split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase();
   return `
-    <div class="match-representative">
+    <div class="match-representative ${classe}">
       ${foto
         ? `<img src="${escapeHtml(foto)}" alt="Foto de ${escapeHtml(nome)}" />`
         : `<div class="representative-placeholder">${escapeHtml(iniciais||'CCT')}</div>`}
-      <div><small>REPRESENTANTE</small><strong>${escapeHtml(nome)}</strong></div>
+      <div><small>${escapeHtml(titulo)}</small><strong>${escapeHtml(nome)}</strong></div>
     </div>`;
+}
+
+function representanteHtml(jogo){
+  if(!jogoTemCCT(jogo)) return '';
+  return pessoaJogoHtml(jogo.REPRESENTANTE,jogo.FOTO_REPRESENTANTE,'REPRESENTANTE DA MODALIDADE');
+}
+
+function representacaoCctHtml(jogo){
+  const nome=jogo.RESPONSAVEL_REPRESENTACAO || jogo.REPRESENTACAO_RESPONSAVEL || '';
+  const foto=jogo.FOTO_RESPONSAVEL_REPRESENTACAO || jogo.FOTO_REPRESENTACAO || '';
+  const marcado=String(jogo.REPRESENTACAO_CCT||'').trim().toUpperCase()==='SIM';
+  if(!marcado && !String(nome).trim()) return '';
+  if(!String(nome).trim()) return `<div class="representation-pending"><small>REPRESENTAÇÃO CCT</small><strong>Responsável a definir</strong></div>`;
+  return pessoaJogoHtml(nome,foto,'REPRESENTAÇÃO CCT','is-representation');
 }
 
 function matchCard(jogo,{home=false}={}){
@@ -146,6 +161,7 @@ function matchCard(jogo,{home=false}={}){
       </div>
       ${cenario ? `<button class="scenario-link" type="button" data-open-scenario-modality="${escapeHtml(jogo.ID_MODALIDADE)}">🎯 Situação da classificação <b>›</b></button>` : ''}
       ${representanteHtml(jogo)}
+      ${representacaoCctHtml(jogo)}
     </article>`;
 }
 
@@ -313,10 +329,27 @@ function classificacaoGeralHtml(){
 function renderizarClassificacao(){
   const container=$('#classificacaoContainer');
   if(!container) return;
+
+  const toolbar=$('#classificacaoToolbar');
+  const geralDisponivel=apiData.classificacao_geral.some(x=>x.ID_COMPETICAO===jogosUI.competicao);
+  const btnGeral=document.querySelector('[data-classificacao-tipo="geral"]');
+  if(btnGeral) btnGeral.disabled=!geralDisponivel;
+  if(jogosUI.classificacaoTipo==='geral' && !geralDisponivel) jogosUI.classificacaoTipo='modalidade';
+
+  $$('#classificacaoTipo [data-classificacao-tipo]').forEach(btn=>btn.classList.toggle('selected',btn.dataset.classificacaoTipo===jogosUI.classificacaoTipo));
+
+  if(jogosUI.classificacaoTipo==='geral'){
+    if(toolbar) toolbar.hidden=true;
+    const geral=classificacaoGeralHtml();
+    container.innerHTML=geral || '<div class="games-empty">Esta competição ainda não possui classificação geral publicada.</div>';
+    return;
+  }
+
+  if(toolbar) toolbar.hidden=false;
   renderizarSeletorClassificacao();
 
   if(!jogosUI.classificacaoModalidade){
-    container.innerHTML='<div class="games-empty">Esta competição ainda não possui classificação publicada.</div>';
+    container.innerHTML='<div class="games-empty">Esta competição ainda não possui classificação por modalidade publicada.</div>';
     return;
   }
 
@@ -333,7 +366,7 @@ function renderizarClassificacao(){
   });
 
   container.innerHTML=linhas.length
-    ? [...grupos.entries()].map(([g,rs])=>classificacaoGrupoHtml(g,rs)).join('') + classificacaoGeralHtml()
+    ? [...grupos.entries()].map(([g,rs])=>classificacaoGrupoHtml(g,rs)).join('')
     : '<div class="games-empty">Nenhuma classificação encontrada para esta modalidade.</div>';
 }
 
@@ -437,6 +470,13 @@ function bindCompeticaoUI(){
     renderizarClassificacao();
   });
 
+  $('#classificacaoTipo')?.addEventListener('click',e=>{
+    const btn=e.target.closest('[data-classificacao-tipo]');
+    if(!btn || btn.disabled) return;
+    jogosUI.classificacaoTipo=btn.dataset.classificacaoTipo;
+    renderizarClassificacao();
+  });
+
   $('#competicaoBtn')?.addEventListener('click',abrirSeletorCompeticao);
 
   $('#jogosContainer')?.addEventListener('click',e=>{
@@ -466,6 +506,7 @@ function abrirSeletorCompeticao(){
     jogosUI.competicao=btn.dataset.competitionId;
     jogosUI.filtro='todos';
     jogosUI.classificacaoModalidade='';
+    jogosUI.classificacaoTipo='modalidade';
     const filtroModalidade=$('#modalidadeFiltro');
     if(filtroModalidade) filtroModalidade.value='';
     const nome=$('#competicaoNome');

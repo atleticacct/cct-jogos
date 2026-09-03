@@ -144,7 +144,11 @@
         </div>
 
         <div id="painelClassificacao" class="competition-panel" hidden>
-          <div class="classification-toolbar">
+          <div class="segmented classification-type" id="classificacaoTipo">
+            <button class="selected" data-classificacao-tipo="modalidade" type="button">Por modalidade</button>
+            <button data-classificacao-tipo="geral" type="button">Geral do campeonato</button>
+          </div>
+          <div class="classification-toolbar" id="classificacaoToolbar">
             <label for="classificacaoModalidade">Modalidade</label>
             <select id="classificacaoModalidade" aria-label="Escolher modalidade"></select>
           </div>
