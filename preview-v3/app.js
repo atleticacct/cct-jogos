@@ -1390,9 +1390,65 @@ document.querySelectorAll('[data-open="about"]').forEach(b=>b.onclick=()=>{
   if(!html.includes('Nenhum conteúdo publicado')) return abrirConteudos('SOBRE','Sobre a Atlética','publico');
   openModal('about');
 });
-document.querySelectorAll('[data-open="partners"]').forEach(b=>b.onclick=()=>{
-  const html=conteudosHtml('PARCEIRO','publico');
-  if(!html.includes('Nenhum conteúdo publicado')) return abrirConteudos('PARCEIRO','Quem fortalece a CCT','publico');
-  openModal('partners');
-});
+function parceiroCampo(item,...nomes){
+  for(const nome of nomes){
+    const v=item?.[nome];
+    if(v!==undefined && v!==null && String(v).trim()) return String(v).trim();
+  }
+  return '';
+}
+function parceirosPublicos(){
+  return somentePublicos(apiData.conteudos)
+    .filter(x=>categoriaTem(x.CATEGORIA,['PARCEIRO','PATROCIN']))
+    .sort((a,b)=>(isSim(b.DESTAQUE)-isSim(a.DESTAQUE))||((Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)));
+}
+function parceiroCardHtml(x,index=0){
+  const nome=parceiroCampo(x,'TITULO','NOME')||'Parceiro CCT';
+  const beneficio=parceiroCampo(x,'BENEFICIO','BENEFÍCIO','VANTAGEM','OFERTA')||parceiroCampo(x,'DESCRICAO','DESCRIÇÃO');
+  const detalhes=parceiroCampo(x,'DETALHES','OBSERVACAO','OBSERVAÇÃO','SUBTITULO');
+  const cupom=parceiroCampo(x,'CUPOM','CODIGO','CÓDIGO');
+  const img=normalizeImageUrl(parceiroCampo(x,'IMAGEM_URL','LOGO_URL','FOTO_URL'));
+  const link=linkSeguro(parceiroCampo(x,'LINK','LINK_PARCEIRO','SITE','INSTAGRAM'));
+  const cta=parceiroCampo(x,'TEXTO_BOTAO','TEXTO_BOTÃO')||'CONHECER PARCEIRO';
+  const destaque=isSim(x.DESTAQUE);
+  const inicial=(nome.trim().charAt(0)||'C').toUpperCase();
+  return `<article class="partner-card ${destaque?'featured':''}">
+    <div class="partner-card-top">
+      <div class="partner-logo">${img?`<img src="${escapeHtml(img)}" alt="Logo ${escapeHtml(nome)}">`:`<span>${escapeHtml(inicial)}</span>`}</div>
+      <div class="partner-heading">
+        <small>${destaque?'PARCEIRO EM DESTAQUE':'PARCEIRO CCT'}</small>
+        <h3>${escapeHtml(nome)}</h3>
+      </div>
+      ${destaque?`<span class="partner-star">${uiIcon('star')}</span>`:''}
+    </div>
+    ${beneficio?`<div class="partner-benefit"><span>BENEFÍCIO</span><strong>${escapeHtml(beneficio)}</strong></div>`:''}
+    ${detalhes?`<p class="partner-details">${escapeHtml(detalhes)}</p>`:''}
+    ${cupom?`<div class="partner-coupon"><small>CUPOM</small><b>${escapeHtml(cupom)}</b><span>Apresente ou use este código</span></div>`:''}
+    ${link?`<a class="partner-cta" href="${escapeHtml(link)}" target="_blank" rel="noopener">${escapeHtml(cta)} <b>›</b></a>`:''}
+  </article>`;
+}
+function abrirParceiros(){
+  const itens=parceirosPublicos();
+  const total=itens.length;
+  const destaque=itens.filter(x=>isSim(x.DESTAQUE)).length;
+  mc.innerHTML=`
+    <div class="partners-head">
+      <span class="chip">PARCEIROS CCT</span>
+      <div class="partners-title-row">
+        <div class="partners-title-icon">${uiIcon('handshake')}</div>
+        <div><h2>Quem joga junto com a CCT</h2><p>Benefícios, descontos e marcas que fortalecem nossa Atlética.</p></div>
+      </div>
+      ${total?`<div class="partners-summary"><strong>${total}</strong><span>${total===1?'parceiro ativo':'parceiros ativos'}</span>${destaque?`<em>${destaque} em destaque</em>`:''}</div>`:''}
+    </div>
+    <div class="partners-list">
+      ${total?itens.map(parceiroCardHtml).join(''):`<div class="partner-empty">${uiIcon('handshake')}<strong>Novas parcerias em breve</strong><p>Estamos preparando benefícios e vantagens para a comunidade CCT.</p></div>`}
+    </div>
+    <button class="partner-join" type="button" data-partner-contact>
+      <span>${uiIcon('mail')}</span><div><small>QUER FORTALECER A CCT?</small><strong>Seja um parceiro</strong></div><b>›</b>
+    </button>`;
+  modal.classList.add('open');
+  closeDrawer();
+  mc.querySelector('[data-partner-contact]')?.addEventListener('click',()=>abrirContatos('publico'));
+}
+document.querySelectorAll('[data-open="partners"]').forEach(b=>b.onclick=abrirParceiros);
 bindAreaMembros();
