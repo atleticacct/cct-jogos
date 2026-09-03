@@ -173,8 +173,13 @@ function jogosFiltrados(){
   return apiData.jogos
     .filter(j=>j.ID_COMPETICAO===jogosUI.competicao)
     .filter(j=>{
-      if(jogosUI.tipo!=='meus') return true;
-      return jogoTemCCT(j) && (!sports.length || sports.includes(j.ID_MODALIDADE));
+      if(jogosUI.tipo==='representacoes') {
+        return String(j.REPRESENTACAO_CCT||'').trim().toUpperCase()==='SIM';
+      }
+      if(jogosUI.tipo==='meus') {
+        return jogoTemCCT(j) && (!sports.length || sports.includes(j.ID_MODALIDADE));
+      }
+      return true;
     })
     .filter(j=>{
       if(jogosUI.filtro==='todos') return true;

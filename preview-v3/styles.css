@@ -228,3 +228,9 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
 .representation-pending{margin-top:12px;padding:11px 12px;border-top:1px solid #355440;background:rgba(35,209,96,.045);border-radius:10px}
 .representation-pending small{display:block;color:var(--green);font-size:8px;font-weight:900;letter-spacing:1px}
 .representation-pending strong{display:block;font-size:12px;margin-top:3px}
+
+
+/* Jogos v21 - filtro de representações CCT */
+#tipoJogos{grid-template-columns:repeat(3,minmax(0,1fr));}
+#tipoJogos button{padding:10px 6px;font-size:10px;line-height:1.15;}
+@media(max-width:390px){#tipoJogos button{font-size:9px;padding:9px 4px;}}
