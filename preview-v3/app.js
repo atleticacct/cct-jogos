@@ -762,11 +762,42 @@ function perfilAtual(){
   try{return JSON.parse(localStorage.getItem(PROFILE_KEY)||'null')||{};}catch(e){return {};}
 }
 
+function normalizarIdSocio(v){
+  return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+}
+function campoPessoa(p,...nomes){
+  for(const nome of nomes){
+    const v=p?.[nome];
+    if(v!==undefined && v!==null && String(v).trim()) return String(v).trim();
+  }
+  return '';
+}
+function pessoaSocioAprovada(pessoa){
+  const raw=campoPessoa(pessoa,'SOCIO_CCT','SÓCIO_CCT','SOCIO','SÓCIO','ASSOCIADO','E_SOCIO','É_SÓCIO');
+  return isSim(raw);
+}
+function registroSocioPerfil(){
+  const p=perfilAtual();
+  const id=normalizarIdSocio(p.socioId||p.codigoSocio||'');
+  if(!id) return null;
+  return (apiData.pessoas||[]).find(pessoa=>{
+    if(!pessoaSocioAprovada(pessoa)) return false;
+    const ids=[
+      campoPessoa(pessoa,'CODIGO_SOCIO','CÓDIGO_SOCIO'),
+      campoPessoa(pessoa,'ID_SOCIO','ID_SÓCIO'),
+      campoPessoa(pessoa,'MATRICULA','MATRÍCULA'),
+      campoPessoa(pessoa,'ID_PESSOA')
+    ].map(normalizarIdSocio).filter(Boolean);
+    return ids.includes(id);
+  })||null;
+}
+function perfilSocioAprovado(){ return !!registroSocioPerfil(); }
+
 function roleLabel(role='Atleta'){
   const r=String(role||'Atleta').trim().toLowerCase();
   if(r.startsWith('torc')) return 'TORCEDOR(A)';
   if(r.startsWith('membro')) return 'MEMBRO DA ATLÉTICA';
-  if(r.startsWith('sócio') || r.startsWith('socio')) return 'SÓCIO(A) CCT';
+  // Sócio deixa de ser um perfil auto-selecionável; versões antigas caem em Atleta.
   return 'ATLETA';
 }
 
@@ -851,36 +882,43 @@ function salvarPerfil({silent=false}={}){
 
 function abrirEditorPerfil(){
   const p=perfilAtual();
+  const socioOk=perfilSocioAprovado();
+  const roleAtual=String(p.role||'').toLowerCase();
   mc.innerHTML=`
     <span class="chip">PERFIL</span>
     <h2>Editar perfil</h2>
     <div class="profile-editor">
       <label><span>Nome exibido</span><input id="profileNameInput" type="text" maxlength="40" value="${escapeHtml(p.name||'')}" placeholder="Seu nome"></label>
       <label><span>Como você usa o app?</span><select id="profileRoleInput">
-        <option value="Atleta" ${!p.role||String(p.role).toLowerCase().startsWith('atleta')?'selected':''}>Atleta</option>
-        <option value="Torcedor(a)" ${String(p.role||'').toLowerCase().startsWith('torc')?'selected':''}>Torcedor(a)</option>
-        <option value="Sócio(a) CCT" ${(String(p.role||'').toLowerCase().startsWith('sócio')||String(p.role||'').toLowerCase().startsWith('socio'))?'selected':''}>Sócio(a) CCT</option>
-        <option value="Membro da Atlética" ${String(p.role||'').toLowerCase().startsWith('membro')?'selected':''}>Membro da Atlética</option>
+        <option value="Atleta" ${!p.role||roleAtual.startsWith('atleta')||roleAtual.startsWith('sócio')||roleAtual.startsWith('socio')?'selected':''}>Atleta</option>
+        <option value="Torcedor(a)" ${roleAtual.startsWith('torc')?'selected':''}>Torcedor(a)</option>
+        <option value="Membro da Atlética" ${roleAtual.startsWith('membro')?'selected':''}>Membro da Atlética</option>
       </select></label>
-      <label class="profile-editor-check"><input id="profileSocioInput" type="checkbox" ${p.isSocio||String(p.role||'').toLowerCase().startsWith('sócio')||String(p.role||'').toLowerCase().startsWith('socio')?'checked':''}><span><strong>Também sou sócio(a) CCT</strong><small>Libera benefícios destinados a sócios sem alterar seu perfil principal.</small></span></label>
+      <label><span>Código CCT / matrícula</span><input id="profileSocioIdInput" type="text" maxlength="40" value="${escapeHtml(p.socioId||'')}" placeholder="Use o identificador informado pela Atlética"></label>
+      <div class="profile-socio-status ${socioOk?'approved':'pending'}">
+        <span>${uiIcon(socioOk?'check':'lock')}</span>
+        <div><small>STATUS DE SÓCIO(A)</small><strong>${socioOk?'Sócio(a) CCT validado':'Validação pela Atlética'}</strong><p>${socioOk?'Benefícios exclusivos de sócio estão liberados neste perfil.':'A condição de sócio não pode ser marcada pelo usuário. Informe seu código CCT/matrícula e um responsável da Atlética deve liberar o cadastro no painel.'}</p>${!socioOk?'<button type="button" data-socio-contact>FALAR COM A CCT ›</button>':''}</div>
+      </div>
       <p>A identificação do perfil é apenas visual e não libera o acesso restrito da Área da Atlética.</p>
       <button class="primary full" id="saveProfileIdentity" type="button">SALVAR PERFIL</button>
     </div>`;
 
   modal.classList.add('open');
+  mc.querySelector('[data-socio-contact]')?.addEventListener('click',()=>abrirContatos('publico'));
 
   $('#saveProfileIdentity')?.addEventListener('click',()=>{
     const atual=perfilAtual();
     const nome=$('#profileNameInput')?.value?.trim();
     atual.name=nome||'Seu nome';
     atual.role=$('#profileRoleInput')?.value||'Atleta';
-    atual.isSocio=!!$('#profileSocioInput')?.checked || String(atual.role).toLowerCase().startsWith('sócio') || String(atual.role).toLowerCase().startsWith('socio');
+    atual.socioId=$('#profileSocioIdInput')?.value?.trim()||'';
+    delete atual.isSocio; // legado: a liberação passa a vir apenas do painel administrativo.
     atual.updatedAt=new Date().toISOString();
     try{
       localStorage.setItem(PROFILE_KEY,JSON.stringify(atual));
       aplicarIdentidadePerfil();
       modal.classList.remove('open');
-      feedbackPerfil('✓ Perfil atualizado neste aparelho');
+      feedbackPerfil(perfilSocioAprovado()?'✓ Perfil atualizado • sócio validado':'✓ Perfil atualizado neste aparelho');
     }catch(e){
       console.error('Não foi possível salvar o perfil:',e);
     }
@@ -1067,7 +1105,6 @@ function perfilRoleTipo(){
   const r=String(perfilAtual().role||'Atleta').trim().toLowerCase();
   if(r.startsWith('torc')) return 'torcedor';
   if(r.startsWith('membro')) return 'membro';
-  if(r.startsWith('sócio') || r.startsWith('socio')) return 'socio';
   return 'atleta';
 }
 
@@ -1319,14 +1356,12 @@ function deduplicarConteudos(itens){
 }
 function abrirHubMidia(escopo='publico'){
   const itens=deduplicarConteudos(conteudosFiltrados('MID',escopo));
-  const fotos=itens.filter(x=>categoriaTem(x.CATEGORIA,['FOTO','GALERIA'])).length;
-  const videos=itens.filter(x=>categoriaTem(x.CATEGORIA,['VIDEO'])).length;
-  mc.innerHTML=`<div class="hub-head"><span class="chip">${escopo==='membros'?'MEMBROS':'MÍDIA CCT'}</span><div class="hub-title"><span>${uiIcon('image')}</span><div><h2>${escopo==='membros'?'Mídia interna':'Mídia CCT'}</h2><p>Fotos, vídeos e memórias da CCT em um só lugar.</p></div></div>${itens.length?`<div class="hub-stats"><div><b>${itens.length}</b><small>conteúdos</small></div><div><b>${fotos}</b><small>fotos/galerias</small></div><div><b>${videos}</b><small>vídeos</small></div></div>`:''}</div><div class="media-hub-grid">${itens.length?itens.map(x=>{const img=normalizeImageUrl(x.IMAGEM_URL);const link=linkSeguro(x.LINK);return `<article class="media-hub-card ${isSim(x.DESTAQUE)?'featured':''}">${img?`<img src="${escapeHtml(img)}" alt="">`:`<span class="media-hub-placeholder">${uiIcon('image')}</span>`}<div><small>${escapeHtml(conteudoTipoLabel(x))}</small><strong>${escapeHtml(x.TITULO||'Mídia CCT')}</strong><p>${escapeHtml(x.DESCRICAO||'Conteúdo da Atlética CCT.')}</p>${link?`<a href="${escapeHtml(link)}" target="_blank" rel="noopener">${escapeHtml(x.TEXTO_BOTAO||'ABRIR CONTEÚDO')} ›</a>`:''}</div></article>`}).join(''):hubEmpty('image','Mídia em construção','Quando novas fotos e vídeos forem publicados, eles aparecerão aqui.')}</div>`;
+  mc.innerHTML=`<div class="hub-head"><span class="chip">${escopo==='membros'?'MEMBROS':'MÍDIA CCT'}</span><div class="hub-title"><span>${uiIcon('image')}</span><div><h2>${escopo==='membros'?'Mídia interna':'Mídia CCT'}</h2><p>Fotos, vídeos e memórias da CCT em um só lugar.</p></div></div></div><div class="media-hub-grid">${itens.length?itens.map(x=>{const img=normalizeImageUrl(x.IMAGEM_URL);const link=linkSeguro(x.LINK);return `<article class="media-hub-card ${isSim(x.DESTAQUE)?'featured':''}">${img?`<img src="${escapeHtml(img)}" alt="">`:`<span class="media-hub-placeholder">${uiIcon('image')}</span>`}<div><small>${escapeHtml(conteudoTipoLabel(x))}</small><strong>${escapeHtml(x.TITULO||'Mídia CCT')}</strong><p>${escapeHtml(x.DESCRICAO||'Conteúdo da Atlética CCT.')}</p>${link?`<a href="${escapeHtml(link)}" target="_blank" rel="noopener">${escapeHtml(x.TEXTO_BOTAO||'ABRIR CONTEÚDO')} ›</a>`:''}</div></article>`}).join(''):hubEmpty('image','Mídia em construção','Quando novas fotos e vídeos forem publicados, eles aparecerão aqui.')}</div>`;
   modal.classList.add('open'); closeDrawer();
 }
 function abrirHubDocumentos(escopo='publico',titulo='Documentos'){
   const itens=conteudosFiltrados('DOCUMENT',escopo);
-  mc.innerHTML=`<div class="hub-head"><span class="chip">${escopo==='membros'?'MEMBROS':'DOCUMENTOS'}</span><div class="hub-title"><span>${uiIcon('file')}</span><div><h2>${escapeHtml(titulo)}</h2><p>Regulamentos, arquivos oficiais e materiais importantes da CCT.</p></div></div>${itens.length?`<div class="hub-summary"><b>${itens.length}</b><span>${itens.length===1?'arquivo disponível':'arquivos disponíveis'}</span></div>`:''}</div><div class="document-hub-list">${itens.length?itens.map(x=>{const comp=x.ID_COMPETICAO?competitionName(x.ID_COMPETICAO):'';const link=linkSeguro(x.LINK);return `<article class="document-hub-card"><span>${uiIcon('file')}</span><div><small>${escapeHtml(comp||conteudoTipoLabel(x))}</small><strong>${escapeHtml(x.TITULO||'Documento')}</strong><p>${escapeHtml(x.DESCRICAO||'Arquivo publicado pela Atlética CCT.')}</p>${link?`<a href="${escapeHtml(link)}" target="_blank" rel="noopener">${escapeHtml(x.TEXTO_BOTAO||'ABRIR DOCUMENTO')} ›</a>`:''}</div></article>`}).join(''):hubEmpty('file','Nenhum documento publicado','Os regulamentos e arquivos oficiais aparecerão aqui.')}</div>`;
+  mc.innerHTML=`<div class="hub-head"><span class="chip">${escopo==='membros'?'MEMBROS':'DOCUMENTOS'}</span><div class="hub-title"><span>${uiIcon('file')}</span><div><h2>${escapeHtml(titulo)}</h2><p>Regulamentos, arquivos oficiais e materiais importantes da CCT.</p></div></div></div><div class="document-hub-list">${itens.length?itens.map(x=>{const comp=x.ID_COMPETICAO?competitionName(x.ID_COMPETICAO):'';const link=linkSeguro(x.LINK);return `<article class="document-hub-card"><span>${uiIcon('file')}</span><div><small>${escapeHtml(comp||conteudoTipoLabel(x))}</small><strong>${escapeHtml(x.TITULO||'Documento')}</strong><p>${escapeHtml(x.DESCRICAO||'Arquivo publicado pela Atlética CCT.')}</p>${link?`<a href="${escapeHtml(link)}" target="_blank" rel="noopener">${escapeHtml(x.TEXTO_BOTAO||'ABRIR DOCUMENTO')} ›</a>`:''}</div></article>`}).join(''):hubEmpty('file','Nenhum documento publicado','Os regulamentos e arquivos oficiais aparecerão aqui.')}</div>`;
   modal.classList.add('open'); closeDrawer();
 }
 function abrirHubFormularios(escopo='publico',titulo='Pedidos e Formulários'){
@@ -1344,14 +1379,14 @@ function abrirConteudos(categoria='',titulo='Conteúdos',escopo='publico'){
 function abrirLocais(escopo='publico'){
   const itens=(escopo==='membros'?somenteMembros(apiData.locais):somentePublicos(apiData.locais)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
   const interno=escopo==='membros';
-  mc.innerHTML=`<div class="hub-head"><span class="chip">${interno?'MEMBROS':'LOCAIS CCT'}</span><div class="hub-title"><span>${uiIcon('map-pin')}</span><div><h2>${interno?'Locais internos':'Onde a CCT acontece'}</h2><p>${interno?'Pontos de encontro, apoio e organização da diretoria.':'Ginásios, quadras, eventos e pontos importantes para você chegar sem dúvida.'}</p></div></div>${itens.length?`<div class="hub-summary"><b>${itens.length}</b><span>${itens.length===1?'local cadastrado':'locais cadastrados'}</span></div>`:''}</div><div class="places-hub-list">${itens.length?itens.map(x=>{const img=normalizeImageUrl(x.IMAGEM_URL);const link=linkSeguro(x.LINK_MAPS);const meta=[x.TIPO,x.ENDERECO].filter(Boolean).join(' • ');return `<article class="place-hub-card">${img?`<img src="${escapeHtml(img)}" alt="">`:`<span class="place-icon">${uiIcon('map-pin')}</span>`}<div><small>${escapeHtml(x.TIPO|| (interno?'INTERNO':'LOCAL CCT'))}</small><strong>${escapeHtml(x.NOME||'Local')}</strong>${meta?`<p>${escapeHtml(meta)}</p>`:''}${x.OBSERVACAO?`<em>${escapeHtml(x.OBSERVACAO)}</em>`:''}${link?`<a href="${escapeHtml(link)}" target="_blank" rel="noopener">ABRIR NO MAPA ›</a>`:''}</div></article>`}).join(''):hubEmpty('map-pin',interno?'Nenhum local interno cadastrado':'Nenhum local publicado',interno?'Os pontos de organização da equipe aparecerão aqui.':'Os locais de jogos e eventos serão publicados aqui.')}</div>`;
+  mc.innerHTML=`<div class="hub-head"><span class="chip">${interno?'MEMBROS':'LOCAIS CCT'}</span><div class="hub-title"><span>${uiIcon('map-pin')}</span><div><h2>${interno?'Locais internos':'Onde a CCT acontece'}</h2><p>${interno?'Pontos de encontro, apoio e organização da diretoria.':'Ginásios, quadras, eventos e pontos importantes para você chegar sem dúvida.'}</p></div></div></div><div class="places-hub-list">${itens.length?itens.map(x=>{const img=normalizeImageUrl(x.IMAGEM_URL);const link=linkSeguro(x.LINK_MAPS);const meta=[x.TIPO,x.ENDERECO].filter(Boolean).join(' • ');return `<article class="place-hub-card">${img?`<img src="${escapeHtml(img)}" alt="">`:`<span class="place-icon">${uiIcon('map-pin')}</span>`}<div><small>${escapeHtml(x.TIPO|| (interno?'INTERNO':'LOCAL CCT'))}</small><strong>${escapeHtml(x.NOME||'Local')}</strong>${meta?`<p>${escapeHtml(meta)}</p>`:''}${x.OBSERVACAO?`<em>${escapeHtml(x.OBSERVACAO)}</em>`:''}${link?`<a href="${escapeHtml(link)}" target="_blank" rel="noopener">ABRIR NO MAPA ›</a>`:''}</div></article>`}).join(''):hubEmpty('map-pin',interno?'Nenhum local interno cadastrado':'Nenhum local publicado',interno?'Os pontos de organização da equipe aparecerão aqui.':'Os locais de jogos e eventos serão publicados aqui.')}</div>`;
   modal.classList.add('open'); closeDrawer();
 }
 function abrirContatos(escopo='publico'){
   const base=escopo==='membros'?somenteMembros(apiData.pessoas):somentePublicos(apiData.pessoas);
   const itens=base.filter(x=>String(x.ATIVO||'SIM').toUpperCase()!=='NÃO');
   const interno=escopo==='membros';
-  mc.innerHTML=`<div class="hub-head"><span class="chip">${interno?'MEMBROS':'CONTATOS CCT'}</span><div class="hub-title"><span>${uiIcon('mail')}</span><div><h2>${interno?'Equipe interna':'Fale com a CCT'}</h2><p>${interno?'Diretoria, responsáveis e contatos de organização.':'Encontre rapidamente a pessoa certa para esportes, eventos, parcerias ou atendimento geral.'}</p></div></div>${itens.length?`<div class="hub-summary"><b>${itens.length}</b><span>${itens.length===1?'contato disponível':'contatos disponíveis'}</span></div>`:''}</div><div class="contacts-hub-list">${itens.length?itens.map(p=>{const foto=normalizeImageUrl(p.FOTO_URL);const whats=linkSeguro(p.LINK_WHATSAPP);const cargo=[p.CARGO,p.TIPO].filter(Boolean).join(' • ');return `<article class="contact-hub-card">${foto?`<img src="${escapeHtml(foto)}" alt="">`:`<span class="contact-hub-avatar">${escapeHtml((p.NOME||'C').charAt(0))}</span>`}<div><small>${escapeHtml(p.TIPO||'CCT')}</small><strong>${escapeHtml(p.NOME||'Contato CCT')}</strong>${cargo?`<p>${escapeHtml(cargo)}</p>`:''}<div class="contact-actions">${whats?`<a href="${escapeHtml(whats)}" target="_blank" rel="noopener">WHATSAPP ›</a>`:''}${p.EMAIL?`<a href="mailto:${escapeHtml(p.EMAIL)}">E-MAIL ›</a>`:''}</div></div></article>`}).join(''):hubEmpty('mail','Nenhum contato publicado','Os canais oficiais da CCT aparecerão aqui.')}</div>`;
+  mc.innerHTML=`<div class="hub-head"><span class="chip">${interno?'MEMBROS':'CONTATOS CCT'}</span><div class="hub-title"><span>${uiIcon('mail')}</span><div><h2>${interno?'Equipe interna':'Fale com a CCT'}</h2><p>${interno?'Diretoria, responsáveis e contatos de organização.':'Encontre rapidamente a pessoa certa para esportes, eventos, parcerias ou atendimento geral.'}</p></div></div></div><div class="contacts-hub-list">${itens.length?itens.map(p=>{const foto=normalizeImageUrl(p.FOTO_URL);const whats=linkSeguro(p.LINK_WHATSAPP);const cargo=[p.CARGO,p.TIPO].filter(Boolean).join(' • ');return `<article class="contact-hub-card">${foto?`<img src="${escapeHtml(foto)}" alt="">`:`<span class="contact-hub-avatar">${escapeHtml((p.NOME||'C').charAt(0))}</span>`}<div><small>${escapeHtml(p.TIPO||'CCT')}</small><strong>${escapeHtml(p.NOME||'Contato CCT')}</strong>${cargo?`<p>${escapeHtml(cargo)}</p>`:''}<div class="contact-actions">${whats?`<a href="${escapeHtml(whats)}" target="_blank" rel="noopener">WHATSAPP ›</a>`:''}${p.EMAIL?`<a href="mailto:${escapeHtml(p.EMAIL)}">E-MAIL ›</a>`:''}</div></div></article>`}).join(''):hubEmpty('mail','Nenhum contato publicado','Os canais oficiais da CCT aparecerão aqui.')}</div>`;
   modal.classList.add('open'); closeDrawer();
 }
 function renderizarHeroHome(){
@@ -1443,7 +1478,7 @@ function renderizarModulosGerais(){ renderizarAgenda(); renderizarAvisos(); rend
 function abrirAjuda(){
   const contato=somentePublicos(apiData.pessoas).find(p=>String(p.ATIVO||'SIM').toUpperCase()!=='NÃO' && (linkSeguro(p.LINK_WHATSAPP)||p.EMAIL));
   const contatoHtml=contato?(linkSeguro(contato.LINK_WHATSAPP)?`<a class="help-contact" href="${escapeHtml(contato.LINK_WHATSAPP)}" target="_blank" rel="noopener">💬 FALAR COM A ATLÉTICA ›</a>`:`<a class="help-contact" href="mailto:${escapeHtml(contato.EMAIL)}">✉ FALAR COM A ATLÉTICA ›</a>`):'';
-  mc.innerHTML=`<span class="chip">AJUDA</span><h2>Como usar a ATLÉTICA CCT</h2><div class="help-sections"><section><strong>${uiIcon('home','inline-icon')} Instalar no celular</strong><p><b>iPhone:</b> abra no Safari, toque em Compartilhar e escolha “Adicionar à Tela de Início”.<br><b>Android:</b> abra no Chrome e use “Adicionar à tela inicial” ou “Instalar app”.</p></section><section><strong>${uiIcon('user','inline-icon')} Personalizar seu perfil</strong><p>Em Perfil, selecione as modalidades que você joga ou acompanha. “Minha Programação” adapta a agenda ao tipo de perfil: atleta, torcedor(a), sócio(a) ou membro da Atlética.</p></section><section><strong>${uiIcon('trophy','inline-icon')} Jogos e competições</strong><p>Use Jogos para acompanhar partidas, classificação, cenários e destaques de cada campeonato.</p></section><section><strong>${uiIcon('bell','inline-icon')} Avisos</strong><p>O sino reúne avisos ativos. Mudanças urgentes de horário, local e informações importantes aparecem em destaque.</p></section><section><strong>${uiIcon('lock','inline-icon')} Área da Atlética</strong><p>É destinada aos membros para agenda interna, representações, documentos, avisos, equipe e formulários.</p></section></div>${contatoHtml}`;
+  mc.innerHTML=`<span class="chip">AJUDA</span><h2>Como usar a ATLÉTICA CCT</h2><div class="help-sections"><section><strong>${uiIcon('home','inline-icon')} Instalar no celular</strong><p><b>iPhone:</b> abra no Safari, toque em Compartilhar e escolha “Adicionar à Tela de Início”.<br><b>Android:</b> abra no Chrome e use “Adicionar à tela inicial” ou “Instalar app”.</p></section><section><strong>${uiIcon('user','inline-icon')} Personalizar seu perfil</strong><p>Em Perfil, selecione as modalidades que você joga ou acompanha. “Minha Programação” adapta a agenda ao tipo de perfil: atleta, torcedor(a) ou membro da Atlética. Benefícios de sócio(a) são liberados pela Atlética no painel administrativo.</p></section><section><strong>${uiIcon('trophy','inline-icon')} Jogos e competições</strong><p>Use Jogos para acompanhar partidas, classificação, cenários e destaques de cada campeonato.</p></section><section><strong>${uiIcon('bell','inline-icon')} Avisos</strong><p>O sino reúne avisos ativos. Mudanças urgentes de horário, local e informações importantes aparecem em destaque.</p></section><section><strong>${uiIcon('lock','inline-icon')} Área da Atlética</strong><p>É destinada aos membros para agenda interna, representações, documentos, avisos, equipe e formulários.</p></section></div>${contatoHtml}`;
   modal.classList.add('open'); closeDrawer();
 }
 // Conecta atalhos do menu aos dados do Sheets.
@@ -1466,14 +1501,12 @@ function parceiroCampo(item,...nomes){
   return '';
 }
 function perfilPublicosParceiro(){
-  const p=perfilAtual();
   const role=perfilRoleTipo();
   const perfis=[];
   if(role==='torcedor') perfis.push('TORCEDOR');
   else if(role==='membro') perfis.push('MEMBRO');
-  else if(role==='socio') perfis.push('SOCIO');
   else perfis.push('ATLETA');
-  if(p.isSocio && !perfis.includes('SOCIO')) perfis.push('SOCIO');
+  if(perfilSocioAprovado() && !perfis.includes('SOCIO')) perfis.push('SOCIO');
   return perfis;
 }
 function parceiroPublicosAlvo(x){
