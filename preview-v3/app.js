@@ -26,7 +26,8 @@ let apiData = {
   conteudos: [],
   locais: [],
   pessoas: [],
-  eventos: []
+  eventos: [],
+  destaques: []
 };
 
 let jogosUI = {
@@ -411,11 +412,52 @@ function renderizarCenarios(){
   `).join('') : '<div class="games-empty">Nenhum cenário de classificação publicado para esta competição.</div>';
 }
 
+
+function destaqueIcone(tipo){
+  const t=String(tipo||'').trim().toUpperCase();
+  const mapa={
+    OURO:'🥇', PRATA:'🥈', BRONZE:'🥉', CAMPEAO:'🏆', 'CAMPEÃO':'🏆',
+    RECORDE:'⚡', DESTAQUE:'⭐', PREMIACAO:'🎖️', 'PREMIAÇÃO':'🎖️'
+  };
+  return mapa[t]||'⭐';
+}
+
+function renderizarDestaques(){
+  const container=$('#destaquesContainer');
+  if(!container) return;
+
+  const linhas=apiData.destaques
+    .filter(d=>d.ID_COMPETICAO===jogosUI.competicao)
+    .sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
+
+  container.innerHTML=linhas.length ? linhas.map(d=>{
+    const foto=normalizeImageUrl(d.FOTO_URL||'');
+    const nome=String(d.NOME||'').trim();
+    const modalidade=d.ID_MODALIDADE ? modalidadeNome(d.ID_MODALIDADE) : '';
+    return `
+      <article class="highlight-card">
+        <div class="highlight-medal">${destaqueIcone(d.TIPO)}</div>
+        <div class="highlight-main">
+          <div class="highlight-top">
+            <span class="chip">${escapeHtml(d.TIPO||'DESTAQUE')}</span>
+            ${modalidade?`<small>${escapeHtml(modalidade)}</small>`:''}
+          </div>
+          <h3>${escapeHtml(d.TITULO||'Destaque da CCT')}</h3>
+          ${nome?`<strong class="highlight-name">${escapeHtml(nome)}</strong>`:''}
+          ${d.RESULTADO?`<div class="highlight-result">${escapeHtml(d.RESULTADO)}</div>`:''}
+          ${d.DESCRICAO?`<p>${escapeHtml(d.DESCRICAO)}</p>`:''}
+        </div>
+        ${foto?`<img class="highlight-photo" src="${escapeHtml(foto)}" alt="${escapeHtml(nome||d.TITULO||'Destaque CCT')}" />`:''}
+      </article>`;
+  }).join('') : '<div class="games-empty">Nenhum destaque publicado para esta competição ainda.</div>';
+}
+
 function renderizarAbaCompeticao(){
   const mapas={
     jogos:['#painelJogos','Jogos'],
     classificacao:['#painelClassificacao','Classificação'],
-    cenarios:['#painelCenarios','Cenários']
+    cenarios:['#painelCenarios','Cenários'],
+    destaques:['#painelDestaques','Destaques']
   };
   Object.entries(mapas).forEach(([aba,[sel]])=>{
     const el=$(sel);
@@ -428,6 +470,7 @@ function renderizarAbaCompeticao(){
   if(jogosUI.aba==='jogos') renderizarJogos();
   if(jogosUI.aba==='classificacao') renderizarClassificacao();
   if(jogosUI.aba==='cenarios') renderizarCenarios();
+  if(jogosUI.aba==='destaques') renderizarDestaques();
 }
 
 function abrirCenarioModalidade(idModalidade){
@@ -547,6 +590,7 @@ async function carregarDadosAPI(){
     apiData.locais=dados.locais||[];
     apiData.pessoas=dados.pessoas||[];
     apiData.eventos=dados.eventos||[];
+    apiData.destaques=dados.destaques||[];
 
     if(!apiData.competicoes.some(c=>c.ID_COMPETICAO===jogosUI.competicao) && apiData.competicoes[0]){
       jogosUI.competicao=apiData.competicoes[0].ID_COMPETICAO;
@@ -572,6 +616,8 @@ async function carregarDadosAPI(){
     if(cls) cls.innerHTML='<div class="games-empty">Não foi possível atualizar a classificação agora.</div>';
     const cen=$('#cenariosContainer');
     if(cen) cen.innerHTML='<div class="games-empty">Não foi possível atualizar os cenários agora.</div>';
+    const des=$('#destaquesContainer');
+    if(des) des.innerHTML='<div class="games-empty">Não foi possível atualizar os destaques agora.</div>';
   }
 }
 
