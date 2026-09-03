@@ -616,7 +616,7 @@ const memberBtn=document.querySelector('#demoMemberAccess');
 if(memberBtn){
   memberBtn.addEventListener('click',()=>{
     document.querySelector('#memberLock').hidden=true;
-    document.querySelector('#memberDashboard').hidden=false;
+    document.querySelector('#memberDashboard').hidden=false; renderizarAreaMembros();
   });
 }
 
@@ -657,6 +657,15 @@ async function loadCctEvents(){const all=document.getElementById('eventsContaine
 /* v22 — módulos administrativos dinâmicos */
 function dataVal(v,h='00:00'){ return parseBrDate(v,h)?.getTime() || Number.MAX_SAFE_INTEGER; }
 function isSim(v){ return String(v||'').trim().toUpperCase()==='SIM'; }
+function visibilidade(v){ return String(v||'').trim().toUpperCase(); }
+function ehMembros(x){ return visibilidade(x?.VISIBILIDADE)==='MEMBROS'; }
+function ehPublico(x){ return !ehMembros(x); } // compatível com registros antigos sem VISIBILIDADE
+function somentePublicos(arr){ return (arr||[]).filter(ehPublico); }
+function somenteMembros(arr){ return (arr||[]).filter(ehMembros); }
+function categoriaTem(valor, termos=[]){
+  const c=String(valor||'').trim().toUpperCase();
+  return termos.some(t=>c.includes(String(t).toUpperCase()));
+}
 function linkSeguro(v){ const x=String(v||'').trim(); return /^https?:\/\//i.test(x)?x:''; }
 function agendaIcon(tipo){ const t=String(tipo||'').toUpperCase(); if(t.includes('TREINO'))return '🏃'; if(t.includes('ATEND'))return '🏠'; if(t.includes('REUNI'))return '👥'; if(t.includes('JOGO'))return '🏆'; return '📅'; }
 function agendaItemHtml(a){
@@ -665,29 +674,134 @@ function agendaItemHtml(a){
   return `<div class="agenda-row"><time>${escapeHtml(a.HORA_INICIO||'--:--')}</time><span class="dot"></span><section><small>${escapeHtml(a.TIPO||'AGENDA')}</small><strong>${escapeHtml(a.TITULO||mod||'Compromisso CCT')}</strong>${mod&&a.TITULO!==mod?`<em>${escapeHtml(mod)}</em>`:''}${local?`<p>📍 ${escapeHtml(local)}</p>`:''}${a.DESCRICAO?`<p>${escapeHtml(a.DESCRICAO)}</p>`:''}${linkSeguro(a.LINK_MAPS)?`<a href="${escapeHtml(a.LINK_MAPS)}" target="_blank" rel="noopener">ABRIR MAPA ›</a>`:''}</section></div>`;
 }
 function renderizarAgenda(){
- const c=$('#agendaContainer'); if(!c)return;
- const linhas=[...apiData.agenda].sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
- c.innerHTML=linhas.length?linhas.map(agendaItemHtml).join(''):'<div class="games-empty">Nenhum compromisso publicado na agenda.</div>';
- const h=$('#homeAgendaContainer'); if(h){const hoje=new Date(); let itens=linhas.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA_INICIO),hoje)); if(!itens.length) itens=linhas.filter(a=>dataVal(a.DATA,a.HORA_INICIO)>=Date.now()).slice(0,3); h.innerHTML=itens.length?itens.slice(0,3).map(agendaItemHtml).join(''):'<div class="games-empty">Nada na agenda por enquanto.</div>';}
+  const c=$('#agendaContainer'); if(!c)return;
+  const linhas=somentePublicos(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
+  c.innerHTML=linhas.length?linhas.map(agendaItemHtml).join(''):'<div class="games-empty">Nenhum compromisso público na agenda.</div>';
+  const h=$('#homeAgendaContainer');
+  if(h){
+    const hoje=new Date();
+    let itens=linhas.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA_INICIO),hoje));
+    if(!itens.length) itens=linhas.filter(a=>dataVal(a.DATA,a.HORA_INICIO)>=Date.now()).slice(0,3);
+    h.innerHTML=itens.length?itens.slice(0,3).map(agendaItemHtml).join(''):'<div class="games-empty">Nada na agenda pública por enquanto.</div>';
+  }
 }
-function avisosAtivos(){ const now=Date.now(); return apiData.avisos.filter(a=>{const ini=a.DATA_INICIO?dataVal(a.DATA_INICIO,a.HORA_INICIO||'00:00'):0; const fim=a.DATA_FIM?dataVal(a.DATA_FIM,a.HORA_FIM||'23:59'):Number.MAX_SAFE_INTEGER; return now>=ini&&now<=fim;}).sort((a,b)=>(isSim(b.URGENTE)-isSim(a.URGENTE))||((Number(a.ORDEM)||999)-(Number(b.ORDEM)||999))); }
+function avisosAtivos(escopo='publico'){
+  const now=Date.now();
+  const base=escopo==='membros'?somenteMembros(apiData.avisos):somentePublicos(apiData.avisos);
+  return base.filter(a=>{
+    const ini=a.DATA_INICIO?dataVal(a.DATA_INICIO,a.HORA_INICIO||'00:00'):0;
+    const fim=a.DATA_FIM?dataVal(a.DATA_FIM,a.HORA_FIM||'23:59'):Number.MAX_SAFE_INTEGER;
+    return now>=ini&&now<=fim;
+  }).sort((a,b)=>(isSim(b.URGENTE)-isSim(a.URGENTE))||((Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)));
+}
 function renderizarAvisos(){
  const av=avisosAtivos(); const bell=$('#alertBtn'); if(bell){let b=bell.querySelector('b'); if(b)b.textContent=av.length; bell.classList.toggle('has-alerts',!!av.length);}
  const box=$('#homeUrgentContainer'); if(box){const a=av.find(x=>isSim(x.URGENTE)||isSim(x.DESTAQUE))||av[0]; box.innerHTML=a?`<button class="urgent-card urgent-dynamic" type="button" data-open-alerts><div class="urgent-icon">!</div><div><small>${isSim(a.URGENTE)?'AVISO URGENTE':'AVISO CCT'}</small><strong>${escapeHtml(a.TITULO||'Aviso')}</strong><p>${escapeHtml(a.MENSAGEM||'')}</p></div><span class="arrow">›</span></button>`:''; box.querySelector('[data-open-alerts]')?.addEventListener('click',abrirAvisos);}
 }
 function abrirAvisos(){ const av=avisosAtivos(); mc.innerHTML=`<span class="chip ${av.some(x=>isSim(x.URGENTE))?'live':''}">${av.length} ${av.length===1?'AVISO':'AVISOS'}</span><h2>🔔 Avisos</h2><div class="modal-list">${av.length?av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso CCT')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join(''):'<div><strong>Nenhum aviso ativo</strong><small>Quando houver novidades elas aparecerão aqui.</small></div>'}</div>`; modal.classList.add('open'); }
-function conteudosHtml(categoria=''){
- const itens=apiData.conteudos.filter(x=>!categoria||String(x.CATEGORIA||'').toUpperCase().includes(categoria));
- return itens.length?itens.map(x=>`<div class="content-item">${normalizeImageUrl(x.IMAGEM_URL)?`<img src="${escapeHtml(normalizeImageUrl(x.IMAGEM_URL))}" alt="">`:''}<div><strong>${escapeHtml(x.TITULO||'Conteúdo')}</strong><small>${escapeHtml(x.DESCRICAO||x.CATEGORIA||'')}</small>${linkSeguro(x.LINK)?`<a class="content-link" href="${escapeHtml(x.LINK)}" target="_blank" rel="noopener">${escapeHtml(x.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div></div>`).join(''):'<div><strong>Nenhum conteúdo publicado</strong><small>Cadastre itens na aba CONTEUDOS.</small></div>';
+function conteudosHtml(categoria='',escopo='publico'){
+  let itens=escopo==='membros'?somenteMembros(apiData.conteudos):somentePublicos(apiData.conteudos);
+  const chave=String(categoria||'').toUpperCase();
+  if(chave){
+    const mapas={
+      'DOCUMENT':['DOCUMENT','REGULAMENTO','ARQUIVO'],
+      'MID':['MID','FOTO','VIDEO','GALERIA'],
+      'FORM':['FORM','PEDIDO','VENDA','KIT','UNIFORME','RETIRADA'],
+      'SOBRE':['SOBRE','HISTORIA','INSTITUCIONAL'],
+      'PARCEIRO':['PARCEIRO','PATROCIN']
+    };
+    const termos=mapas[chave]||[chave];
+    itens=itens.filter(x=>categoriaTem(x.CATEGORIA,termos));
+  }
+  return itens.length?itens.map(x=>`<div class="content-item">${normalizeImageUrl(x.IMAGEM_URL)?`<img src="${escapeHtml(normalizeImageUrl(x.IMAGEM_URL))}" alt="">`:''}<div><strong>${escapeHtml(x.TITULO||'Conteúdo')}</strong><small>${escapeHtml(x.DESCRICAO||x.CATEGORIA||'')}</small>${linkSeguro(x.LINK)?`<a class="content-link" href="${escapeHtml(x.LINK)}" target="_blank" rel="noopener">${escapeHtml(x.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div></div>`).join(''):'<div><strong>Nenhum conteúdo publicado</strong><small>Cadastre itens compatíveis na aba CONTEUDOS.</small></div>';
 }
-function abrirConteudos(categoria='',titulo='Conteúdos'){ mc.innerHTML=`<span class="chip">CCT</span><h2>${escapeHtml(titulo)}</h2><div class="modal-list dynamic-content-list">${conteudosHtml(categoria)}</div>`; modal.classList.add('open'); closeDrawer(); }
-function abrirLocais(){ const itens=apiData.locais; mc.innerHTML=`<span class="chip">LOCAIS</span><h2>Onde precisamos estar?</h2><div class="modal-list dynamic-content-list">${itens.length?itens.map(x=>`<div class="content-item">${normalizeImageUrl(x.IMAGEM_URL)?`<img src="${escapeHtml(normalizeImageUrl(x.IMAGEM_URL))}" alt="">`:''}<div><strong>📍 ${escapeHtml(x.NOME||'Local')}</strong><small>${escapeHtml([x.TIPO,x.ENDERECO,x.OBSERVACAO].filter(Boolean).join(' • '))}</small>${linkSeguro(x.LINK_MAPS)?`<a class="content-link" href="${escapeHtml(x.LINK_MAPS)}" target="_blank" rel="noopener">ABRIR NO MAPA ›</a>`:''}</div></div>`).join(''):'<div><strong>Nenhum local publicado</strong><small>Cadastre locais na aba LOCAIS.</small></div>'}</div>`; modal.classList.add('open'); closeDrawer(); }
-function abrirContatos(){ const itens=apiData.pessoas.filter(x=>String(x.ATIVO||'SIM').toUpperCase()!=='NÃO'); mc.innerHTML=`<span class="chip">CONTATOS</span><h2>Fale com a CCT</h2><div class="modal-list dynamic-content-list">${itens.length?itens.map(p=>`<div class="person-contact">${normalizeImageUrl(p.FOTO_URL)?`<img src="${escapeHtml(normalizeImageUrl(p.FOTO_URL))}" alt="">`:`<span class="contact-avatar">${escapeHtml((p.NOME||'C').charAt(0))}</span>`}<div><strong>${escapeHtml(p.NOME||'Contato')}</strong><small>${escapeHtml([p.CARGO,p.TIPO].filter(Boolean).join(' • '))}</small>${linkSeguro(p.LINK_WHATSAPP)?`<a class="content-link" href="${escapeHtml(p.LINK_WHATSAPP)}" target="_blank" rel="noopener">WHATSAPP ›</a>`:''}${p.EMAIL?`<a class="content-link" href="mailto:${escapeHtml(p.EMAIL)}">E-MAIL ›</a>`:''}</div></div>`).join(''):'<div><strong>Nenhum contato publicado</strong><small>Cadastre membros na aba PESSOAS.</small></div>'}</div>`; modal.classList.add('open'); closeDrawer(); }
+function abrirConteudos(categoria='',titulo='Conteúdos',escopo='publico'){ mc.innerHTML=`<span class="chip">${escopo==='membros'?'MEMBROS':'CCT'}</span><h2>${escapeHtml(titulo)}</h2><div class="modal-list dynamic-content-list">${conteudosHtml(categoria,escopo)}</div>`; modal.classList.add('open'); closeDrawer(); }
+function abrirLocais(escopo='publico'){
+  const itens=escopo==='membros'?somenteMembros(apiData.locais):somentePublicos(apiData.locais);
+  mc.innerHTML=`<span class="chip">${escopo==='membros'?'MEMBROS':'LOCAIS'}</span><h2>${escopo==='membros'?'Locais internos':'Onde precisamos estar?'}</h2><div class="modal-list dynamic-content-list">${itens.length?itens.map(x=>`<div class="content-item">${normalizeImageUrl(x.IMAGEM_URL)?`<img src="${escapeHtml(normalizeImageUrl(x.IMAGEM_URL))}" alt="">`:''}<div><strong>📍 ${escapeHtml(x.NOME||'Local')}</strong><small>${escapeHtml([x.TIPO,x.ENDERECO,x.OBSERVACAO].filter(Boolean).join(' • '))}</small>${linkSeguro(x.LINK_MAPS)?`<a class="content-link" href="${escapeHtml(x.LINK_MAPS)}" target="_blank" rel="noopener">ABRIR NO MAPA ›</a>`:''}</div></div>`).join(''):'<div><strong>Nenhum local publicado</strong><small>Cadastre locais na aba LOCAIS.</small></div>'}</div>`;
+  modal.classList.add('open'); closeDrawer();
+}
+function abrirContatos(escopo='publico'){
+  const base=escopo==='membros'?somenteMembros(apiData.pessoas):somentePublicos(apiData.pessoas);
+  const itens=base.filter(x=>String(x.ATIVO||'SIM').toUpperCase()!=='NÃO');
+  mc.innerHTML=`<span class="chip">${escopo==='membros'?'MEMBROS':'CONTATOS'}</span><h2>${escopo==='membros'?'Equipe interna':'Fale com a CCT'}</h2><div class="modal-list dynamic-content-list">${itens.length?itens.map(p=>`<div class="person-contact">${normalizeImageUrl(p.FOTO_URL)?`<img src="${escapeHtml(normalizeImageUrl(p.FOTO_URL))}" alt="">`:`<span class="contact-avatar">${escapeHtml((p.NOME||'C').charAt(0))}</span>`}<div><strong>${escapeHtml(p.NOME||'Contato')}</strong><small>${escapeHtml([p.CARGO,p.TIPO].filter(Boolean).join(' • '))}</small>${linkSeguro(p.LINK_WHATSAPP)?`<a class="content-link" href="${escapeHtml(p.LINK_WHATSAPP)}" target="_blank" rel="noopener">WHATSAPP ›</a>`:''}${p.EMAIL?`<a class="content-link" href="mailto:${escapeHtml(p.EMAIL)}">E-MAIL ›</a>`:''}</div></div>`).join(''):'<div><strong>Nenhum contato publicado</strong><small>Cadastre pessoas na aba PESSOAS.</small></div>'}</div>`;
+  modal.classList.add('open'); closeDrawer();
+}
 function renderizarCompeticoesHome(){ const c=$('#homeCompetitionsContainer'); if(!c)return; const comps=apiData.competicoes.filter(x=>!('PUBLICADO'in x)||isSim(x.PUBLICADO)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)); c.innerHTML=comps.length?comps.map(x=>`<article class="visual-card competition-home-card" style="--bg:url('${normalizeImageUrl(x.IMAGEM_URL)||'assets/levantamento-1.jpg'}')" data-home-competition="${escapeHtml(x.ID_COMPETICAO)}"><div><span class="chip ${isSim(x.DESTAQUE)?'live':''}">${escapeHtml(x.STATUS||'COMPETIÇÃO')}</span><h4>${escapeHtml(x.NOME||x.ID_COMPETICAO)}</h4><p>${escapeHtml(x.ANO||'')}</p></div></article>`).join(''):'<div class="games-empty">Nenhuma competição publicada.</div>'; c.querySelectorAll('[data-home-competition]').forEach(el=>el.addEventListener('click',()=>{jogosUI.competicao=el.dataset.homeCompetition; go('jogos'); renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();})); }
-function renderizarModulosGerais(){ renderizarAgenda(); renderizarAvisos(); renderizarCompeticoesHome(); if(apiData.eventos.length){cctEvents=apiData.eventos.sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||eventDateValue(a)-eventDateValue(b)); const all=$('#eventsContainer'),home=$('#homeEventContainer'); if(all)all.innerHTML=cctEvents.length?cctEvents.map(e=>eventCard(e)).join(''):'<div class="event-empty">Nenhum evento publicado no momento.</div>'; const featured=cctEvents.find(e=>isSim(e.DESTAQUE))||cctEvents[0]; if(home)home.innerHTML=featured?eventCard(featured,true):'<div class="event-empty">Novos eventos em breve.</div>'; bindEventButtons(); } }
+
+function abrirAgendaMembros(filtro=''){
+  let itens=somenteMembros(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
+  if(filtro==='salinha') itens=itens.filter(a=>categoriaTem([a.TIPO,a.TITULO,a.LOCAL].join(' '),['SALINHA','ATEND']));
+  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${filtro==='salinha'?'🏠 Escala da salinha':'📅 Agenda interna'}</h2><div class="member-agenda-modal">${itens.length?itens.map(agendaItemHtml).join(''):'<div class="games-empty">Nenhum compromisso interno publicado.</div>'}</div>`;
+  modal.classList.add('open');
+}
+function abrirAvisosMembros(){
+  const av=avisosAtivos('membros');
+  mc.innerHTML=`<span class="chip ${av.some(x=>isSim(x.URGENTE))?'live':''}">${av.length} ${av.length===1?'AVISO INTERNO':'AVISOS INTERNOS'}</span><h2>🚨 Avisos internos</h2><div class="modal-list">${av.length?av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso interno')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join(''):'<div><strong>Nenhum aviso interno ativo</strong><small>Os avisos exclusivos para membros aparecerão aqui.</small></div>'}</div>`;
+  modal.classList.add('open');
+}
+function abrirRepresentacoesMembros(){
+  const itens=apiData.jogos.filter(j=>String(j.REPRESENTACAO_CCT||'').trim().toUpperCase()==='SIM').sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
+  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>🏆 Representações CCT</h2><div>${itens.length?itens.map(j=>matchCard(j)).join(''):'<div class="games-empty">Nenhuma representação CCT cadastrada.</div>'}</div>`;
+  modal.classList.add('open');
+}
+function renderizarAreaMembros(){
+  const hoje=new Date();
+  const agendaM=somenteMembros(apiData.agenda);
+  const hojeCount=agendaM.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA_INICIO),hoje)).length;
+  const reps=apiData.jogos.filter(j=>String(j.REPRESENTACAO_CCT||'').trim().toUpperCase()==='SIM');
+  const alertas=avisosAtivos('membros');
+
+  const elHoje=$('#memberTodayCount'), elRep=$('#memberRepCount'), elAv=$('#memberAlertCount');
+  if(elHoje) elHoje.textContent=hojeCount;
+  if(elRep) elRep.textContent=reps.length;
+  if(elAv) elAv.textContent=alertas.length;
+
+  const lista=$('#memberRepresentationsList');
+  if(lista){
+    const proximas=reps.filter(j=>{
+      const d=parseBrDate(j.DATA,j.HORA);
+      return d && d.getTime()>=Date.now();
+    }).sort((a,b)=>parseBrDate(a.DATA,a.HORA)-parseBrDate(b.DATA,b.HORA)).slice(0,4);
+    lista.innerHTML=proximas.length?proximas.map(j=>{
+      const nome=String(j.RESPONSAVEL_REPRESENTACAO||'Responsável a definir').trim();
+      const foto=normalizeImageUrl(j.FOTO_RESP_REPRESENTACAO||'');
+      const iniciais=nome.split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase();
+      return `<div>${foto?`<img src="${escapeHtml(foto)}" alt="">`:`<div class="avatar-placeholder">${escapeHtml(iniciais||'CCT')}</div>`}<span><strong>${escapeHtml(nome)}</strong><small>${escapeHtml(modalidadeNome(j.ID_MODALIDADE))} • ${escapeHtml(j.DATA||'')} ${escapeHtml(j.HORA||'')}</small></span></div>`;
+    }).join(''):'<div class="games-empty">Nenhuma representação futura cadastrada.</div>';
+  }
+}
+function bindAreaMembros(){
+  $$('[data-member-open]').forEach(b=>{
+    b.onclick=()=>{
+      const t=b.dataset.memberOpen;
+      if(t==='agenda') return abrirAgendaMembros();
+      if(t==='salinha') return abrirAgendaMembros('salinha');
+      if(t==='representacoes') return abrirRepresentacoesMembros();
+      if(t==='docs') return abrirConteudos('DOCUMENT','Documentos internos','membros');
+      if(t==='avisos') return abrirAvisosMembros();
+      if(t==='pessoas') return abrirContatos('membros');
+      if(t==='locais') return abrirLocais('membros');
+      if(t==='forms') return abrirConteudos('FORM','Forms e pedidos','membros');
+    };
+  });
+}
+
+function renderizarModulosGerais(){ renderizarAgenda(); renderizarAvisos(); renderizarCompeticoesHome(); renderizarAreaMembros(); if(apiData.eventos.length){cctEvents=apiData.eventos.sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||eventDateValue(a)-eventDateValue(b)); const all=$('#eventsContainer'),home=$('#homeEventContainer'); if(all)all.innerHTML=cctEvents.length?cctEvents.map(e=>eventCard(e)).join(''):'<div class="event-empty">Nenhum evento publicado no momento.</div>'; const featured=cctEvents.find(e=>isSim(e.DESTAQUE))||cctEvents[0]; if(home)home.innerHTML=featured?eventCard(featured,true):'<div class="event-empty">Novos eventos em breve.</div>'; bindEventButtons(); } }
 // Conecta atalhos do menu aos dados do Sheets.
 document.querySelectorAll('[data-open="docs"]').forEach(b=>b.onclick=()=>abrirConteudos('DOCUMENT','Documentos'));
 document.querySelectorAll('[data-open="media"]').forEach(b=>b.onclick=()=>abrirConteudos('MID','Mídia CCT'));
 document.querySelectorAll('[data-open="forms"]').forEach(b=>b.onclick=()=>abrirConteudos('FORM','Pedidos e Formulários'));
-document.querySelectorAll('[data-open="places"]').forEach(b=>b.onclick=abrirLocais);
-document.querySelectorAll('[data-open="contacts"]').forEach(b=>b.onclick=abrirContatos);
+document.querySelectorAll('[data-open="places"]').forEach(b=>b.onclick=()=>abrirLocais('publico'));
+document.querySelectorAll('[data-open="contacts"]').forEach(b=>b.onclick=()=>abrirContatos('publico'));
+document.querySelectorAll('[data-open="about"]').forEach(b=>b.onclick=()=>{
+  const html=conteudosHtml('SOBRE','publico');
+  if(!html.includes('Nenhum conteúdo publicado')) return abrirConteudos('SOBRE','Sobre a Atlética','publico');
+  openModal('about');
+});
+document.querySelectorAll('[data-open="partners"]').forEach(b=>b.onclick=()=>{
+  const html=conteudosHtml('PARCEIRO','publico');
+  if(!html.includes('Nenhum conteúdo publicado')) return abrirConteudos('PARCEIRO','Quem fortalece a CCT','publico');
+  openModal('partners');
+});
+bindAreaMembros();

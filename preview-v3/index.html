@@ -181,23 +181,24 @@
         </div>
         <div class="member-dashboard" id="memberDashboard" hidden>
           <div class="member-summary">
-            <div><small>HOJE</small><strong>3</strong><span>compromissos</span></div>
-            <div><small>JOGOS</small><strong>2</strong><span>responsáveis</span></div>
-            <div><small>PENDÊNCIAS</small><strong>4</strong><span>tarefas</span></div>
+            <div><small>HOJE</small><strong id="memberTodayCount">0</strong><span>compromissos</span></div>
+            <div><small>REPRESENTAÇÕES</small><strong id="memberRepCount">0</strong><span>jogos</span></div>
+            <div><small>AVISOS</small><strong id="memberAlertCount">0</strong><span>internos</span></div>
           </div>
           <div class="section-head"><div><i></i><h3>ATALHOS INTERNOS</h3></div></div>
           <div class="member-grid">
-            <button><span>📅</span><strong>Agenda interna</strong><small>Reuniões, montagens e compromissos</small></button>
-            <button><span>🏆</span><strong>Escala dos jogos</strong><small>Responsáveis por partida</small></button>
-            <button><span>🏠</span><strong>Escala da salinha</strong><small>Horários e responsáveis</small></button>
-            <button><span>📄</span><strong>Documentos internos</strong><small>Arquivos exclusivos da equipe</small></button>
-            <button><span>✅</span><strong>Tarefas</strong><small>Pendências e responsáveis</small></button>
-            <button data-open="forms"><span>🧾</span><strong>Forms e pedidos</strong><small>Vendas, kits, uniformes e retiradas</small></button>
+            <button data-member-open="agenda"><span>📅</span><strong>Agenda interna</strong><small>Reuniões, montagens e compromissos</small></button>
+            <button data-member-open="representacoes"><span>🏆</span><strong>Representações CCT</strong><small>Jogos em que a CCT precisa estar presente</small></button>
+            <button data-member-open="salinha"><span>🏠</span><strong>Escala da salinha</strong><small>Horários e compromissos internos</small></button>
+            <button data-member-open="docs"><span>📄</span><strong>Documentos internos</strong><small>Arquivos exclusivos da equipe</small></button>
+            <button data-member-open="avisos"><span>🚨</span><strong>Avisos internos</strong><small>Recados exclusivos para membros</small></button>
+            <button data-member-open="pessoas"><span>👥</span><strong>Equipe interna</strong><small>Diretoria e contatos internos</small></button>
+            <button data-member-open="locais"><span>📍</span><strong>Locais internos</strong><small>Pontos de encontro e organização</small></button>
+            <button data-member-open="forms"><span>🧾</span><strong>Forms e pedidos</strong><small>Links e formulários internos</small></button>
           </div>
-          <div class="section-head"><div><i></i><h3>PRÓXIMOS RESPONSÁVEIS</h3></div></div>
-          <div class="internal-list">
-            <div><img src="assets/representante-demo.png"><span><strong>Guilherme</strong><small>Vôlei Masculino • 18:30</small></span></div>
-            <div><div class="avatar-placeholder">M</div><span><strong>Membro 2</strong><small>Futsal Masculino • 20:00</small></span></div>
+          <div class="section-head"><div><i></i><h3>PRÓXIMAS REPRESENTAÇÕES</h3></div></div>
+          <div class="internal-list" id="memberRepresentationsList">
+            <div class="games-empty">Nenhuma representação cadastrada.</div>
           </div>
         </div>
       </section>
