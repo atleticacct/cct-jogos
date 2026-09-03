@@ -1,9 +1,10 @@
-// V3.8 — Configuração Firebase
-// Este objeto NÃO contém senha. As chaves web do Firebase são públicas por projeto.
-// Substitua os valores abaixo pelos dados de: Firebase Console > Configurações do projeto > Seus apps > Web.
+// CCT Jogos — Firebase Web Config (V3.8)
+// As chaves web do Firebase identificam o projeto; não são uma senha de usuário.
 window.CCT_FIREBASE_CONFIG = {
-  apiKey: "COLE_AQUI_API_KEY",
-  authDomain: "COLE_AQUI_PROJECT_ID.firebaseapp.com",
-  projectId: "COLE_AQUI_PROJECT_ID",
-  appId: "COLE_AQUI_APP_ID"
+  apiKey: "AIzaSyALm9UE4a7Lvj717Zx35oifn1Sw8yiMZ50",
+  authDomain: "cct-jogos.firebaseapp.com",
+  projectId: "cct-jogos",
+  storageBucket: "cct-jogos.firebasestorage.app",
+  messagingSenderId: "673691151828",
+  appId: "1:673691151828:web:8e8717c64d2693b2027a41"
 };
