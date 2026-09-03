@@ -1,5 +1,11 @@
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
+function uiIcon(name,extraClass=''){
+  const safe=String(name||'').replace(/[^a-z0-9-]/gi,'');
+  const cls=['ui-icon',extraClass].filter(Boolean).join(' ');
+  return `<svg class="${cls}" aria-hidden="true"><use href="#i-${safe}"></use></svg>`;
+}
+
 const API_URL = 'https://script.google.com/macros/s/AKfycbwanjoMA8Kd9pdtGWlraMN7agGTdlY_8zMaXBQQQL_7zRBPwZltu8oVMfUQFHgAQOKzbA/exec';
 
 const PROFILE_KEY = 'cctProfileV2';
@@ -199,10 +205,10 @@ function matchCard(jogo,{home=false}={}){
         </div>
       </div>
       <div class="match-foot">
-        <span>📍 ${escapeHtml(jogo.LOCAL||'Local a definir')}</span>
+        <span>${uiIcon('map-pin','inline-icon')} ${escapeHtml(jogo.LOCAL||'Local a definir')}</span>
         <span>${escapeHtml(jogo.DATA||'')}</span>
       </div>
-      ${cenario ? `<button class="scenario-link" type="button" data-open-scenario-modality="${escapeHtml(jogo.ID_MODALIDADE)}">🎯 Situação da classificação <b>›</b></button>` : ''}
+      ${cenario ? `<button class="scenario-link" type="button" data-open-scenario-modality="${escapeHtml(jogo.ID_MODALIDADE)}">${uiIcon('target','inline-icon')} Situação da classificação <b>›</b></button>` : ''}
       ${representanteHtml(jogo)}
       ${representacaoCctHtml(jogo)}
     </article>`;
@@ -689,7 +695,8 @@ carregarDadosAPI();
 
 function go(screen){
   $$('.screen').forEach(x=>x.classList.toggle('active',x.dataset.screen===screen));
-  $$('.bottom-nav button[data-go]').forEach(x=>x.classList.toggle('active',x.dataset.go===screen));
+  const navScreen=['inicio','jogos','agenda','eventos','perfil'].includes(screen)?screen:'';
+  $$('.bottom-nav button[data-go]').forEach(x=>x.classList.toggle('active',!!navScreen && x.dataset.go===navScreen));
   closeDrawer();
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -702,7 +709,7 @@ $('#menuBtn').onclick=openDrawer; $('#closeDrawer').onclick=closeDrawer; backdro
 
 const modal=$('#modal'), mc=$('#modalContent');
 const modalData={
-  scenario:`<span class="chip live">CENÁRIOS</span><h2>🎯 Situação da classificação</h2><p>Abra a aba <strong>Cenários</strong> dentro da competição para acompanhar os dados atualizados da CCT.</p>`,
+  scenario:`<span class="chip live">CENÁRIOS</span><h2>${uiIcon('target','inline-icon')} Situação da classificação</h2><p>Abra a aba <strong>Cenários</strong> dentro da competição para acompanhar os dados atualizados da CCT.</p>`,
   media:`<span class="chip">MÍDIA CCT</span><h2>Fotos e vídeos</h2><div class="modal-list"><div><strong>📸 Fotos da competição</strong><small>Abrir álbum no Google Drive</small></div><div><strong>🎥 Vídeos</strong><small>Melhores momentos e conteúdos da CCT</small></div><div><strong>🖼️ Galeria</strong><small>Registros de jogos, torcida e eventos</small></div></div>`,
   docs:`<span class="chip">DOCUMENTOS</span><h2>Central de arquivos</h2><div class="modal-list"><div><strong>Regulamento Interlaje 2026</strong><small>Abrir documento</small></div><div><strong>Tabela oficial</strong><small>Abrir arquivo</small></div><div><strong>Caderno de jogos</strong><small>Abrir arquivo</small></div></div>`,
   places:`<span class="chip">LOCAIS</span><h2>Onde precisamos estar?</h2><div class="modal-list"><div><strong>📍 Ginásio Central</strong><small>Abrir no mapa</small></div><div><strong>📍 Salinha da Atlética</strong><small>UDESC Joinville</small></div><div><strong>📍 Local do evento</strong><small>Abrir no mapa</small></div></div>`,
@@ -963,7 +970,6 @@ function inicializarPerfil(){
     e.addEventListener('change',()=>salvarPerfil({silent:true}));
   });
 
-  $('#saveProfileBtn')?.addEventListener('click',()=>salvarPerfil());
   $('#editProfileBtn')?.addEventListener('click',abrirEditorPerfil);
   $('#profileAvatarBtn')?.addEventListener('click',()=>$('#profileAvatarInput')?.click());
   $('#profileAvatarInput')?.addEventListener('change',e=>{
@@ -1025,13 +1031,13 @@ function categoriaTem(valor, termos=[]){
 function linkSeguro(v){ const x=String(v||'').trim(); return /^https?:\/\//i.test(x)?x:''; }
 function agendaIcon(tipo){
   const t=String(tipo||'').toUpperCase();
-  if(t.includes('TREINO'))return '🏃';
-  if(t.includes('ATEND'))return '🏠';
-  if(t.includes('REUNI'))return '👥';
-  if(t.includes('REPRESENT'))return '◆';
-  if(t.includes('JOGO'))return '◇';
-  if(t.includes('EVENT'))return '★';
-  return '□';
+  if(t.includes('TREINO'))return uiIcon('running');
+  if(t.includes('ATEND'))return uiIcon('store');
+  if(t.includes('REUNI'))return uiIcon('users');
+  if(t.includes('REPRESENT'))return uiIcon('trophy');
+  if(t.includes('JOGO'))return uiIcon('trophy');
+  if(t.includes('EVENT'))return uiIcon('star');
+  return uiIcon('calendar');
 }
 
 function agendaItemHtml(a){
@@ -1039,7 +1045,7 @@ function agendaItemHtml(a){
   const local=a.LOCAL||a.ENDERECO||'';
   const origem=String(a._ORIGEM||'').toUpperCase();
   const origemLabel=origem==='INTERNA'?'INTERNO':origem==='JOGO'?'JOGO':origem==='EVENTO'?'EVENTO':'';
-  return `<div class="agenda-row ${origem?`agenda-origin-${origem.toLowerCase()}`:''}"><time>${escapeHtml(a.HORA_INICIO||a.HORA||'--:--')}</time><span class="dot"></span><section><div class="agenda-card-head"><small>${escapeHtml(a.TIPO||'AGENDA')}</small><span>${agendaIcon(a.TIPO)}</span></div>${origemLabel?`<span class="agenda-source-badge">${escapeHtml(origemLabel)}</span>`:''}<strong>${escapeHtml(a.TITULO||mod||'Compromisso CCT')}</strong>${mod&&a.TITULO!==mod?`<em>${escapeHtml(mod)}</em>`:''}${local?`<p>⌖ ${escapeHtml(local)}</p>`:''}${a.DESCRICAO?`<p>${escapeHtml(a.DESCRICAO)}</p>`:''}${linkSeguro(a.LINK_MAPS)?`<a href="${escapeHtml(a.LINK_MAPS)}" target="_blank" rel="noopener">ABRIR MAPA ›</a>`:''}</section></div>`;
+  return `<div class="agenda-row ${origem?`agenda-origin-${origem.toLowerCase()}`:''}"><time>${escapeHtml(a.HORA_INICIO||a.HORA||'--:--')}</time><span class="dot"></span><section><div class="agenda-card-head"><small>${escapeHtml(a.TIPO||'AGENDA')}</small><span>${agendaIcon(a.TIPO)}</span></div>${origemLabel?`<span class="agenda-source-badge">${escapeHtml(origemLabel)}</span>`:''}<strong>${escapeHtml(a.TITULO||mod||'Compromisso CCT')}</strong>${mod&&a.TITULO!==mod?`<em>${escapeHtml(mod)}</em>`:''}${local?`<p>${uiIcon('map-pin','inline-icon')} ${escapeHtml(local)}</p>`:''}${a.DESCRICAO?`<p>${escapeHtml(a.DESCRICAO)}</p>`:''}${linkSeguro(a.LINK_MAPS)?`<a href="${escapeHtml(a.LINK_MAPS)}" target="_blank" rel="noopener">ABRIR MAPA ›</a>`:''}</section></div>`;
 }
 
 function rotuloDataAgenda(data){
@@ -1180,7 +1186,7 @@ function programacaoContextoHtml(info){
     <div class="my-schedule-head"><div><span>${roleTxt}</span><strong>${escapeHtml(info.p.name||'Seu perfil')}</strong></div><button type="button" data-agenda-general>AGENDA GERAL ›</button></div>
     <p>${escapeHtml(descricao)}</p>
     ${nomes.length?`<div class="my-schedule-sports">${nomes.map(n=>`<span>${escapeHtml(n)}</span>`).join('')}</div>`:`<div class="my-schedule-empty-sports">${escapeHtml(semEsportes)}</div>`}
-    ${info.role==='membro'&&!info.membroLiberado?'<button class="member-schedule-notice" type="button" data-go-member-area><b>▣ Agenda interna protegida</b><span>Entre pela Área da Atlética para liberar a prévia dos compromissos internos.</span><em>ABRIR ÁREA DA ATLÉTICA ›</em></button>':''}
+    ${info.role==='membro'&&!info.membroLiberado?`<button class="member-schedule-notice" type="button" data-go-member-area><b>${uiIcon('lock','inline-icon')} Agenda interna protegida</b><span>Entre pela Área da Atlética para liberar a prévia dos compromissos internos.</span><em>ABRIR ÁREA DA ATLÉTICA ›</em></button>`:''}
   </div>`;
 }
 
@@ -1190,7 +1196,7 @@ function atualizarCabecalhoAgenda(modo){
   const eyebrow=$('#agendaEyebrow'),title=$('#agendaTitle'),introTitle=$('#agendaIntroTitle'),introText=$('#agendaIntroText'),icon=$('#agendaIntroIcon');
   if(eyebrow) eyebrow.textContent=personalizada?'MEU PERFIL':'CCT';
   if(title) title.textContent=personalizada?'Minha Programação':'Agenda';
-  if(icon) icon.textContent=personalizada?'□':'📅';
+  if(icon) icon.innerHTML=personalizada?uiIcon('calendar'):uiIcon('calendar');
   if(introTitle) introTitle.textContent=personalizada?'Sua agenda personalizada':'Programação da CCT';
   if(introText){
     if(!personalizada) introText.textContent='Treinos, atendimentos, reuniões e compromissos publicados pelo painel.';
@@ -1251,7 +1257,7 @@ function renderizarAvisos(){
  const av=avisosAtivos(); const bell=$('#alertBtn'); if(bell){let b=bell.querySelector('b'); if(b)b.textContent=av.length; bell.classList.toggle('has-alerts',!!av.length);}
  const box=$('#homeUrgentContainer'); if(box){const a=av.find(x=>isSim(x.URGENTE)||isSim(x.DESTAQUE))||av[0]; box.innerHTML=a?`<button class="urgent-card urgent-dynamic" type="button" data-open-alerts><div class="urgent-icon">!</div><div><small>${isSim(a.URGENTE)?'AVISO URGENTE':'AVISO CCT'}</small><strong>${escapeHtml(a.TITULO||'Aviso')}</strong><p>${escapeHtml(a.MENSAGEM||'')}</p></div><span class="arrow">›</span></button>`:''; box.querySelector('[data-open-alerts]')?.addEventListener('click',abrirAvisos);}
 }
-function abrirAvisos(){ const av=avisosAtivos(); mc.innerHTML=`<span class="chip ${av.some(x=>isSim(x.URGENTE))?'live':''}">${av.length} ${av.length===1?'AVISO':'AVISOS'}</span><h2>🔔 Avisos</h2><div class="modal-list">${av.length?av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso CCT')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join(''):'<div><strong>Nenhum aviso ativo</strong><small>Quando houver novidades elas aparecerão aqui.</small></div>'}</div>`; modal.classList.add('open'); }
+function abrirAvisos(){ const av=avisosAtivos(); mc.innerHTML=`<span class="chip ${av.some(x=>isSim(x.URGENTE))?'live':''}">${av.length} ${av.length===1?'AVISO':'AVISOS'}</span><h2>${uiIcon('bell','heading-icon')} Avisos</h2><div class="modal-list">${av.length?av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso CCT')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join(''):'<div><strong>Nenhum aviso ativo</strong><small>Quando houver novidades elas aparecerão aqui.</small></div>'}</div>`; modal.classList.add('open'); }
 function conteudosHtml(categoria='',escopo='publico'){
   let itens=escopo==='membros'?somenteMembros(apiData.conteudos):somentePublicos(apiData.conteudos);
   const chave=String(categoria||'').toUpperCase();
@@ -1311,17 +1317,17 @@ function renderizarCompeticoesHome(){ const c=$('#homeCompetitionsContainer'); i
 function abrirAgendaMembros(filtro=''){
   let itens=somenteMembros(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
   if(filtro==='salinha') itens=itens.filter(a=>categoriaTem([a.TIPO,a.TITULO,a.LOCAL].join(' '),['SALINHA','ATEND']));
-  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${filtro==='salinha'?'🏠 Escala da salinha':'📅 Agenda interna'}</h2><div class="member-agenda-modal">${itens.length?agendaAgrupadaHtml(itens):'<div class="games-empty">Nenhum compromisso interno publicado.</div>'}</div>`;
+  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${filtro==='salinha'?`${uiIcon('store','heading-icon')} Escala da salinha`:`${uiIcon('calendar','heading-icon')} Agenda interna`}</h2><div class="member-agenda-modal">${itens.length?agendaAgrupadaHtml(itens):'<div class="games-empty">Nenhum compromisso interno publicado.</div>'}</div>`;
   modal.classList.add('open');
 }
 function abrirAvisosMembros(){
   const av=avisosAtivos('membros');
-  mc.innerHTML=`<span class="chip ${av.some(x=>isSim(x.URGENTE))?'live':''}">${av.length} ${av.length===1?'AVISO INTERNO':'AVISOS INTERNOS'}</span><h2>🚨 Avisos internos</h2><div class="modal-list">${av.length?av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso interno')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join(''):'<div><strong>Nenhum aviso interno ativo</strong><small>Os avisos exclusivos para membros aparecerão aqui.</small></div>'}</div>`;
+  mc.innerHTML=`<span class="chip ${av.some(x=>isSim(x.URGENTE))?'live':''}">${av.length} ${av.length===1?'AVISO INTERNO':'AVISOS INTERNOS'}</span><h2>${uiIcon('alert','heading-icon')} Avisos internos</h2><div class="modal-list">${av.length?av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso interno')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join(''):'<div><strong>Nenhum aviso interno ativo</strong><small>Os avisos exclusivos para membros aparecerão aqui.</small></div>'}</div>`;
   modal.classList.add('open');
 }
 function abrirRepresentacoesMembros(){
   const itens=apiData.jogos.filter(j=>jogoEhRepresentacaoCCT(j)).sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
-  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>🏆 Representações CCT</h2><div>${itens.length?itens.map(j=>matchCard(j)).join(''):'<div class="games-empty"><strong>Nenhuma representação CCT cadastrada.</strong><span>Os jogos marcados para representação aparecerão aqui.</span></div>'}</div>`;
+  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${uiIcon('trophy','heading-icon')} Representações CCT</h2><div>${itens.length?itens.map(j=>matchCard(j)).join(''):'<div class="games-empty"><strong>Nenhuma representação CCT cadastrada.</strong><span>Os jogos marcados para representação aparecerão aqui.</span></div>'}</div>`;
   modal.classList.add('open');
 }
 function renderizarAreaMembros(){
@@ -1360,7 +1366,7 @@ function bindAreaMembros(){
       if(t==='avisos') return abrirAvisosMembros();
       if(t==='pessoas') return abrirContatos('membros');
       if(t==='locais') return abrirLocais('membros');
-      if(t==='forms') return abrirConteudos('FORM','Forms e pedidos','membros');
+      if(t==='forms') return abrirConteudos('FORM','Formulários internos','membros');
     };
   });
 }
@@ -1369,7 +1375,7 @@ function renderizarModulosGerais(){ renderizarAgenda(); renderizarAvisos(); rend
 function abrirAjuda(){
   const contato=somentePublicos(apiData.pessoas).find(p=>String(p.ATIVO||'SIM').toUpperCase()!=='NÃO' && (linkSeguro(p.LINK_WHATSAPP)||p.EMAIL));
   const contatoHtml=contato?(linkSeguro(contato.LINK_WHATSAPP)?`<a class="help-contact" href="${escapeHtml(contato.LINK_WHATSAPP)}" target="_blank" rel="noopener">💬 FALAR COM A ATLÉTICA ›</a>`:`<a class="help-contact" href="mailto:${escapeHtml(contato.EMAIL)}">✉ FALAR COM A ATLÉTICA ›</a>`):'';
-  mc.innerHTML=`<span class="chip">AJUDA</span><h2>Como usar a ATLÉTICA CCT</h2><div class="help-sections"><section><strong>📲 Instalar no celular</strong><p><b>iPhone:</b> abra no Safari, toque em Compartilhar e escolha “Adicionar à Tela de Início”.<br><b>Android:</b> abra no Chrome e use “Adicionar à tela inicial” ou “Instalar app”.</p></section><section><strong>⭐ Personalizar seu perfil</strong><p>Em Perfil, selecione as modalidades que você joga ou acompanha. “Minha Programação” adapta a agenda ao tipo de perfil: atleta, torcedor(a) ou membro da Atlética.</p></section><section><strong>🏆 Jogos e competições</strong><p>Use Jogos para acompanhar partidas, classificação, cenários e destaques de cada campeonato.</p></section><section><strong>🔔 Avisos</strong><p>O sino reúne avisos ativos. Mudanças urgentes de horário, local e informações importantes aparecem em destaque.</p></section><section><strong>🔒 Área da Atlética</strong><p>É destinada aos membros para agenda interna, representações, documentos, avisos, equipe e formulários.</p></section></div>${contatoHtml}`;
+  mc.innerHTML=`<span class="chip">AJUDA</span><h2>Como usar a ATLÉTICA CCT</h2><div class="help-sections"><section><strong>${uiIcon('home','inline-icon')} Instalar no celular</strong><p><b>iPhone:</b> abra no Safari, toque em Compartilhar e escolha “Adicionar à Tela de Início”.<br><b>Android:</b> abra no Chrome e use “Adicionar à tela inicial” ou “Instalar app”.</p></section><section><strong>${uiIcon('user','inline-icon')} Personalizar seu perfil</strong><p>Em Perfil, selecione as modalidades que você joga ou acompanha. “Minha Programação” adapta a agenda ao tipo de perfil: atleta, torcedor(a) ou membro da Atlética.</p></section><section><strong>${uiIcon('trophy','inline-icon')} Jogos e competições</strong><p>Use Jogos para acompanhar partidas, classificação, cenários e destaques de cada campeonato.</p></section><section><strong>${uiIcon('bell','inline-icon')} Avisos</strong><p>O sino reúne avisos ativos. Mudanças urgentes de horário, local e informações importantes aparecem em destaque.</p></section><section><strong>${uiIcon('lock','inline-icon')} Área da Atlética</strong><p>É destinada aos membros para agenda interna, representações, documentos, avisos, equipe e formulários.</p></section></div>${contatoHtml}`;
   modal.classList.add('open'); closeDrawer();
 }
 // Conecta atalhos do menu aos dados do Sheets.
