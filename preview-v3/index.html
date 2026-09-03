@@ -10,7 +10,7 @@
   <title>Atlética CCT</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=32" />
+  <link rel="stylesheet" href="styles.css?v=33" />
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -212,6 +212,7 @@
               <span class="profile-role-badge" id="profileRoleBadge">ATLETA</span>
               <p id="profileSummary">Escolha suas modalidades</p>
             </div>
+            <div class="profile-access-badges" id="profileAccessBadges" aria-live="polite"></div>
           </div>
           <button class="profile-edit-btn" id="editProfileBtn" type="button" aria-label="Editar perfil"><svg class="ui-icon"><use href="#i-edit"></use></svg></button>
         </div>
@@ -253,8 +254,10 @@
         <div class="member-lock" id="memberLock">
           <div class="lock-icon"><svg class="ui-icon"><use href="#i-lock"></use></svg></div>
           <h3>Área exclusiva para membros</h3>
-          <p>Na versão final, somente membros autorizados poderão acessar esta área. Nesta prévia, o botão abaixo libera uma demonstração visual.</p>
-          <button class="primary" id="demoMemberAccess">ENTRAR NA DEMONSTRAÇÃO</button>
+          <p id="memberLockText">Entre com sua conta Google. O acesso só será liberado quando o mesmo e-mail estiver autorizado pela Atlética no painel administrativo.</p>
+          <div class="member-auth-account" id="memberAuthAccount" hidden></div>
+          <button class="primary" id="memberLoginBtn" type="button">ENTRAR COM GOOGLE</button>
+          <button class="member-auth-secondary" id="memberLogoutBtn" type="button" hidden>SAIR DA CONTA</button>
         </div>
         <div class="member-dashboard" id="memberDashboard" hidden>
           <div class="member-summary">
@@ -319,6 +322,9 @@
     </div>
   </div>
 
-  <script src="app.js?v=32"></script>
+  <script src="firebase-config.js?v=33"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="app.js?v=33"></script>
 </body>
 </html>

@@ -36,6 +36,138 @@ let apiData = {
   destaques: []
 };
 
+
+/* V3.8 — autenticação e autorização */
+var cctAuthState = {
+  configured:false,
+  ready:false,
+  user:null,
+  pessoa:null,
+  socio:false,
+  membro:false,
+  error:''
+};
+
+function emailNormalizado(v){ return String(v||'').trim().toLowerCase(); }
+function firebaseConfigurado(){
+  const c=window.CCT_FIREBASE_CONFIG||{};
+  return !!(c.apiKey && c.authDomain && c.projectId && c.appId && !String(c.apiKey).includes('COLE_'));
+}
+function pessoaAtivaAuth(p){ return !p || !('ATIVO' in p) || String(p.ATIVO||'SIM').trim().toUpperCase()!=='NÃO'; }
+function pessoaMembroAprovada(p){
+  if(!p) return false;
+  const flag=campoPessoa(p,'MEMBRO_ATLETICA','MEMBRO_ATLÉTICA','MEMBRO_CCT','E_MEMBRO','É_MEMBRO');
+  const tipo=String(campoPessoa(p,'TIPO','PERFIL','CARGO')||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  return isSim(flag) || tipo.includes('MEMBRO');
+}
+function authSocioAprovado(){ return !!(cctAuthState.ready && cctAuthState.user && cctAuthState.socio); }
+function authMembroAprovado(){ return !!(cctAuthState.ready && cctAuthState.user && cctAuthState.membro); }
+function authLogado(){ return !!cctAuthState.user; }
+
+function resolverPermissoesAuth(){
+  const email=emailNormalizado(cctAuthState.user?.email);
+  const pessoa=email ? (apiData.pessoas||[]).find(p=>pessoaAtivaAuth(p) && emailNormalizado(campoPessoa(p,'EMAIL','E_MAIL','E-MAIL'))===email) : null;
+  cctAuthState.pessoa=pessoa||null;
+  cctAuthState.socio=!!(pessoa && pessoaSocioAprovada(pessoa));
+  cctAuthState.membro=!!(pessoa && pessoaMembroAprovada(pessoa));
+  atualizarInterfaceAuth();
+}
+
+function statusAcessoHtml(){
+  if(!cctAuthState.configured) return '<span class="access-badge warning">LOGIN A CONFIGURAR</span>';
+  if(!authLogado()) return '';
+  const partes=[];
+  if(authSocioAprovado()) partes.push('<span class="access-badge socio">SÓCIO(A) CCT</span>');
+  if(authMembroAprovado()) partes.push('<span class="access-badge membro">MEMBRO DA ATLÉTICA</span>');
+  if(!partes.length) partes.push('<span class="access-badge connected">CONTA CONECTADA</span>');
+  return partes.join('');
+}
+
+function atualizarInterfaceAuth(){
+  const badges=document.querySelector('#profileAccessBadges');
+  if(badges) badges.innerHTML=statusAcessoHtml();
+  atualizarAcessoAreaMembros();
+  try{ if(typeof renderizarAgenda==='function' && document.querySelector('[data-screen="agenda"]')?.classList.contains('active')) renderizarAgenda(); }catch(e){}
+}
+
+function atualizarAcessoAreaMembros(){
+  const lock=document.querySelector('#memberLock');
+  const dash=document.querySelector('#memberDashboard');
+  const login=document.querySelector('#memberLoginBtn');
+  const logout=document.querySelector('#memberLogoutBtn');
+  const text=document.querySelector('#memberLockText');
+  const account=document.querySelector('#memberAuthAccount');
+  if(!lock||!dash) return;
+
+  if(authMembroAprovado()){
+    lock.hidden=true; dash.hidden=false;
+    if(typeof renderizarAreaMembros==='function') renderizarAreaMembros();
+    return;
+  }
+  lock.hidden=false; dash.hidden=true;
+
+  if(!cctAuthState.configured){
+    if(text) text.textContent='O login da V3.8 ainda precisa receber a configuração do Firebase. O restante do app continua público normalmente.';
+    if(login){login.hidden=false;login.textContent='CONFIGURAR LOGIN';login.disabled=true;}
+    if(logout) logout.hidden=true;
+    if(account) account.hidden=true;
+    return;
+  }
+  if(!authLogado()){
+    if(text) text.textContent='Entre com sua conta Google. O acesso só será liberado quando o mesmo e-mail estiver autorizado pela Atlética no painel administrativo.';
+    if(login){login.hidden=false;login.disabled=false;login.textContent='ENTRAR COM GOOGLE';}
+    if(logout) logout.hidden=true;
+    if(account) account.hidden=true;
+    return;
+  }
+  const email=cctAuthState.user?.email||'';
+  if(text) text.textContent='Sua conta está conectada, mas este e-mail ainda não possui autorização de membro da Atlética.';
+  if(login) login.hidden=true;
+  if(logout) logout.hidden=false;
+  if(account){account.hidden=false;account.innerHTML=`<strong>${escapeHtml(cctAuthState.user?.displayName||'Conta Google')}</strong><span>${escapeHtml(email)}</span><small>${authSocioAprovado()?'Sócio(a) CCT validado • ':''}Aguardando autorização de membro</small>`;}
+}
+
+async function entrarComGoogleCCT(){
+  if(!cctAuthState.configured || !window.firebase?.auth) return;
+  const provider=new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({prompt:'select_account'});
+  try{
+    await firebase.auth().signInWithPopup(provider);
+  }catch(err){
+    const code=String(err?.code||'');
+    if(code.includes('popup-blocked')||code.includes('operation-not-supported')||code.includes('cancelled-popup-request')){
+      try{ await firebase.auth().signInWithRedirect(provider); }catch(e){ console.error('Login CCT:',e); }
+    }else if(!code.includes('popup-closed-by-user')){
+      console.error('Login CCT:',err);
+      cctAuthState.error=err?.message||'Não foi possível entrar.';
+    }
+  }
+}
+async function sairContaCCT(){
+  if(window.firebase?.auth){ try{await firebase.auth().signOut();}catch(e){console.error('Logout CCT:',e);} }
+}
+function inicializarAutenticacaoCCT(){
+  cctAuthState.configured=firebaseConfigurado();
+  if(!cctAuthState.configured || !window.firebase?.initializeApp){
+    cctAuthState.ready=true; atualizarInterfaceAuth(); return;
+  }
+  try{
+    if(!firebase.apps.length) firebase.initializeApp(window.CCT_FIREBASE_CONFIG);
+    firebase.auth().useDeviceLanguage();
+    firebase.auth().getRedirectResult().catch(()=>{});
+    firebase.auth().onAuthStateChanged(user=>{
+      cctAuthState.user=user||null;
+      cctAuthState.ready=true;
+      resolverPermissoesAuth();
+    });
+  }catch(e){
+    console.error('Firebase CCT:',e);
+    cctAuthState.error=e?.message||String(e);
+    cctAuthState.ready=true;
+    atualizarInterfaceAuth();
+  }
+}
+
 let jogosUI = {
   competicao: 'INTERLAJE-2026',
   tipo: 'todos',
@@ -658,6 +790,7 @@ async function carregarDadosAPI(){
     apiData.conteudos=dados.conteudos||[];
     apiData.locais=dados.locais||[];
     apiData.pessoas=dados.pessoas||[];
+    resolverPermissoesAuth();
     apiData.eventos=dados.eventos||[];
     apiData.destaques=dados.destaques||[];
 
@@ -728,26 +861,12 @@ $('#alertBtn').onclick=()=>abrirAvisos();
 setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}
 
-function acessoMembroPreviewAtivo(){
-  try{return sessionStorage.getItem('cctMemberPreview')==='1';}catch(e){return false;}
-}
+function acessoMembroPreviewAtivo(){ return authMembroAprovado(); }
 
-const memberBtn=document.querySelector('#demoMemberAccess');
-if(memberBtn){
-  memberBtn.addEventListener('click',()=>{
-    try{sessionStorage.setItem('cctMemberPreview','1');}catch(e){}
-    document.querySelector('#memberLock').hidden=true;
-    document.querySelector('#memberDashboard').hidden=false;
-    renderizarAreaMembros();
-  });
-}
-
-if(acessoMembroPreviewAtivo()){
-  const lock=document.querySelector('#memberLock');
-  const dash=document.querySelector('#memberDashboard');
-  if(lock) lock.hidden=true;
-  if(dash) dash.hidden=false;
-}
+const memberLoginBtn=document.querySelector('#memberLoginBtn');
+const memberLogoutBtn=document.querySelector('#memberLogoutBtn');
+if(memberLoginBtn) memberLoginBtn.addEventListener('click',entrarComGoogleCCT);
+if(memberLogoutBtn) memberLogoutBtn.addEventListener('click',sairContaCCT);
 
 function modalidadeEmoji(id,nome=''){
   const p=String(id||'').split('-')[0].toUpperCase();
@@ -776,28 +895,12 @@ function pessoaSocioAprovada(pessoa){
   const raw=campoPessoa(pessoa,'SOCIO_CCT','SÓCIO_CCT','SOCIO','SÓCIO','ASSOCIADO','E_SOCIO','É_SÓCIO');
   return isSim(raw);
 }
-function registroSocioPerfil(){
-  const p=perfilAtual();
-  const id=normalizarIdSocio(p.socioId||p.codigoSocio||'');
-  if(!id) return null;
-  return (apiData.pessoas||[]).find(pessoa=>{
-    if(!pessoaSocioAprovada(pessoa)) return false;
-    const ids=[
-      campoPessoa(pessoa,'CODIGO_SOCIO','CÓDIGO_SOCIO'),
-      campoPessoa(pessoa,'ID_SOCIO','ID_SÓCIO'),
-      campoPessoa(pessoa,'MATRICULA','MATRÍCULA'),
-      campoPessoa(pessoa,'ID_PESSOA')
-    ].map(normalizarIdSocio).filter(Boolean);
-    return ids.includes(id);
-  })||null;
-}
-function perfilSocioAprovado(){ return !!registroSocioPerfil(); }
+function registroSocioPerfil(){ return cctAuthState.pessoa||null; }
+function perfilSocioAprovado(){ return authSocioAprovado(); }
 
 function roleLabel(role='Atleta'){
   const r=String(role||'Atleta').trim().toLowerCase();
   if(r.startsWith('torc')) return 'TORCEDOR(A)';
-  if(r.startsWith('membro')) return 'MEMBRO DA ATLÉTICA';
-  // Sócio deixa de ser um perfil auto-selecionável; versões antigas caem em Atleta.
   return 'ATLETA';
 }
 
@@ -809,6 +912,8 @@ function aplicarIdentidadePerfil(){
   if(name) name.textContent=(p.name||'Seu nome').trim()||'Seu nome';
   if(badge) badge.textContent=roleLabel(p.role);
   if(avatar) avatar.src=p.avatar||'assets/representante-demo.png';
+  const access=$('#profileAccessBadges');
+  if(access) access.innerHTML=statusAcessoHtml();
 }
 
 function renderizarModalidadesPerfil(){
@@ -882,49 +987,49 @@ function salvarPerfil({silent=false}={}){
 
 function abrirEditorPerfil(){
   const p=perfilAtual();
-  const socioOk=perfilSocioAprovado();
   const roleAtual=String(p.role||'').toLowerCase();
+  const user=cctAuthState.user;
+  const authConfigured=cctAuthState.configured;
+  const accessHtml=!authConfigured
+    ? `<div class="profile-auth-status warning"><span>${uiIcon('lock')}</span><div><small>LOGIN DA V3.8</small><strong>Configuração pendente</strong><p>Adicione as credenciais do Firebase no arquivo <b>firebase-config.js</b>. O perfil de atleta/torcedor continua funcionando sem login.</p></div></div>`
+    : !user
+      ? `<div class="profile-auth-status"><span>${uiIcon('lock')}</span><div><small>ACESSOS CCT</small><strong>Login opcional</strong><p>Atletas e torcedores não precisam entrar. Faça login apenas para validar benefícios de sócio(a) ou acesso de membro da Atlética.</p><button type="button" data-auth-login>ENTRAR COM GOOGLE ›</button></div></div>`
+      : `<div class="profile-auth-status approved"><span>${uiIcon('check')}</span><div><small>CONTA CONECTADA</small><strong>${escapeHtml(user.displayName||user.email||'Conta Google')}</strong><p>${escapeHtml(user.email||'')}</p><div class="profile-auth-badges">${statusAcessoHtml()}</div><button type="button" data-auth-logout>SAIR DA CONTA ›</button></div></div>`;
+
   mc.innerHTML=`
     <span class="chip">PERFIL</span>
     <h2>Editar perfil</h2>
     <div class="profile-editor">
       <label><span>Nome exibido</span><input id="profileNameInput" type="text" maxlength="40" value="${escapeHtml(p.name||'')}" placeholder="Seu nome"></label>
       <label><span>Como você usa o app?</span><select id="profileRoleInput">
-        <option value="Atleta" ${!p.role||roleAtual.startsWith('atleta')||roleAtual.startsWith('sócio')||roleAtual.startsWith('socio')?'selected':''}>Atleta</option>
+        <option value="Atleta" ${!p.role||!roleAtual.startsWith('torc')?'selected':''}>Atleta</option>
         <option value="Torcedor(a)" ${roleAtual.startsWith('torc')?'selected':''}>Torcedor(a)</option>
-        <option value="Membro da Atlética" ${roleAtual.startsWith('membro')?'selected':''}>Membro da Atlética</option>
       </select></label>
-      <label><span>Código CCT / matrícula</span><input id="profileSocioIdInput" type="text" maxlength="40" value="${escapeHtml(p.socioId||'')}" placeholder="Use o identificador informado pela Atlética"></label>
-      <div class="profile-socio-status ${socioOk?'approved':'pending'}">
-        <span>${uiIcon(socioOk?'check':'lock')}</span>
-        <div><small>STATUS DE SÓCIO(A)</small><strong>${socioOk?'Sócio(a) CCT validado':'Validação pela Atlética'}</strong><p>${socioOk?'Benefícios exclusivos de sócio estão liberados neste perfil.':'A condição de sócio não pode ser marcada pelo usuário. Informe seu código CCT/matrícula e um responsável da Atlética deve liberar o cadastro no painel.'}</p>${!socioOk?'<button type="button" data-socio-contact>FALAR COM A CCT ›</button>':''}</div>
-      </div>
-      <p>A identificação do perfil é apenas visual e não libera o acesso restrito da Área da Atlética.</p>
+      ${accessHtml}
+      <p>O perfil esportivo fica salvo neste aparelho. Sócio(a) e membro da Atlética são permissões vinculadas ao e-mail autorizado pela diretoria.</p>
       <button class="primary full" id="saveProfileIdentity" type="button">SALVAR PERFIL</button>
     </div>`;
 
   modal.classList.add('open');
-  mc.querySelector('[data-socio-contact]')?.addEventListener('click',()=>abrirContatos('publico'));
+  mc.querySelector('[data-auth-login]')?.addEventListener('click',entrarComGoogleCCT);
+  mc.querySelector('[data-auth-logout]')?.addEventListener('click',sairContaCCT);
 
   $('#saveProfileIdentity')?.addEventListener('click',()=>{
     const atual=perfilAtual();
     const nome=$('#profileNameInput')?.value?.trim();
     atual.name=nome||'Seu nome';
     atual.role=$('#profileRoleInput')?.value||'Atleta';
-    atual.socioId=$('#profileSocioIdInput')?.value?.trim()||'';
-    delete atual.isSocio; // legado: a liberação passa a vir apenas do painel administrativo.
+    delete atual.socioId; delete atual.codigoSocio; delete atual.isSocio;
     atual.updatedAt=new Date().toISOString();
     try{
       localStorage.setItem(PROFILE_KEY,JSON.stringify(atual));
       aplicarIdentidadePerfil();
       modal.classList.remove('open');
-      feedbackPerfil(perfilSocioAprovado()?'✓ Perfil atualizado • sócio validado':'✓ Perfil atualizado neste aparelho');
-    }catch(e){
-      console.error('Não foi possível salvar o perfil:',e);
-    }
+      feedbackPerfil('✓ Perfil atualizado neste aparelho');
+      renderizarAgenda();
+    }catch(e){ console.error('Não foi possível salvar o perfil:',e); }
   });
 }
-
 function redimensionarAvatar(file){
   return new Promise((resolve,reject)=>{
     if(!file || !String(file.type||'').startsWith('image/')) return reject(new Error('Arquivo inválido'));
@@ -1104,7 +1209,6 @@ function agendaAgrupadaHtml(linhas){
 function perfilRoleTipo(){
   const r=String(perfilAtual().role||'Atleta').trim().toLowerCase();
   if(r.startsWith('torc')) return 'torcedor';
-  if(r.startsWith('membro')) return 'membro';
   return 'atleta';
 }
 
@@ -1188,7 +1292,7 @@ function programacaoPersonalizada(){
     apiData.jogos
       .filter(j=>jogoTemCCT(j) && sportsSet.has(j.ID_MODALIDADE) && !isFinalizado(j))
       .filter(j=>(parseBrDate(j.DATA,j.HORA)?.getTime()||0)>=inicio)
-      .forEach(j=>itens.push(jogoComoAgenda(j,role==='membro'&&jogoEhRepresentacaoCCT(j))));
+      .forEach(j=>itens.push(jogoComoAgenda(j,authMembroAprovado()&&jogoEhRepresentacaoCCT(j))));
   }
 
   // Eventos públicos entram para todos os tipos de perfil.
@@ -1197,7 +1301,7 @@ function programacaoPersonalizada(){
     .filter(e=>dataVal(e.DATA,e.HORA||'00:00')>=inicio)
     .forEach(e=>itens.push(eventoComoAgenda(e)));
 
-  const membroLiberado=role==='membro' && acessoMembroPreviewAtivo();
+  const membroLiberado=authMembroAprovado();
   if(membroLiberado){
     somenteMembros(apiData.agenda)
       .filter(a=>dataVal(a.DATA,a.HORA_INICIO)>=inicio)
@@ -1217,39 +1321,34 @@ function programacaoPersonalizada(){
 
 function programacaoContextoHtml(info){
   const nomes=info.sports.map(modalidadeNome).filter(Boolean);
-  const roleTxt=info.role==='torcedor'?'TORCEDOR(A)':info.role==='membro'?'MEMBRO DA ATLÉTICA':info.role==='socio'?'SÓCIO(A) CCT':'ATLETA';
-  let descricao='';
-  if(info.role==='atleta') descricao='Treinos e jogos das suas modalidades, além dos eventos públicos da CCT.';
-  if(info.role==='torcedor') descricao='Jogos das modalidades que você acompanha e eventos públicos da CCT.';
-  if(info.role==='socio') descricao='Jogos que você acompanha, eventos e benefícios vinculados ao seu perfil de sócio.';
-  if(info.role==='membro') descricao=info.membroLiberado?'Seus esportes, agenda interna da Atlética, representações e eventos em uma única linha do tempo.':'Seus esportes e eventos públicos estão abaixo. A agenda interna só aparece após o acesso de membro.';
+  const roleTxt=info.role==='torcedor'?'TORCEDOR(A)':'ATLETA';
+  let descricao=info.role==='torcedor'
+    ? 'Jogos das modalidades que você acompanha e eventos públicos da CCT.'
+    : 'Treinos e jogos das suas modalidades, além dos eventos públicos da CCT.';
+  if(info.membroLiberado) descricao+=' Sua autorização de membro também adiciona compromissos internos e representações.';
   const semEsportes=`Nenhuma modalidade selecionada. Escolha seus esportes no Perfil para adicionar jogos${info.role==='atleta'?' e treinos':''}.`;
-
   return `<div class="my-schedule-context">
-    <div class="my-schedule-head"><div><span>${roleTxt}</span><strong>${escapeHtml(info.p.name||'Seu perfil')}</strong></div><button type="button" data-agenda-general>AGENDA GERAL ›</button></div>
+    <div class="my-schedule-head"><div><span>${roleTxt}</span><strong>${escapeHtml(info.p.name||'Seu perfil')}</strong><div class="my-schedule-access">${statusAcessoHtml()}</div></div><button type="button" data-agenda-general>AGENDA GERAL ›</button></div>
     <p>${escapeHtml(descricao)}</p>
     ${nomes.length?`<div class="my-schedule-sports">${nomes.map(n=>`<span>${escapeHtml(n)}</span>`).join('')}</div>`:`<div class="my-schedule-empty-sports">${escapeHtml(semEsportes)}</div>`}
-    ${info.role==='membro'&&!info.membroLiberado?`<button class="member-schedule-notice" type="button" data-go-member-area><b>${uiIcon('lock','inline-icon')} Agenda interna protegida</b><span>Entre pela Área da Atlética para liberar a prévia dos compromissos internos.</span><em>ABRIR ÁREA DA ATLÉTICA ›</em></button>`:''}
+    ${authLogado()&&!info.membroLiberado?`<div class="member-schedule-notice static"><b>${uiIcon('lock','inline-icon')} Área interna protegida</b><span>Esta conta não possui autorização de membro da Atlética.</span></div>`:''}
   </div>`;
 }
-
 function atualizarCabecalhoAgenda(modo){
   const personalizada=modo==='minha';
   const role=perfilRoleTipo();
   const eyebrow=$('#agendaEyebrow'),title=$('#agendaTitle'),introTitle=$('#agendaIntroTitle'),introText=$('#agendaIntroText'),icon=$('#agendaIntroIcon');
   if(eyebrow) eyebrow.textContent=personalizada?'MEU PERFIL':'CCT';
   if(title) title.textContent=personalizada?'Minha Programação':'Agenda';
-  if(icon) icon.innerHTML=personalizada?uiIcon('calendar'):uiIcon('calendar');
+  if(icon) icon.innerHTML=uiIcon('calendar');
   if(introTitle) introTitle.textContent=personalizada?'Sua agenda personalizada':'Programação da CCT';
   if(introText){
     if(!personalizada) introText.textContent='Treinos, atendimentos, reuniões e compromissos publicados pelo painel.';
+    else if(authMembroAprovado()) introText.textContent='Esportes, compromissos internos, representações e eventos autorizados para sua conta.';
     else if(role==='torcedor') introText.textContent='Jogos que você acompanha e eventos da CCT.';
-    else if(role==='membro') introText.textContent='Esportes, compromissos internos, representações e eventos.';
-    else if(role==='socio') introText.textContent='Jogos, eventos e experiências relacionadas ao seu perfil de sócio.';
     else introText.textContent='Treinos, jogos e eventos relacionados ao seu perfil.';
   }
 }
-
 function renderizarAgenda(){
   const c=$('#agendaContainer'); if(!c)return;
   const contexto=$('#agendaProfileContext');
@@ -1418,17 +1517,20 @@ function renderizarMidiaHome(){
 function renderizarCompeticoesHome(){ const c=$('#homeCompetitionsContainer'); if(!c)return; const comps=apiData.competicoes.filter(x=>!('PUBLICADO'in x)||isSim(x.PUBLICADO)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)); c.innerHTML=comps.length?comps.map(x=>`<article class="visual-card competition-home-card" style="--bg:url('${normalizeImageUrl(x.IMAGEM_URL)||'assets/levantamento-1.jpg'}')" data-home-competition="${escapeHtml(x.ID_COMPETICAO)}"><div><span class="chip ${isSim(x.DESTAQUE)?'live':''}">${escapeHtml(x.STATUS||'COMPETIÇÃO')}</span><h4>${escapeHtml(x.NOME||x.ID_COMPETICAO)}</h4><p>${escapeHtml(x.ANO||'')}</p></div></article>`).join(''):'<div class="games-empty">Nenhuma competição publicada.</div>'; c.querySelectorAll('[data-home-competition]').forEach(el=>el.addEventListener('click',()=>{jogosUI.competicao=el.dataset.homeCompetition; go('jogos'); renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();})); }
 
 function abrirAgendaMembros(filtro=''){
+  if(!authMembroAprovado()){ atualizarAcessoAreaMembros(); go('membros'); return; }
   let itens=somenteMembros(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
   if(filtro==='salinha') itens=itens.filter(a=>categoriaTem([a.TIPO,a.TITULO,a.LOCAL].join(' '),['SALINHA','ATEND']));
   mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${filtro==='salinha'?`${uiIcon('store','heading-icon')} Escala da salinha`:`${uiIcon('calendar','heading-icon')} Agenda interna`}</h2><div class="member-agenda-modal">${itens.length?agendaAgrupadaHtml(itens):'<div class="games-empty">Nenhum compromisso interno publicado.</div>'}</div>`;
   modal.classList.add('open');
 }
 function abrirAvisosMembros(){
+  if(!authMembroAprovado()){ atualizarAcessoAreaMembros(); go('membros'); return; }
   const av=avisosAtivos('membros');
   mc.innerHTML=`<span class="chip ${av.some(x=>isSim(x.URGENTE))?'live':''}">${av.length} ${av.length===1?'AVISO INTERNO':'AVISOS INTERNOS'}</span><h2>${uiIcon('alert','heading-icon')} Avisos internos</h2><div class="modal-list">${av.length?av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso interno')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join(''):'<div><strong>Nenhum aviso interno ativo</strong><small>Os avisos exclusivos para membros aparecerão aqui.</small></div>'}</div>`;
   modal.classList.add('open');
 }
 function abrirRepresentacoesMembros(){
+  if(!authMembroAprovado()){ atualizarAcessoAreaMembros(); go('membros'); return; }
   const itens=apiData.jogos.filter(j=>jogoEhRepresentacaoCCT(j)).sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
   mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${uiIcon('trophy','heading-icon')} Representações CCT</h2><div>${itens.length?itens.map(j=>matchCard(j)).join(''):'<div class="games-empty"><strong>Nenhuma representação CCT cadastrada.</strong><span>Os jogos marcados para representação aparecerão aqui.</span></div>'}</div>`;
   modal.classList.add('open');
@@ -1461,6 +1563,7 @@ function renderizarAreaMembros(){
 function bindAreaMembros(){
   $$('[data-member-open]').forEach(b=>{
     b.onclick=()=>{
+      if(!authMembroAprovado()){ atualizarAcessoAreaMembros(); go('membros'); return; }
       const t=b.dataset.memberOpen;
       if(t==='agenda') return abrirAgendaMembros();
       if(t==='salinha') return abrirAgendaMembros('salinha');
@@ -1502,12 +1605,10 @@ function parceiroCampo(item,...nomes){
 }
 function perfilPublicosParceiro(){
   const role=perfilRoleTipo();
-  const perfis=[];
-  if(role==='torcedor') perfis.push('TORCEDOR');
-  else if(role==='membro') perfis.push('MEMBRO');
-  else perfis.push('ATLETA');
-  if(perfilSocioAprovado() && !perfis.includes('SOCIO')) perfis.push('SOCIO');
-  return perfis;
+  const perfis=[role==='torcedor'?'TORCEDOR':'ATLETA'];
+  if(authSocioAprovado()) perfis.push('SOCIO');
+  if(authMembroAprovado()) perfis.push('MEMBRO');
+  return [...new Set(perfis)];
 }
 function parceiroPublicosAlvo(x){
   const raw=parceiroCampo(x,'PUBLICO_ALVO','PÚBLICO_ALVO','PERFIL','PERFIS','AUDIENCIA','AUDIÊNCIA','PUBLICO_PARCEIRO','PÚBLICO_PARCEIRO');
@@ -1584,3 +1685,7 @@ function abrirParceiros(){
 }
 document.querySelectorAll('[data-open="partners"]').forEach(b=>b.onclick=abrirParceiros);
 bindAreaMembros();
+
+
+/* Inicialização V3.8 */
+inicializarAutenticacaoCCT();
