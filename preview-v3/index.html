@@ -107,27 +107,49 @@
       </section>
 
       <section class="screen" data-screen="jogos">
-        <div class="page-title"><div><i></i><div><small>COMPETIÇÃO</small><h2>Jogos</h2></div></div></div>
+        <div class="page-title"><div><i></i><div><small>COMPETIÇÃO</small><h2 id="competicaoTitulo">Jogos</h2></div></div></div>
 
         <button class="select-card" id="competicaoBtn" type="button">
           <span id="competicaoNome">Interlaje 2026</span><span>⌄</span>
         </button>
 
-        <div class="segmented" id="tipoJogos">
-          <button class="selected" data-tipo-jogos="todos" type="button">Todos os Jogos</button>
-          <button data-tipo-jogos="meus" type="button">Meus Jogos</button>
+        <div class="competition-tabs" id="competitionTabs" aria-label="Área da competição">
+          <button class="selected" data-comp-tab="jogos" type="button">Jogos</button>
+          <button data-comp-tab="classificacao" type="button">Classificação</button>
+          <button data-comp-tab="cenarios" type="button">Cenários</button>
         </div>
 
-        <div class="filters" id="filtrosJogos">
-          <button class="selected" data-filtro="hoje" type="button">Hoje</button>
-          <button data-filtro="amanha" type="button">Amanhã</button>
-          <button data-filtro="todos" type="button">Todos</button>
-          <button data-filtro="VOL" type="button">Vôlei</button>
-          <button data-filtro="FUT" type="button">Futsal</button>
+        <div id="painelJogos" class="competition-panel">
+          <div class="segmented" id="tipoJogos">
+            <button class="selected" data-tipo-jogos="todos" type="button">Todos os Jogos</button>
+            <button data-tipo-jogos="meus" type="button">Meus Jogos</button>
+          </div>
+
+          <div class="filters" id="filtrosJogos">
+            <button data-filtro="hoje" type="button">Hoje</button>
+            <button data-filtro="amanha" type="button">Amanhã</button>
+            <button class="selected" data-filtro="todos" type="button">Todos</button>
+          </div>
+
+          <div id="jogosResumo" class="games-summary"></div>
+          <div id="jogosContainer"><div class="games-loading">Carregando jogos...</div></div>
         </div>
 
-        <div id="jogosResumo" class="games-summary"></div>
-        <div id="jogosContainer"><div class="games-loading">Carregando jogos...</div></div>
+        <div id="painelClassificacao" class="competition-panel" hidden>
+          <div class="classification-toolbar">
+            <label for="classificacaoModalidade">Modalidade</label>
+            <select id="classificacaoModalidade" aria-label="Escolher modalidade"></select>
+          </div>
+          <div id="classificacaoContainer"><div class="games-loading">Carregando classificação...</div></div>
+        </div>
+
+        <div id="painelCenarios" class="competition-panel" hidden>
+          <div class="panel-intro">
+            <span>🎯</span>
+            <div><strong>Situação da CCT</strong><small>O que cada modalidade precisa para avançar.</small></div>
+          </div>
+          <div id="cenariosContainer"><div class="games-loading">Carregando cenários...</div></div>
+        </div>
       </section>
 
       <section class="screen" data-screen="agenda">

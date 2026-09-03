@@ -26,7 +26,9 @@ let apiData = {
 let jogosUI = {
   competicao: 'INTERLAJE-2026',
   tipo: 'todos',
-  filtro: 'hoje'
+  filtro: 'todos',
+  aba: 'jogos',
+  classificacaoModalidade: ''
 };
 
 function parseBrDate(data, hora='00:00'){
@@ -57,14 +59,26 @@ function modalidadeNome(id){
   const m=apiData.modalidades.find(x=>x.ID_MODALIDADE===id);
   if(m) return `${m.NOME || id}${m.NAIPE ? ' '+m.NAIPE : ''}`.trim();
   const fallback={
-    'FUT-F':'Futsal Feminino','FUT-M':'Futsal Masculino','VOL-F':'Vôlei Feminino','VOL-M':'Vôlei Masculino',
-    'BAS-F':'Basquete Feminino','BAS-M':'Basquete Masculino','HAN-F':'Handebol Feminino','HAN-M':'Handebol Masculino'
+    'FUT-F':'Futsal Feminino','FUT-M':'Futsal Masculino',
+    'VOL-F':'Vôlei Feminino','VOL-M':'Vôlei Masculino',
+    'BAS-F':'Basquete Feminino','BAS-M':'Basquete Masculino',
+    'HAN-F':'Handebol Feminino','HAN-M':'Handebol Masculino'
   };
   return fallback[id]||id||'';
 }
 
+function modalidadeBase(id){
+  const prefixo=String(id||'').split('-')[0];
+  const mapa={FUT:'Futsal',VOL:'Vôlei',BAS:'Basquete',HAN:'Handebol',NAT:'Natação',ATL:'Atletismo'};
+  if(mapa[prefixo]) return {prefixo,nome:mapa[prefixo]};
+  const completo=modalidadeNome(id);
+  const nome=String(completo||id||'').replace(/\s+(Feminino|Masculino|Misto)$/i,'').trim();
+  return {prefixo,nome:nome||prefixo};
+}
+
 function jogoTemCCT(jogo){
-  return String(jogo.EQUIPE_A||'').trim().toUpperCase()==='CCT' || String(jogo.EQUIPE_B||'').trim().toUpperCase()==='CCT';
+  return String(jogo.EQUIPE_A||'').trim().toUpperCase()==='CCT' ||
+         String(jogo.EQUIPE_B||'').trim().toUpperCase()==='CCT';
 }
 
 function isFinalizado(jogo){
@@ -76,6 +90,27 @@ function placarOuHora(jogo){
   return temPlacar ? `${jogo.PLACAR_A} × ${jogo.PLACAR_B}` : (jogo.HORA||'--:--');
 }
 
+function cenarioDaModalidade(idModalidade){
+  return apiData.cenarios.find(c =>
+    c.ID_COMPETICAO===jogosUI.competicao &&
+    c.ID_MODALIDADE===idModalidade
+  );
+}
+
+function representanteHtml(jogo){
+  const nome=String(jogo.REPRESENTANTE||'').trim();
+  if(!nome) return '';
+  const foto=normalizeImageUrl(jogo.FOTO_REPRESENTANTE||'');
+  const iniciais=nome.split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase();
+  return `
+    <div class="match-representative">
+      ${foto
+        ? `<img src="${escapeHtml(foto)}" alt="Foto de ${escapeHtml(nome)}" />`
+        : `<div class="representative-placeholder">${escapeHtml(iniciais||'CCT')}</div>`}
+      <div><small>REPRESENTANTE</small><strong>${escapeHtml(nome)}</strong></div>
+    </div>`;
+}
+
 function matchCard(jogo,{home=false}={}){
   const cctA=String(jogo.EQUIPE_A||'').trim().toUpperCase()==='CCT';
   const cctB=String(jogo.EQUIPE_B||'').trim().toUpperCase()==='CCT';
@@ -83,6 +118,8 @@ function matchCard(jogo,{home=false}={}){
   const status=jogo.STATUS||'';
   const comp=competitionName(jogo.ID_COMPETICAO);
   const modalidade=modalidadeNome(jogo.ID_MODALIDADE);
+  const cenario=jogoTemCCT(jogo) ? cenarioDaModalidade(jogo.ID_MODALIDADE) : null;
+
   return `
     <article class="match-card ${home?'':'compact'} ${jogoTemCCT(jogo)?'is-cct':''}">
       <div class="match-top">
@@ -107,6 +144,8 @@ function matchCard(jogo,{home=false}={}){
         <span>📍 ${escapeHtml(jogo.LOCAL||'Local a definir')}</span>
         <span>${escapeHtml(jogo.DATA||'')}</span>
       </div>
+      ${cenario ? `<button class="scenario-link" type="button" data-open-scenario-modality="${escapeHtml(jogo.ID_MODALIDADE)}">🎯 Situação da classificação <b>›</b></button>` : ''}
+      ${representanteHtml(jogo)}
     </article>`;
 }
 
@@ -114,6 +153,7 @@ function jogosFiltrados(){
   const now=new Date();
   const tomorrow=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
   const sports=selectedSportIds();
+
   return apiData.jogos
     .filter(j=>j.ID_COMPETICAO===jogosUI.competicao)
     .filter(j=>{
@@ -122,7 +162,10 @@ function jogosFiltrados(){
     })
     .filter(j=>{
       if(jogosUI.filtro==='todos') return true;
-      if(jogosUI.filtro==='VOL' || jogosUI.filtro==='FUT') return String(j.ID_MODALIDADE||'').startsWith(jogosUI.filtro+'-');
+      if(jogosUI.filtro.startsWith('modalidade:')){
+        const prefixo=jogosUI.filtro.split(':')[1]||'';
+        return String(j.ID_MODALIDADE||'').startsWith(prefixo+'-');
+      }
       const d=parseBrDate(j.DATA,j.HORA);
       if(jogosUI.filtro==='hoje') return sameDay(d,now);
       if(jogosUI.filtro==='amanha') return sameDay(d,tomorrow);
@@ -131,13 +174,47 @@ function jogosFiltrados(){
     .sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
 }
 
+function renderizarFiltrosModalidades(){
+  const filtros=$('#filtrosJogos');
+  if(!filtros) return;
+
+  const ids=[...new Set(
+    apiData.jogos
+      .filter(j=>j.ID_COMPETICAO===jogosUI.competicao)
+      .map(j=>j.ID_MODALIDADE)
+      .filter(Boolean)
+  )];
+
+  const bases=[];
+  const vistos=new Set();
+  ids.forEach(id=>{
+    const base=modalidadeBase(id);
+    if(!base.prefixo || vistos.has(base.prefixo)) return;
+    vistos.add(base.prefixo);
+    bases.push(base);
+  });
+
+  const fixos=[
+    {valor:'hoje',rotulo:'Hoje'},
+    {valor:'amanha',rotulo:'Amanhã'},
+    {valor:'todos',rotulo:'Todos'}
+  ];
+
+  filtros.innerHTML=[
+    ...fixos.map(x=>`<button data-filtro="${x.valor}" type="button" class="${jogosUI.filtro===x.valor?'selected':''}">${x.rotulo}</button>`),
+    ...bases.map(x=>`<button data-filtro="modalidade:${escapeHtml(x.prefixo)}" type="button" class="${jogosUI.filtro===`modalidade:${x.prefixo}`?'selected':''}">${escapeHtml(x.nome)}</button>`)
+  ].join('');
+}
+
 function renderizarJogos(){
   const container=$('#jogosContainer');
   if(!container) return;
   const jogos=jogosFiltrados();
   const resumo=$('#jogosResumo');
   if(resumo) resumo.textContent=`${jogos.length} ${jogos.length===1?'jogo encontrado':'jogos encontrados'}`;
-  container.innerHTML=jogos.length ? jogos.map(j=>matchCard(j)).join('') : '<div class="games-empty">Nenhum jogo encontrado com esses filtros.</div>';
+  container.innerHTML=jogos.length
+    ? jogos.map(j=>matchCard(j)).join('')
+    : '<div class="games-empty">Nenhum jogo encontrado com esses filtros.</div>';
 }
 
 function renderizarProximoJogoHome(){
@@ -150,23 +227,220 @@ function renderizarProximoJogoHome(){
     .map(j=>({j,d:parseBrDate(j.DATA,j.HORA)}))
     .filter(x=>x.d && x.d.getTime()>=now.getTime())
     .sort((a,b)=>a.d-b.d);
+
   const preferidos=candidatos.filter(x=>!sports.length || sports.includes(x.j.ID_MODALIDADE));
   const proximo=(preferidos[0]||candidatos[0])?.j;
-  container.innerHTML=proximo ? matchCard(proximo,{home:true}) : '<div class="games-empty">Nenhum próximo jogo da CCT encontrado.</div>';
+  container.innerHTML=proximo
+    ? matchCard(proximo,{home:true})
+    : '<div class="games-empty">Nenhum próximo jogo da CCT encontrado.</div>';
 }
 
-function bindJogosUI(){
-  $$('#tipoJogos [data-tipo-jogos]').forEach(btn=>btn.addEventListener('click',()=>{
+function modalidadesClassificacao(){
+  return [...new Set(
+    apiData.classificacao
+      .filter(x=>x.ID_COMPETICAO===jogosUI.competicao)
+      .map(x=>x.ID_MODALIDADE)
+      .filter(Boolean)
+  )];
+}
+
+function renderizarSeletorClassificacao(){
+  const select=$('#classificacaoModalidade');
+  if(!select) return;
+  const ids=modalidadesClassificacao();
+
+  if(!ids.length){
+    jogosUI.classificacaoModalidade='';
+    select.innerHTML='<option value="">Sem classificação disponível</option>';
+    select.disabled=true;
+    return;
+  }
+
+  select.disabled=false;
+  if(!ids.includes(jogosUI.classificacaoModalidade)) jogosUI.classificacaoModalidade=ids[0];
+  select.innerHTML=ids.map(id=>`<option value="${escapeHtml(id)}" ${id===jogosUI.classificacaoModalidade?'selected':''}>${escapeHtml(modalidadeNome(id))}</option>`).join('');
+}
+
+function classificacaoGrupoHtml(grupo,linhas){
+  const ordenadas=[...linhas].sort((a,b)=>(Number(a.POSICAO)||999)-(Number(b.POSICAO)||999));
+  return `
+    <section class="classification-group">
+      <div class="classification-group-title">
+        <strong>${escapeHtml(grupo ? `Grupo ${grupo}` : 'Classificação')}</strong>
+        <small>${ordenadas.length} equipes</small>
+      </div>
+      <div class="standings standings-wide">
+        <div class="stand-head">
+          <span>#</span><span>Equipe</span><span>J</span><span>V</span><span>E</span><span>D</span><span>Pts</span><span>Saldo</span>
+        </div>
+        ${ordenadas.map(r=>{
+          const destaque=String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM' || String(r.EQUIPE||'').toUpperCase()==='CCT';
+          return `<div class="${destaque?'qual cct-standing':''}">
+            <span>${escapeHtml(r.POSICAO||'')}</span>
+            <b>${escapeHtml(r.EQUIPE||'')}</b>
+            <span>${escapeHtml(r.JOGOS||'0')}</span>
+            <span>${escapeHtml(r.VITORIAS||'0')}</span>
+            <span>${escapeHtml(r.EMPATES||'0')}</span>
+            <span>${escapeHtml(r.DERROTAS||'0')}</span>
+            <strong>${escapeHtml(r.PONTOS||'0')}</strong>
+            <span>${escapeHtml(r.SALDO||'')}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </section>`;
+}
+
+function classificacaoGeralHtml(){
+  const linhas=apiData.classificacao_geral
+    .filter(x=>x.ID_COMPETICAO===jogosUI.competicao)
+    .sort((a,b)=>(Number(a.POSICAO)||999)-(Number(b.POSICAO)||999));
+  if(!linhas.length) return '';
+  return `
+    <section class="general-ranking">
+      <div class="section-head compact-head"><div><i></i><h3>CLASSIFICAÇÃO GERAL</h3></div></div>
+      <div class="general-ranking-list">
+        ${linhas.map(r=>`<div class="${String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM'?'cct-general':''}">
+          <b>${escapeHtml(r.POSICAO||'')}</b>
+          <strong>${escapeHtml(r.EQUIPE||'')}</strong>
+          <span>${escapeHtml(r.PONTOS||'0')} pts</span>
+          <small>${[r.OUROS&&`${r.OUROS} 🥇`,r.PRATAS&&`${r.PRATAS} 🥈`,r.BRONZES&&`${r.BRONZES} 🥉`].filter(Boolean).join(' • ')}</small>
+        </div>`).join('')}
+      </div>
+    </section>`;
+}
+
+function renderizarClassificacao(){
+  const container=$('#classificacaoContainer');
+  if(!container) return;
+  renderizarSeletorClassificacao();
+
+  if(!jogosUI.classificacaoModalidade){
+    container.innerHTML='<div class="games-empty">Esta competição ainda não possui classificação publicada.</div>';
+    return;
+  }
+
+  const linhas=apiData.classificacao.filter(x=>
+    x.ID_COMPETICAO===jogosUI.competicao &&
+    x.ID_MODALIDADE===jogosUI.classificacaoModalidade
+  );
+
+  const grupos=new Map();
+  linhas.forEach(r=>{
+    const chave=r.GRUPO||'';
+    if(!grupos.has(chave)) grupos.set(chave,[]);
+    grupos.get(chave).push(r);
+  });
+
+  container.innerHTML=linhas.length
+    ? [...grupos.entries()].map(([g,rs])=>classificacaoGrupoHtml(g,rs)).join('') + classificacaoGeralHtml()
+    : '<div class="games-empty">Nenhuma classificação encontrada para esta modalidade.</div>';
+}
+
+function proximoJogoCenarioHtml(idJogo){
+  if(!idJogo) return '';
+  const j=apiData.jogos.find(x=>x.ID_JOGO===idJogo);
+  if(!j) return `<span>${escapeHtml(idJogo)}</span>`;
+  return `<span>${escapeHtml(j.DATA||'')} • ${escapeHtml(j.HORA||'')}<small>${escapeHtml((j.EQUIPE_A||'A DEFINIR')+' × '+(j.EQUIPE_B||'A DEFINIR'))}</small></span>`;
+}
+
+function renderizarCenarios(){
+  const container=$('#cenariosContainer');
+  if(!container) return;
+  const linhas=apiData.cenarios.filter(c=>c.ID_COMPETICAO===jogosUI.competicao);
+
+  container.innerHTML=linhas.length ? linhas.map(c=>`
+    <article class="scenario-detail-card" data-scenario-card="${escapeHtml(c.ID_MODALIDADE||'')}">
+      <div class="scenario-detail-head">
+        <div>
+          <span class="chip">${escapeHtml(modalidadeNome(c.ID_MODALIDADE))}</span>
+          <h3>${escapeHtml(c.STATUS||'Situação')}</h3>
+        </div>
+        <span class="target">🎯</span>
+      </div>
+      <div class="scenario-detail-body">
+        <div><small>CENÁRIO ATUAL</small><p>${escapeHtml(c.CENARIO_ATUAL||'Aguardando atualização.')}</p></div>
+        <div><small>O QUE A CCT PRECISA</small><strong>${escapeHtml(c.O_QUE_PRECISA||'Aguardando definição.')}</strong></div>
+        ${c.PROXIMO_JOGO?`<div class="scenario-next"><small>PRÓXIMO JOGO</small>${proximoJogoCenarioHtml(c.PROXIMO_JOGO)}</div>`:''}
+      </div>
+    </article>
+  `).join('') : '<div class="games-empty">Nenhum cenário de classificação publicado para esta competição.</div>';
+}
+
+function renderizarAbaCompeticao(){
+  const mapas={
+    jogos:['#painelJogos','Jogos'],
+    classificacao:['#painelClassificacao','Classificação'],
+    cenarios:['#painelCenarios','Cenários']
+  };
+  Object.entries(mapas).forEach(([aba,[sel]])=>{
+    const el=$(sel);
+    if(el) el.hidden=aba!==jogosUI.aba;
+  });
+  $$('#competitionTabs [data-comp-tab]').forEach(btn=>btn.classList.toggle('selected',btn.dataset.compTab===jogosUI.aba));
+  const titulo=$('#competicaoTitulo');
+  if(titulo) titulo.textContent=mapas[jogosUI.aba]?.[1]||'Jogos';
+
+  if(jogosUI.aba==='jogos') renderizarJogos();
+  if(jogosUI.aba==='classificacao') renderizarClassificacao();
+  if(jogosUI.aba==='cenarios') renderizarCenarios();
+}
+
+function abrirCenarioModalidade(idModalidade){
+  jogosUI.aba='cenarios';
+  renderizarAbaCompeticao();
+  requestAnimationFrame(()=>{
+    const card=document.querySelector(`[data-scenario-card="${CSS.escape(idModalidade)}"]`);
+    if(card){
+      card.classList.add('scenario-focus');
+      card.scrollIntoView({behavior:'smooth',block:'center'});
+      setTimeout(()=>card.classList.remove('scenario-focus'),1800);
+    }
+  });
+}
+
+function bindCompeticaoUI(){
+  $('#tipoJogos')?.addEventListener('click',e=>{
+    const btn=e.target.closest('[data-tipo-jogos]');
+    if(!btn) return;
     jogosUI.tipo=btn.dataset.tipoJogos;
     $$('#tipoJogos [data-tipo-jogos]').forEach(x=>x.classList.toggle('selected',x===btn));
     renderizarJogos();
-  }));
-  $$('#filtrosJogos [data-filtro]').forEach(btn=>btn.addEventListener('click',()=>{
+  });
+
+  $('#filtrosJogos')?.addEventListener('click',e=>{
+    const btn=e.target.closest('[data-filtro]');
+    if(!btn) return;
     jogosUI.filtro=btn.dataset.filtro;
     $$('#filtrosJogos [data-filtro]').forEach(x=>x.classList.toggle('selected',x===btn));
     renderizarJogos();
-  }));
+  });
+
+  $('#competitionTabs')?.addEventListener('click',e=>{
+    const btn=e.target.closest('[data-comp-tab]');
+    if(!btn) return;
+    jogosUI.aba=btn.dataset.compTab;
+    renderizarAbaCompeticao();
+  });
+
+  $('#classificacaoModalidade')?.addEventListener('change',e=>{
+    jogosUI.classificacaoModalidade=e.target.value;
+    renderizarClassificacao();
+  });
+
   $('#competicaoBtn')?.addEventListener('click',abrirSeletorCompeticao);
+
+  $('#jogosContainer')?.addEventListener('click',e=>{
+    const btn=e.target.closest('[data-open-scenario-modality]');
+    if(!btn) return;
+    abrirCenarioModalidade(btn.dataset.openScenarioModality);
+  });
+
+  $('#homeNextGameContainer')?.addEventListener('click',e=>{
+    const btn=e.target.closest('[data-open-scenario-modality]');
+    if(!btn) return;
+    go('jogos');
+    abrirCenarioModalidade(btn.dataset.openScenarioModality);
+  });
 }
 
 function abrirSeletorCompeticao(){
@@ -174,13 +448,20 @@ function abrirSeletorCompeticao(){
   const comps=publicadas.length?publicadas:[{ID_COMPETICAO:jogosUI.competicao,NOME:competitionName(jogosUI.competicao)}];
   const body=$('#modalContent');
   if(!body) return;
+
   body.innerHTML=`<span class="chip">COMPETIÇÕES</span><h2>Escolha o campeonato</h2><div class="competition-list">${comps.map(c=>`<button class="competition-option ${c.ID_COMPETICAO===jogosUI.competicao?'active':''}" data-competition-id="${escapeHtml(c.ID_COMPETICAO)}"><span>${escapeHtml(c.NOME||c.ID_COMPETICAO)}<small>${escapeHtml(c.ANO||'')}</small></span><b>›</b></button>`).join('')}</div>`;
   $('#modal')?.classList.add('open');
+
   $$('[data-competition-id]').forEach(btn=>btn.addEventListener('click',()=>{
     jogosUI.competicao=btn.dataset.competitionId;
-    const nome=$('#competicaoNome'); if(nome) nome.textContent=competitionName(jogosUI.competicao);
+    jogosUI.filtro='todos';
+    jogosUI.classificacaoModalidade='';
+    const nome=$('#competicaoNome');
+    if(nome) nome.textContent=competitionName(jogosUI.competicao);
     $('#modal')?.classList.remove('open');
-    renderizarJogos();
+    renderizarFiltrosModalidades();
+    renderizarSeletorClassificacao();
+    renderizarAbaCompeticao();
   }));
 }
 
@@ -189,25 +470,41 @@ async function carregarDadosAPI(){
     const resposta=await fetch(API_URL,{cache:'no-store'});
     if(!resposta.ok) throw new Error('HTTP '+resposta.status);
     const dados=await resposta.json();
+
     apiData.jogos=dados.jogos||[];
     apiData.classificacao=dados.classificacao||[];
     apiData.classificacao_geral=dados.classificacao_geral||[];
     apiData.cenarios=dados.cenarios||[];
     apiData.competicoes=dados.competicoes||[];
     apiData.modalidades=dados.modalidades||[];
-    if(!apiData.competicoes.some(c=>c.ID_COMPETICAO===jogosUI.competicao) && apiData.competicoes[0]) jogosUI.competicao=apiData.competicoes[0].ID_COMPETICAO;
-    const nome=$('#competicaoNome'); if(nome) nome.textContent=competitionName(jogosUI.competicao);
-    renderizarJogos();
+
+    if(!apiData.competicoes.some(c=>c.ID_COMPETICAO===jogosUI.competicao) && apiData.competicoes[0]){
+      jogosUI.competicao=apiData.competicoes[0].ID_COMPETICAO;
+    }
+
+    const nome=$('#competicaoNome');
+    if(nome) nome.textContent=competitionName(jogosUI.competicao);
+
+    renderizarFiltrosModalidades();
+    renderizarSeletorClassificacao();
+    renderizarAbaCompeticao();
     renderizarProximoJogoHome();
+
     console.log('API CCT carregada:',apiData);
   }catch(erro){
     console.error('Erro ao carregar API CCT:',erro);
-    const container=$('#jogosContainer'); if(container) container.innerHTML='<div class="games-empty">Não foi possível atualizar os jogos agora.</div>';
-    const home=$('#homeNextGameContainer'); if(home) home.innerHTML='<div class="games-empty">Não foi possível atualizar o próximo jogo agora.</div>';
+    const container=$('#jogosContainer');
+    if(container) container.innerHTML='<div class="games-empty">Não foi possível atualizar os jogos agora.</div>';
+    const home=$('#homeNextGameContainer');
+    if(home) home.innerHTML='<div class="games-empty">Não foi possível atualizar o próximo jogo agora.</div>';
+    const cls=$('#classificacaoContainer');
+    if(cls) cls.innerHTML='<div class="games-empty">Não foi possível atualizar a classificação agora.</div>';
+    const cen=$('#cenariosContainer');
+    if(cen) cen.innerHTML='<div class="games-empty">Não foi possível atualizar os cenários agora.</div>';
   }
 }
 
-bindJogosUI();
+bindCompeticaoUI();
 carregarDadosAPI();
 
 function go(screen){
@@ -225,11 +522,7 @@ $('#menuBtn').onclick=openDrawer; $('#closeDrawer').onclick=closeDrawer; backdro
 
 const modal=$('#modal'), mc=$('#modalContent');
 const modalData={
-  scenario:`<span class="chip live">VÔLEI MASCULINO • GRUPO A</span><h2>🎯 O que a CCT precisa?</h2>
-  <div class="modal-list"><div><strong>🟢 Vitória por 2×0</strong><small>Classificação garantida para a próxima fase.</small></div>
-  <div><strong>🟡 Vitória por 2×1</strong><small>A classificação pode depender do resultado de Engenharia × Direito.</small></div>
-  <div><strong>🔴 Derrota</strong><small>O cenário fica desfavorável e depende dos demais resultados.</small></div></div>
-  <h3>IMPORTANTE</h3><p>Este conteúdo é demonstrativo. Na versão real, os cenários serão calculados conforme o regulamento oficial de cada competição e modalidade.</p>`,
+  scenario:`<span class="chip live">CENÁRIOS</span><h2>🎯 Situação da classificação</h2><p>Abra a aba <strong>Cenários</strong> dentro da competição para acompanhar os dados atualizados da CCT.</p>`,
   media:`<span class="chip">MÍDIA CCT</span><h2>Fotos e vídeos</h2><div class="modal-list"><div><strong>📸 Fotos da competição</strong><small>Abrir álbum no Google Drive</small></div><div><strong>🎥 Vídeos</strong><small>Melhores momentos e conteúdos da CCT</small></div><div><strong>🖼️ Galeria</strong><small>Registros de jogos, torcida e eventos</small></div></div>`,
   docs:`<span class="chip">DOCUMENTOS</span><h2>Central de arquivos</h2><div class="modal-list"><div><strong>Regulamento Interlaje 2026</strong><small>Abrir documento</small></div><div><strong>Tabela oficial</strong><small>Abrir arquivo</small></div><div><strong>Caderno de jogos</strong><small>Abrir arquivo</small></div></div>`,
   places:`<span class="chip">LOCAIS</span><h2>Onde precisamos estar?</h2><div class="modal-list"><div><strong>📍 Ginásio Central</strong><small>Abrir no mapa</small></div><div><strong>📍 Salinha da Atlética</strong><small>UDESC Joinville</small></div><div><strong>📍 Local do evento</strong><small>Abrir no mapa</small></div></div>`,
