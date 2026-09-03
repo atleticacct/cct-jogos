@@ -53,7 +53,8 @@ function sameDay(a,b){
 function selectedSportIds(){
   try{
     const p=JSON.parse(localStorage.getItem(PROFILE_KEY)||'null');
-    return (p?.sports||[]).map(x=>MODALIDADE_IDS[x]).filter(Boolean);
+    if(Array.isArray(p?.sportIds) && p.sportIds.length) return p.sportIds.filter(Boolean);
+    return (p?.sports||[]).map(x=>MODALIDADE_IDS[x]||x).filter(Boolean);
   }catch(e){ return []; }
 }
 
@@ -666,7 +667,60 @@ if(memberBtn){
   });
 }
 
-(function(){const KEY='cctProfileV2',sports=[...document.querySelectorAll('#sportGrid input[data-sport]')],count=document.getElementById('sportsCount'),summary=document.getElementById('profileSummary'),name=document.getElementById('profileNameDisplay'),feedback=document.getElementById('saveFeedback');const selected=()=>sports.filter(x=>x.checked).map(x=>x.dataset.sport);function update(){const n=selected().length;if(count)count.textContent=`${n} ${n===1?'selecionada':'selecionadas'}`;if(summary)summary.textContent=n?`${n} ${n===1?'modalidade selecionada':'modalidades selecionadas'}`:'Escolha suas modalidades'}function save(){const p={name:name?.textContent?.trim()||'Guilherme',sports:selected()};['onlyMySports','notifyUrgent','notifyGames','notifyEvents'].forEach(k=>p[k]=!!document.getElementById(k)?.checked);localStorage.setItem(KEY,JSON.stringify(p));update();renderizarJogos();renderizarProximoJogoHome();if(feedback){feedback.classList.add('show');setTimeout(()=>feedback.classList.remove('show'),2200)}}try{const p=JSON.parse(localStorage.getItem(KEY)||'null');if(p){if(p.name&&name)name.textContent=p.name;sports.forEach(x=>x.checked=(p.sports||[]).includes(x.dataset.sport));['onlyMySports','notifyUrgent','notifyGames','notifyEvents'].forEach(k=>{const e=document.getElementById(k);if(e&&typeof p[k]==='boolean')e.checked=p[k]})}}catch(e){}sports.forEach(x=>x.addEventListener('change',update));document.getElementById('saveProfileBtn')?.addEventListener('click',save);document.getElementById('editProfileBtn')?.addEventListener('click',()=>{const v=prompt('Como você quer aparecer no app?',name?.textContent||'Guilherme');if(v&&v.trim()){name.textContent=v.trim();save()}});update()})();
+function modalidadeEmoji(id,nome=''){
+  const p=String(id||'').split('-')[0].toUpperCase();
+  const mapa={FUT:'⚽',VOL:'🏐',BAS:'🏀',HAN:'🤾',NAT:'🏊',ATL:'🏃',TEN:'🎾',XAD:'♟️'};
+  if(mapa[p]) return mapa[p];
+  const n=String(nome||'').toUpperCase();
+  if(n.includes('FUT'))return '⚽'; if(n.includes('VÔLE')||n.includes('VOLE'))return '🏐'; if(n.includes('BASQ'))return '🏀'; if(n.includes('HAND'))return '🤾';
+  return '🏅';
+}
+function perfilAtual(){
+  try{return JSON.parse(localStorage.getItem(PROFILE_KEY)||'null')||{};}catch(e){return {};}
+}
+function renderizarModalidadesPerfil(){
+  const grid=$('#sportGrid'); if(!grid)return;
+  const p=perfilAtual();
+  const antigos=new Set((p.sports||[]).map(x=>MODALIDADE_IDS[x]||x));
+  const selecionados=new Set((p.sportIds||[]).length?p.sportIds:antigos);
+  const mods=(apiData.modalidades||[])
+    .filter(m=>!('PUBLICADO' in m)||isSim(m.PUBLICADO))
+    .sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||String(a.NOME||'').localeCompare(String(b.NOME||''),'pt-BR'));
+  if(!mods.length){grid.innerHTML='<div class="games-empty">Nenhuma modalidade publicada.</div>'; atualizarResumoPerfil(); return;}
+  grid.innerHTML=mods.map(m=>{
+    const id=m.ID_MODALIDADE||''; const nome=m.NOME||modalidadeBase(id).nome||id; const naipe=m.NAIPE||'';
+    return `<label class="sport-choice"><input type="checkbox" data-sport-id="${escapeHtml(id)}" ${selecionados.has(id)?'checked':''}><span class="sport-icon">${modalidadeEmoji(id,nome)}</span><strong>${escapeHtml(nome)}</strong><small>${escapeHtml(naipe)}</small><b>✓</b></label>`;
+  }).join('');
+  grid.querySelectorAll('input[data-sport-id]').forEach(x=>x.addEventListener('change',atualizarResumoPerfil));
+  atualizarResumoPerfil();
+}
+function atualizarResumoPerfil(){
+  const n=$$('#sportGrid input[data-sport-id]:checked').length;
+  const count=$('#sportsCount'), summary=$('#profileSummary');
+  if(count)count.textContent=`${n} ${n===1?'selecionada':'selecionadas'}`;
+  if(summary)summary.textContent=n?`${n} ${n===1?'modalidade selecionada':'modalidades selecionadas'}`:'Escolha suas modalidades';
+}
+function salvarPerfil(){
+  const name=$('#profileNameDisplay');
+  const p=perfilAtual();
+  p.name=name?.textContent?.trim()||'Guilherme';
+  p.sportIds=$$('#sportGrid input[data-sport-id]:checked').map(x=>x.dataset.sportId).filter(Boolean);
+  p.sports=p.sportIds.map(id=>modalidadeNome(id)); // compatibilidade com versões anteriores
+  ['onlyMySports','notifyUrgent','notifyGames','notifyEvents'].forEach(k=>p[k]=!!document.getElementById(k)?.checked);
+  localStorage.setItem(PROFILE_KEY,JSON.stringify(p));
+  atualizarResumoPerfil(); renderizarJogos(); renderizarProximoJogoHome();
+  const feedback=$('#saveFeedback'); if(feedback){feedback.classList.add('show');setTimeout(()=>feedback.classList.remove('show'),2200);}
+}
+function inicializarPerfil(){
+  const p=perfilAtual(); const name=$('#profileNameDisplay');
+  if(p.name&&name)name.textContent=p.name;
+  ['onlyMySports','notifyUrgent','notifyGames','notifyEvents'].forEach(k=>{const e=document.getElementById(k);if(e&&typeof p[k]==='boolean')e.checked=p[k];});
+  $('#saveProfileBtn')?.addEventListener('click',salvarPerfil);
+  $('#editProfileBtn')?.addEventListener('click',()=>{const v=prompt('Como você quer aparecer no app?',name?.textContent||'Guilherme');if(v&&v.trim()){name.textContent=v.trim();salvarPerfil();}});
+  atualizarResumoPerfil();
+}
+inicializarPerfil();
+
 
 /* Eventos via Painel Administrativo (Google Sheets / Apps Script) */
 const EVENTS_API='https://script.google.com/macros/s/AKfycbwanjoMA8Kd9pdtGWlraMN7agGTdlY_8zMaXBQQQL_7zRBPwZltu8oVMfUQFHgAQOKzbA/exec';
@@ -717,17 +771,28 @@ function agendaIcon(tipo){ const t=String(tipo||'').toUpperCase(); if(t.includes
 function agendaItemHtml(a){
   const mod=a.ID_MODALIDADE?modalidadeNome(a.ID_MODALIDADE):'';
   const local=a.LOCAL||a.ENDERECO||'';
-  return `<div class="agenda-row"><time>${escapeHtml(a.HORA_INICIO||'--:--')}</time><span class="dot"></span><section><small>${escapeHtml(a.TIPO||'AGENDA')}</small><strong>${escapeHtml(a.TITULO||mod||'Compromisso CCT')}</strong>${mod&&a.TITULO!==mod?`<em>${escapeHtml(mod)}</em>`:''}${local?`<p>📍 ${escapeHtml(local)}</p>`:''}${a.DESCRICAO?`<p>${escapeHtml(a.DESCRICAO)}</p>`:''}${linkSeguro(a.LINK_MAPS)?`<a href="${escapeHtml(a.LINK_MAPS)}" target="_blank" rel="noopener">ABRIR MAPA ›</a>`:''}</section></div>`;
+  return `<div class="agenda-row"><time>${escapeHtml(a.HORA_INICIO||'--:--')}</time><span class="dot"></span><section><div class="agenda-card-head"><small>${escapeHtml(a.TIPO||'AGENDA')}</small><span>${agendaIcon(a.TIPO)}</span></div><strong>${escapeHtml(a.TITULO||mod||'Compromisso CCT')}</strong>${mod&&a.TITULO!==mod?`<em>${escapeHtml(mod)}</em>`:''}${local?`<p>📍 ${escapeHtml(local)}</p>`:''}${a.DESCRICAO?`<p>${escapeHtml(a.DESCRICAO)}</p>`:''}${linkSeguro(a.LINK_MAPS)?`<a href="${escapeHtml(a.LINK_MAPS)}" target="_blank" rel="noopener">ABRIR MAPA ›</a>`:''}</section></div>`;
+}
+function rotuloDataAgenda(data){
+  const d=parseBrDate(data); if(!d)return data||''; const hoje=new Date(); const amanha=new Date(hoje.getFullYear(),hoje.getMonth(),hoje.getDate()+1);
+  const base=d.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}).replace('.','').toUpperCase();
+  if(sameDay(d,hoje))return `HOJE • ${base}`; if(sameDay(d,amanha))return `AMANHÃ • ${base}`;
+  const dia=d.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','').toUpperCase(); return `${dia} • ${base}`;
+}
+function agendaAgrupadaHtml(linhas){
+  let atual=''; return linhas.map(a=>{const d=a.DATA||''; const sep=d!==atual?`<div class="agenda-date-separator"><span>${escapeHtml(rotuloDataAgenda(d))}</span></div>`:''; atual=d; return sep+agendaItemHtml(a);}).join('');
 }
 function renderizarAgenda(){
   const c=$('#agendaContainer'); if(!c)return;
   const linhas=somentePublicos(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
-  c.innerHTML=linhas.length?linhas.map(agendaItemHtml).join(''):'<div class="games-empty">Nenhum compromisso público na agenda.</div>';
+  c.innerHTML=linhas.length?agendaAgrupadaHtml(linhas):'<div class="games-empty">Nenhum compromisso público na agenda.</div>';
   const h=$('#homeAgendaContainer');
   if(h){
     const hoje=new Date();
     let itens=linhas.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA_INICIO),hoje));
+    const temHoje=itens.length>0;
     if(!itens.length) itens=linhas.filter(a=>dataVal(a.DATA,a.HORA_INICIO)>=Date.now()).slice(0,3);
+    const homeTitle=$('#homeAgendaTitle'); if(homeTitle) homeTitle.textContent=temHoje?'AGENDA DE HOJE':'PRÓXIMOS NA AGENDA';
     h.innerHTML=itens.length?itens.slice(0,3).map(agendaItemHtml).join(''):'<div class="games-empty">Nada na agenda pública por enquanto.</div>';
   }
 }
@@ -773,12 +838,38 @@ function abrirContatos(escopo='publico'){
   mc.innerHTML=`<span class="chip">${escopo==='membros'?'MEMBROS':'CONTATOS'}</span><h2>${escopo==='membros'?'Equipe interna':'Fale com a CCT'}</h2><div class="modal-list dynamic-content-list">${itens.length?itens.map(p=>`<div class="person-contact">${normalizeImageUrl(p.FOTO_URL)?`<img src="${escapeHtml(normalizeImageUrl(p.FOTO_URL))}" alt="">`:`<span class="contact-avatar">${escapeHtml((p.NOME||'C').charAt(0))}</span>`}<div><strong>${escapeHtml(p.NOME||'Contato')}</strong><small>${escapeHtml([p.CARGO,p.TIPO].filter(Boolean).join(' • '))}</small>${linkSeguro(p.LINK_WHATSAPP)?`<a class="content-link" href="${escapeHtml(p.LINK_WHATSAPP)}" target="_blank" rel="noopener">WHATSAPP ›</a>`:''}${p.EMAIL?`<a class="content-link" href="mailto:${escapeHtml(p.EMAIL)}">E-MAIL ›</a>`:''}</div></div>`).join(''):'<div><strong>Nenhum contato publicado</strong><small>Cadastre pessoas na aba PESSOAS.</small></div>'}</div>`;
   modal.classList.add('open'); closeDrawer();
 }
+function renderizarHeroHome(){
+  const hero=$('#homeHero'); if(!hero)return;
+  const comps=apiData.competicoes.filter(x=>!('PUBLICADO'in x)||isSim(x.PUBLICADO)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
+  const comp=comps.find(x=>isSim(x.DESTAQUE))||comps[0];
+  if(!comp)return;
+  const img=normalizeImageUrl(comp.IMAGEM_URL)||'assets/volei-praia-2.jpg';
+  hero.style.setProperty('--hero',`url('${img.replace(/'/g,"%27")}')`);
+  const title=$('#homeHeroTitle'), text=$('#homeHeroText'), badge=$('#homeHeroBadge'), btn=$('#homeHeroButton');
+  if(title)title.textContent=competitionName(comp.ID_COMPETICAO);
+  if(text)text.textContent='Acompanhe jogos, classificação, destaques e tudo da CCT.';
+  if(badge)badge.textContent=isSim(comp.DESTAQUE)?'EM DESTAQUE':(comp.STATUS||'COMPETIÇÃO');
+  if(btn)btn.onclick=()=>{jogosUI.competicao=comp.ID_COMPETICAO; jogosUI.aba='jogos'; go('jogos'); const nome=$('#competicaoNome');if(nome)nome.textContent=competitionName(comp.ID_COMPETICAO);renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();};
+}
+function mediaItensPublicos(){
+  return somentePublicos(apiData.conteudos).filter(x=>categoriaTem(x.CATEGORIA,['MID','FOTO','VIDEO','GALERIA'])).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
+}
+function mediaTipoMeta(x){
+  const c=String(x.CATEGORIA||'').toUpperCase(); if(c.includes('VIDEO'))return ['▶','ASSISTA AGORA']; if(c.includes('FOTO')||c.includes('GALERIA'))return ['▧','CONFIRA AS FOTOS']; return ['▧','VER CONTEÚDO'];
+}
+function renderizarMidiaHome(){
+  const c=$('#homeMediaContainer'); if(!c)return; const itens=mediaItensPublicos().slice(0,2);
+  c.classList.toggle('single-item',itens.length===1);
+  if(!itens.length){c.innerHTML='<div class="games-empty media-empty">Nenhum conteúdo de mídia publicado.</div>';return;}
+  c.innerHTML=itens.map(x=>{const [ico,cta]=mediaTipoMeta(x);const img=normalizeImageUrl(x.IMAGEM_URL)||'assets/volei-praia-1.jpg';const link=linkSeguro(x.LINK);return `<article class="home-media-card ${link?'is-clickable':''}" style="--media:url('${img.replace(/'/g,"%27")}')" ${link?`data-media-link="${escapeHtml(link)}"`:''}><span>${ico}</span><div><strong>${escapeHtml(x.TITULO||'Mídia CCT')}</strong>${link?`<small>${escapeHtml(x.TEXTO_BOTAO||cta)}</small>`:`<small>${escapeHtml(x.DESCRICAO||'Conteúdo da CCT')}</small>`}</div></article>`;}).join('');
+  c.querySelectorAll('[data-media-link]').forEach(el=>el.addEventListener('click',()=>window.open(el.dataset.mediaLink,'_blank','noopener')));
+}
 function renderizarCompeticoesHome(){ const c=$('#homeCompetitionsContainer'); if(!c)return; const comps=apiData.competicoes.filter(x=>!('PUBLICADO'in x)||isSim(x.PUBLICADO)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)); c.innerHTML=comps.length?comps.map(x=>`<article class="visual-card competition-home-card" style="--bg:url('${normalizeImageUrl(x.IMAGEM_URL)||'assets/levantamento-1.jpg'}')" data-home-competition="${escapeHtml(x.ID_COMPETICAO)}"><div><span class="chip ${isSim(x.DESTAQUE)?'live':''}">${escapeHtml(x.STATUS||'COMPETIÇÃO')}</span><h4>${escapeHtml(x.NOME||x.ID_COMPETICAO)}</h4><p>${escapeHtml(x.ANO||'')}</p></div></article>`).join(''):'<div class="games-empty">Nenhuma competição publicada.</div>'; c.querySelectorAll('[data-home-competition]').forEach(el=>el.addEventListener('click',()=>{jogosUI.competicao=el.dataset.homeCompetition; go('jogos'); renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();})); }
 
 function abrirAgendaMembros(filtro=''){
   let itens=somenteMembros(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
   if(filtro==='salinha') itens=itens.filter(a=>categoriaTem([a.TIPO,a.TITULO,a.LOCAL].join(' '),['SALINHA','ATEND']));
-  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${filtro==='salinha'?'🏠 Escala da salinha':'📅 Agenda interna'}</h2><div class="member-agenda-modal">${itens.length?itens.map(agendaItemHtml).join(''):'<div class="games-empty">Nenhum compromisso interno publicado.</div>'}</div>`;
+  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${filtro==='salinha'?'🏠 Escala da salinha':'📅 Agenda interna'}</h2><div class="member-agenda-modal">${itens.length?agendaAgrupadaHtml(itens):'<div class="games-empty">Nenhum compromisso interno publicado.</div>'}</div>`;
   modal.classList.add('open');
 }
 function abrirAvisosMembros(){
@@ -796,19 +887,17 @@ function renderizarAreaMembros(){
   const agendaM=somenteMembros(apiData.agenda);
   const hojeCount=agendaM.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA_INICIO),hoje)).length;
   const reps=apiData.jogos.filter(j=>String(j.REPRESENTACAO_CCT||'').trim().toUpperCase()==='SIM');
+  const repsFuturas=reps.filter(j=>{const d=parseBrDate(j.DATA,j.HORA);return d && d.getTime()>=Date.now() && !isFinalizado(j);});
   const alertas=avisosAtivos('membros');
 
   const elHoje=$('#memberTodayCount'), elRep=$('#memberRepCount'), elAv=$('#memberAlertCount');
   if(elHoje) elHoje.textContent=hojeCount;
-  if(elRep) elRep.textContent=reps.length;
+  if(elRep) elRep.textContent=repsFuturas.length;
   if(elAv) elAv.textContent=alertas.length;
 
   const lista=$('#memberRepresentationsList');
   if(lista){
-    const proximas=reps.filter(j=>{
-      const d=parseBrDate(j.DATA,j.HORA);
-      return d && d.getTime()>=Date.now();
-    }).sort((a,b)=>parseBrDate(a.DATA,a.HORA)-parseBrDate(b.DATA,b.HORA)).slice(0,4);
+    const proximas=repsFuturas.sort((a,b)=>parseBrDate(a.DATA,a.HORA)-parseBrDate(b.DATA,b.HORA)).slice(0,4);
     lista.innerHTML=proximas.length?proximas.map(j=>{
       const nome=String(j.RESPONSAVEL_REPRESENTACAO||'Responsável a definir').trim();
       const foto=normalizeImageUrl(j.FOTO_RESP_REPRESENTACAO||'');
@@ -833,13 +922,20 @@ function bindAreaMembros(){
   });
 }
 
-function renderizarModulosGerais(){ renderizarAgenda(); renderizarAvisos(); renderizarCompeticoesHome(); renderizarAreaMembros(); if(apiData.eventos.length){cctEvents=apiData.eventos.sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||eventDateValue(a)-eventDateValue(b)); const all=$('#eventsContainer'),home=$('#homeEventContainer'); if(all)all.innerHTML=cctEvents.length?cctEvents.map(e=>eventCard(e)).join(''):'<div class="event-empty">Nenhum evento publicado no momento.</div>'; const featured=cctEvents.find(e=>isSim(e.DESTAQUE))||cctEvents[0]; if(home)home.innerHTML=featured?eventCard(featured,true):'<div class="event-empty">Novos eventos em breve.</div>'; bindEventButtons(); } }
+function renderizarModulosGerais(){ renderizarAgenda(); renderizarAvisos(); renderizarHeroHome(); renderizarCompeticoesHome(); renderizarMidiaHome(); renderizarModalidadesPerfil(); renderizarAreaMembros(); if(apiData.eventos.length){cctEvents=apiData.eventos.sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||eventDateValue(a)-eventDateValue(b)); const all=$('#eventsContainer'),home=$('#homeEventContainer'); if(all)all.innerHTML=cctEvents.length?cctEvents.map(e=>eventCard(e)).join(''):'<div class="event-empty">Nenhum evento publicado no momento.</div>'; const featured=cctEvents.find(e=>isSim(e.DESTAQUE))||cctEvents[0]; if(home)home.innerHTML=featured?eventCard(featured,true):'<div class="event-empty">Novos eventos em breve.</div>'; bindEventButtons(); } }
+function abrirAjuda(){
+  const contato=somentePublicos(apiData.pessoas).find(p=>String(p.ATIVO||'SIM').toUpperCase()!=='NÃO' && (linkSeguro(p.LINK_WHATSAPP)||p.EMAIL));
+  const contatoHtml=contato?(linkSeguro(contato.LINK_WHATSAPP)?`<a class="help-contact" href="${escapeHtml(contato.LINK_WHATSAPP)}" target="_blank" rel="noopener">💬 FALAR COM A ATLÉTICA ›</a>`:`<a class="help-contact" href="mailto:${escapeHtml(contato.EMAIL)}">✉ FALAR COM A ATLÉTICA ›</a>`):'';
+  mc.innerHTML=`<span class="chip">AJUDA</span><h2>Como usar a ATLÉTICA CCT</h2><div class="help-sections"><section><strong>📲 Instalar no celular</strong><p><b>iPhone:</b> abra no Safari, toque em Compartilhar e escolha “Adicionar à Tela de Início”.<br><b>Android:</b> abra no Chrome e use “Adicionar à tela inicial” ou “Instalar app”.</p></section><section><strong>⭐ Personalizar seu perfil</strong><p>Em Perfil, selecione as modalidades que você joga ou acompanha. “Só meus esportes” prioriza seus jogos e informações.</p></section><section><strong>🏆 Jogos e competições</strong><p>Use Jogos para acompanhar partidas, classificação, cenários e destaques de cada campeonato.</p></section><section><strong>🔔 Avisos</strong><p>O sino reúne avisos ativos. Mudanças urgentes de horário, local e informações importantes aparecem em destaque.</p></section><section><strong>🔒 Área da Atlética</strong><p>É destinada aos membros para agenda interna, representações, documentos, avisos, equipe e formulários.</p></section></div>${contatoHtml}`;
+  modal.classList.add('open'); closeDrawer();
+}
 // Conecta atalhos do menu aos dados do Sheets.
 document.querySelectorAll('[data-open="docs"]').forEach(b=>b.onclick=()=>abrirConteudos('DOCUMENT','Documentos'));
 document.querySelectorAll('[data-open="media"]').forEach(b=>b.onclick=()=>abrirConteudos('MID','Mídia CCT'));
 document.querySelectorAll('[data-open="forms"]').forEach(b=>b.onclick=()=>abrirConteudos('FORM','Pedidos e Formulários'));
 document.querySelectorAll('[data-open="places"]').forEach(b=>b.onclick=()=>abrirLocais('publico'));
 document.querySelectorAll('[data-open="contacts"]').forEach(b=>b.onclick=()=>abrirContatos('publico'));
+document.querySelectorAll('[data-open="help"]').forEach(b=>b.onclick=abrirAjuda);
 document.querySelectorAll('[data-open="about"]').forEach(b=>b.onclick=()=>{
   const html=conteudosHtml('SOBRE','publico');
   if(!html.includes('Nenhum conteúdo publicado')) return abrirConteudos('SOBRE','Sobre a Atlética','publico');

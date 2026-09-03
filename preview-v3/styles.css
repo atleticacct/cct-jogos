@@ -278,3 +278,25 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
   .highlight-medal{width:42px;height:42px;font-size:24px}
   .highlight-photo{grid-column:2;width:100%;height:150px;margin-top:2px}
 }
+
+/* v25 — revisão geral e conteúdo administrável */
+.agenda-date-separator{display:flex!important;grid-template-columns:1fr!important;min-height:auto!important;margin:18px 0 8px!important}
+.agenda-date-separator span{display:inline-flex;align-items:center;width:max-content;background:#172219;border:1px solid #304438;color:#b9f2ca;border-radius:999px;padding:7px 10px;font-size:9px;font-weight:900;letter-spacing:.8px}
+.agenda-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.agenda-card-head>span{font-size:16px}
+.member-agenda-modal .agenda-date-separator{margin:12px 0 7px!important}
+#homeMediaContainer .games-empty{grid-column:1/-1}
+.home-media-card.is-clickable{cursor:pointer}
+.home-media-card.is-clickable:active{transform:scale(.99)}
+.home-media-card{transition:transform .16s ease,border-color .16s ease}
+.profile-sports-loading{grid-column:1/-1}
+.help-sections{display:grid;gap:10px;margin-top:14px}
+.help-sections section{background:#121814;border:1px solid #29332c;border-radius:15px;padding:13px}
+.help-sections strong{display:block;font-size:13px;margin-bottom:5px}
+.help-sections p{margin:0!important;font-size:11px!important;line-height:1.55!important;color:#929f96!important}
+.help-contact{display:block;margin-top:14px;text-align:center;text-decoration:none;background:var(--green);color:#061208;border-radius:13px;padding:13px;font-size:10px;font-weight:900;letter-spacing:.5px}
+.dynamic-content-list .content-item{align-items:flex-start}
+.dynamic-content-list .content-item img{width:66px;height:66px;flex-basis:66px}
+#homeHero{transition:background-image .2s ease}
+#homeMediaContainer.single-item{grid-template-columns:1fr}
+#homeMediaContainer.single-item article{height:220px}
