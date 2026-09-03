@@ -10,7 +10,7 @@
   <title>Atlética CCT</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=27" />
+  <link rel="stylesheet" href="styles.css?v=28" />
 </head>
 <body>
   <div id="splash" class="splash">
@@ -156,8 +156,9 @@
       </section>
 
       <section class="screen" data-screen="agenda">
-        <div class="page-title"><div><i></i><div><small>CCT</small><h2>Agenda</h2></div></div></div>
-        <div class="panel-intro"><span>📅</span><div><strong>Programação da CCT</strong><small>Treinos, atendimentos, reuniões e compromissos publicados pelo painel.</small></div></div>
+        <div class="page-title"><div><i></i><div><small id="agendaEyebrow">CCT</small><h2 id="agendaTitle">Agenda</h2></div></div></div>
+        <div class="panel-intro" id="agendaIntro"><span id="agendaIntroIcon">📅</span><div><strong id="agendaIntroTitle">Programação da CCT</strong><small id="agendaIntroText">Treinos, atendimentos, reuniões e compromissos publicados pelo painel.</small></div></div>
+        <div id="agendaProfileContext"></div>
         <div class="timeline" id="agendaContainer"><div class="games-loading">Carregando agenda...</div></div>
       </section>
 
@@ -206,7 +207,7 @@
         <div class="profile-card">
           <div class="section-head"><div><i></i><h3>MINHA EXPERIÊNCIA</h3></div></div>
           <button class="profile-link-row" data-profile-action="my-games" type="button"><span class="profile-row-icon">◇</span><div><strong>Meus jogos</strong><small>Partidas das modalidades selecionadas</small></div><b>›</b></button>
-          <button class="profile-link-row" data-go="agenda" type="button"><span class="profile-row-icon">□</span><div><strong>Minha programação</strong><small>Treinos, jogos e compromissos</small></div><b>›</b></button>
+          <button class="profile-link-row" data-profile-action="my-schedule" type="button"><span class="profile-row-icon">□</span><div><strong>Minha programação</strong><small>Agenda personalizada pelo seu perfil</small></div><b>›</b></button>
           <button class="profile-link-row" data-profile-action="documents" type="button"><span class="profile-row-icon">≡</span><div><strong>Documentos</strong><small>Regulamentos e arquivos publicados</small></div><b>›</b></button>
           <button class="profile-link-row" data-profile-action="notification-settings" type="button"><span class="profile-row-icon">!</span><div><strong>Notificações</strong><small>Escolha o que você quer acompanhar</small></div><b>›</b></button>
         </div>
@@ -291,6 +292,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=27"></script>
+  <script src="app.js?v=28"></script>
 </body>
 </html>
