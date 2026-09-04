@@ -515,13 +515,29 @@ function renderizarSeletorClassificacao(){
 
 function classificacaoGrupoHtml(grupo,linhas){
   const ordenadas=[...linhas].sort((a,b)=>(Number(a.POSICAO)||999)-(Number(b.POSICAO)||999));
+  const linhaMobile=r=>{
+    const destaque=String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM' || String(r.EQUIPE||'').toUpperCase()==='CCT';
+    const saldo=String(r.SALDO??'').trim();
+    const saldoTxt=saldo===''?'—':saldo;
+    return `<div class="standing-mobile-row ${destaque?'cct-standing':''}">
+      <span class="standing-mobile-pos">${escapeHtml(r.POSICAO||'—')}</span>
+      <div class="standing-mobile-team">
+        <strong>${escapeHtml(r.EQUIPE||'')}</strong>
+        <small>J ${escapeHtml(r.JOGOS||'0')} · V ${escapeHtml(r.VITORIAS||'0')} · E ${escapeHtml(r.EMPATES||'0')} · D ${escapeHtml(r.DERROTAS||'0')} · Saldo ${escapeHtml(saldoTxt)}</small>
+      </div>
+      <div class="standing-mobile-points"><b>${escapeHtml(r.PONTOS||'0')}</b><small>PTS</small></div>
+    </div>`;
+  };
   return `
     <section class="classification-group">
       <div class="classification-group-title">
         <strong>${escapeHtml(grupo ? `Grupo ${grupo}` : 'Classificação')}</strong>
         <small>${ordenadas.length} equipes</small>
       </div>
-      <div class="standings standings-wide">
+      <div class="standings-mobile" aria-label="Classificação compacta">
+        ${ordenadas.map(linhaMobile).join('')}
+      </div>
+      <div class="standings standings-wide standings-desktop">
         <div class="stand-head">
           <span>#</span><span>Equipe</span><span>J</span><span>V</span><span>E</span><span>D</span><span>Pts</span><span>Saldo</span>
         </div>
@@ -942,10 +958,10 @@ function renderizarCenarios(){
 function destaqueIcone(tipo){
   const t=String(tipo||'').trim().toUpperCase();
   const mapa={
-    OURO:'🥇', PRATA:'🥈', BRONZE:'🥉', CAMPEAO:'🏆', 'CAMPEÃO':'🏆',
-    RECORDE:'⚡', DESTAQUE:'⭐', PREMIACAO:'🎖️', 'PREMIAÇÃO':'🎖️'
+    OURO:'trophy', PRATA:'trophy', BRONZE:'trophy', CAMPEAO:'trophy', 'CAMPEÃO':'trophy',
+    RECORDE:'target', DESTAQUE:'star', PREMIACAO:'star', 'PREMIAÇÃO':'star'
   };
-  return mapa[t]||'⭐';
+  return uiIcon(mapa[t]||'star','highlight-outline-icon');
 }
 
 function renderizarDestaques(){
@@ -954,6 +970,7 @@ function renderizarDestaques(){
 
   const linhas=apiData.destaques
     .filter(d=>d.ID_COMPETICAO===jogosUI.competicao)
+    .filter(d=>!Object.prototype.hasOwnProperty.call(d,'PUBLICADO') || isSim(d.PUBLICADO))
     .sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
 
   container.innerHTML=linhas.length ? linhas.map(d=>{
@@ -1273,7 +1290,7 @@ function atualizarResumoPerfil(){
   if(summary)summary.textContent=n?`${n} ${n===1?'modalidade selecionada':'modalidades selecionadas'}`:'Escolha suas modalidades';
 }
 
-function feedbackPerfil(texto='✓ Preferências salvas neste aparelho'){
+function feedbackPerfil(texto='Preferências salvas neste aparelho'){
   const feedback=$('#saveFeedback');
   if(!feedback)return;
   feedback.textContent=texto;
@@ -1354,7 +1371,7 @@ function abrirEditorPerfil(){
       localStorage.setItem(PROFILE_KEY,JSON.stringify(atual));
       aplicarIdentidadePerfil();
       modal.classList.remove('open');
-      feedbackPerfil('✓ Perfil atualizado neste aparelho');
+      feedbackPerfil('Perfil atualizado neste aparelho');
       renderizarAgenda();
     }catch(e){ console.error('Não foi possível salvar o perfil:',e); }
   });
@@ -1392,7 +1409,7 @@ async function atualizarAvatar(file){
     p.updatedAt=new Date().toISOString();
     localStorage.setItem(PROFILE_KEY,JSON.stringify(p));
     aplicarIdentidadePerfil();
-    feedbackPerfil('✓ Foto do perfil atualizada');
+    feedbackPerfil('Foto do perfil atualizada');
   }catch(e){
     console.error('Erro ao atualizar foto:',e);
     feedbackPerfil('Não foi possível usar essa foto.');
@@ -1486,7 +1503,7 @@ function normalizeImageUrl(url){
 }
 function eventCard(e,home=false){const img=normalizeImageUrl(e.IMAGEM_URL)||'assets/evento-verde.jpg';const badge=e.DESTAQUE==='SIM'?'DESTAQUE':(e.STATUS||e.TIPO||'EVENTO');return `<article class="event-card ${home?'':'large'} dynamic-event" style="--event:url('${img.replace(/'/g,"%27")}')"><div class="event-gradient"></div><div class="event-copy"><span class="chip ${e.DESTAQUE==='SIM'?'live':''}">${badge}</span><h4>${escapeHtml(e.NOME||'Evento CCT')}</h4><p>${escapeHtml(eventMeta(e))}</p>${e.AVISO?`<small class="event-alert">${escapeHtml(e.AVISO)}</small>`:''}<button class="light" data-event-id="${escapeHtml(e.ID_EVENTO||'')}">VER DETALHES ›</button></div></article>`}
 function escapeHtml(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-function showEventDetails(id){const e=cctEvents.find(x=>x.ID_EVENTO===id);if(!e)return;const body=document.getElementById('modalContent');if(!body)return;body.innerHTML=`<span class="chip live">${escapeHtml(e.STATUS||e.TIPO||'EVENTO')}</span><h2>${escapeHtml(e.NOME)}</h2>${normalizeImageUrl(e.IMAGEM_URL)?`<img class="event-modal-image" src="${escapeHtml(normalizeImageUrl(e.IMAGEM_URL))}" alt="${escapeHtml(e.NOME)}">`:''}<div class="event-detail-list"><div><b>📅 Data</b><span>${escapeHtml(e.DATA)}${e.DATA_FIM?` até ${escapeHtml(e.DATA_FIM)}`:''}</span></div><div><b>🕒 Horário</b><span>${escapeHtml(e.HORA)}${e.HORA_FIM?` às ${escapeHtml(e.HORA_FIM)}`:''}</span></div><div><b>📍 Local</b><span>${escapeHtml(e.LOCAL)}${e.ENDERECO?`<small>${escapeHtml(e.ENDERECO)}</small>`:''}</span></div></div>${e.DESCRICAO?`<p>${escapeHtml(e.DESCRICAO)}</p>`:''}${e.AVISO?`<div class="event-notice">${escapeHtml(e.AVISO)}</div>`:''}<div class="event-actions">${e.LINK_MAPS?`<a class="ghost event-action" href="${escapeHtml(e.LINK_MAPS)}" target="_blank" rel="noopener">ABRIR MAPA</a>`:''}${e.LINK_COMPRA?`<a class="primary event-action" href="${escapeHtml(e.LINK_COMPRA)}" target="_blank" rel="noopener">${escapeHtml(e.TEXTO_BOTAO||'SAIBA MAIS')}</a>`:''}</div>`;document.getElementById('modal')?.classList.add('open')}
+function showEventDetails(id){const e=cctEvents.find(x=>x.ID_EVENTO===id);if(!e)return;const body=document.getElementById('modalContent');if(!body)return;body.innerHTML=`<span class="chip live">${escapeHtml(e.STATUS||e.TIPO||'EVENTO')}</span><h2>${escapeHtml(e.NOME)}</h2>${normalizeImageUrl(e.IMAGEM_URL)?`<img class="event-modal-image" src="${escapeHtml(normalizeImageUrl(e.IMAGEM_URL))}" alt="${escapeHtml(e.NOME)}">`:''}<div class="event-detail-list"><div><b>${uiIcon('calendar','inline-icon')} Data</b><span>${escapeHtml(e.DATA)}${e.DATA_FIM?` até ${escapeHtml(e.DATA_FIM)}`:''}</span></div><div><b>${uiIcon('info','inline-icon')} Horário</b><span>${escapeHtml(e.HORA)}${e.HORA_FIM?` às ${escapeHtml(e.HORA_FIM)}`:''}</span></div><div><b>${uiIcon('map-pin','inline-icon')} Local</b><span>${escapeHtml(e.LOCAL)}${e.ENDERECO?`<small>${escapeHtml(e.ENDERECO)}</small>`:''}</span></div></div>${e.DESCRICAO?`<p>${escapeHtml(e.DESCRICAO)}</p>`:''}${e.AVISO?`<div class="event-notice">${escapeHtml(e.AVISO)}</div>`:''}<div class="event-actions">${e.LINK_MAPS?`<a class="ghost event-action" href="${escapeHtml(e.LINK_MAPS)}" target="_blank" rel="noopener">ABRIR MAPA</a>`:''}${e.LINK_COMPRA?`<a class="primary event-action" href="${escapeHtml(e.LINK_COMPRA)}" target="_blank" rel="noopener">${escapeHtml(e.TEXTO_BOTAO||'SAIBA MAIS')}</a>`:''}</div>`;document.getElementById('modal')?.classList.add('open')}
 function bindEventButtons(){document.querySelectorAll('[data-event-id]').forEach(b=>b.addEventListener('click',()=>showEventDetails(b.dataset.eventId)))}
 async function loadCctEvents(){const all=document.getElementById('eventsContainer'),home=document.getElementById('homeEventContainer');try{const r=await fetch(EVENTS_API,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const data=await r.json();if(!data.sucesso)throw new Error(data.erro||'API');cctEvents=(data.eventos||[]).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||eventDateValue(a)-eventDateValue(b));if(all)all.innerHTML=cctEvents.length?cctEvents.map(e=>eventCard(e)).join(''):'<div class="event-empty">Nenhum evento publicado no momento.</div>';const featured=cctEvents.find(e=>e.DESTAQUE==='SIM')||cctEvents[0];if(home)home.innerHTML=featured?eventCard(featured,true):'<div class="event-empty">Novos eventos em breve.</div>';bindEventButtons()}catch(err){console.error('Eventos:',err);const msg='<div class="event-error">Não foi possível atualizar os eventos agora.<small>Tente novamente em instantes.</small></div>';if(all)all.innerHTML=msg;if(home)home.innerHTML=msg}}
 // Eventos agora são carregados junto com a API principal.
@@ -1909,7 +1926,7 @@ function bindAreaMembros(){
 function renderizarModulosGerais(){ renderizarAgenda(); renderizarAvisos(); renderizarHeroHome(); renderizarCompeticoesHome(); renderizarMidiaHome(); renderizarModalidadesPerfil(); renderizarAreaMembros(); if(apiData.eventos.length){cctEvents=apiData.eventos.sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||eventDateValue(a)-eventDateValue(b)); const all=$('#eventsContainer'),home=$('#homeEventContainer'); if(all)all.innerHTML=cctEvents.length?cctEvents.map(e=>eventCard(e)).join(''):'<div class="event-empty">Nenhum evento publicado no momento.</div>'; const featured=cctEvents.find(e=>isSim(e.DESTAQUE))||cctEvents[0]; if(home)home.innerHTML=featured?eventCard(featured,true):'<div class="event-empty">Novos eventos em breve.</div>'; bindEventButtons(); } }
 function abrirAjuda(){
   const contato=somentePublicos(apiData.pessoas).find(p=>String(p.ATIVO||'SIM').toUpperCase()!=='NÃO' && (linkSeguro(p.LINK_WHATSAPP)||p.EMAIL));
-  const contatoHtml=contato?(linkSeguro(contato.LINK_WHATSAPP)?`<a class="help-contact" href="${escapeHtml(contato.LINK_WHATSAPP)}" target="_blank" rel="noopener">💬 FALAR COM A ATLÉTICA ›</a>`:`<a class="help-contact" href="mailto:${escapeHtml(contato.EMAIL)}">✉ FALAR COM A ATLÉTICA ›</a>`):'';
+  const contatoHtml=contato?(linkSeguro(contato.LINK_WHATSAPP)?`<a class="help-contact" href="${escapeHtml(contato.LINK_WHATSAPP)}" target="_blank" rel="noopener">${uiIcon('mail','inline-icon')} FALAR COM A ATLÉTICA ›</a>`:`<a class="help-contact" href="mailto:${escapeHtml(contato.EMAIL)}">${uiIcon('mail','inline-icon')} FALAR COM A ATLÉTICA ›</a>`):'';
   mc.innerHTML=`<span class="chip">AJUDA</span><h2>Como usar a ATLÉTICA CCT</h2><div class="help-sections"><section><strong>${uiIcon('home','inline-icon')} Instalar no celular</strong><p><b>iPhone:</b> abra no Safari, toque em Compartilhar e escolha “Adicionar à Tela de Início”.<br><b>Android:</b> abra no Chrome e use “Adicionar à tela inicial” ou “Instalar app”.</p></section><section><strong>${uiIcon('user','inline-icon')} Personalizar seu perfil</strong><p>Em Perfil, selecione as modalidades que você joga ou acompanha. “Minha Programação” adapta a agenda ao tipo de perfil: atleta, torcedor(a) ou membro da Atlética. Benefícios de sócio(a) são liberados pela Atlética no painel administrativo.</p></section><section><strong>${uiIcon('trophy','inline-icon')} Jogos e competições</strong><p>Use Jogos para acompanhar partidas, classificação, cenários e destaques de cada campeonato.</p></section><section><strong>${uiIcon('bell','inline-icon')} Avisos</strong><p>O sino reúne avisos ativos. Mudanças urgentes de horário, local e informações importantes aparecem em destaque.</p></section><section><strong>${uiIcon('lock','inline-icon')} Área da Atlética</strong><p>É destinada aos membros para agenda interna, representações, documentos, avisos, equipe e formulários.</p></section></div>${contatoHtml}`;
   modal.classList.add('open'); closeDrawer();
 }

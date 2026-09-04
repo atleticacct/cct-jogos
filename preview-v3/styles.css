@@ -878,3 +878,52 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
   .general-rank-score b{font-size:15px}
   .general-detail-title h2{font-size:22px!important}
 }
+
+
+/* =========================================================
+   V4.6 — ACABAMENTO DE JOGOS E CLASSIFICAÇÃO
+   ========================================================= */
+
+/* Classificação compacta no celular: pontos sempre visíveis, sem scroll horizontal */
+.standings-mobile{display:none}
+@media(max-width:620px){
+  .standings-desktop{display:none!important}
+  .standings-mobile{display:grid;gap:7px}
+  .standing-mobile-row{
+    display:grid;grid-template-columns:34px minmax(0,1fr) 48px;gap:9px;align-items:center;
+    min-width:0;padding:10px 10px;background:#101512;border:1px solid #273029;border-radius:14px
+  }
+  .standing-mobile-row.cct-standing{
+    border-color:#347d49;background:#112017;box-shadow:inset 3px 0 0 var(--green)
+  }
+  .standing-mobile-pos{
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;
+    background:#172019;color:#8de5a6;font-size:12px;font-weight:950
+  }
+  .standing-mobile-team{min-width:0}
+  .standing-mobile-team strong{
+    display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px
+  }
+  .standing-mobile-team small{
+    display:block;margin-top:4px;color:#7d8a81;font-size:7.5px;line-height:1.35;white-space:normal
+  }
+  .standing-mobile-points{text-align:center}
+  .standing-mobile-points b{display:block;color:#c9f8d6;font-size:18px;line-height:1}
+  .standing-mobile-points small{display:block;margin-top:3px;color:#6f7d74;font-size:6.5px;font-weight:950;letter-spacing:.8px}
+}
+
+/* Destaques com a mesma linguagem de ícones outline do restante do app */
+.highlight-medal{color:#8be8a7;font-size:0}
+.highlight-medal .highlight-outline-icon{width:25px;height:25px}
+.highlight-card .chip{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Ícones inline dentro de detalhes/eventos e CTAs */
+.event-detail-list b{display:flex;align-items:center;gap:6px}
+.event-detail-list b .inline-icon{width:15px;height:15px;color:#84e49f;flex:0 0 auto}
+.help-contact{display:flex!important;align-items:center;justify-content:center;gap:7px}
+.help-contact .inline-icon{width:16px;height:16px}
+
+/* Leitura mais consistente nos painéis da competição */
+.classification-group-title{align-items:center}
+.classification-group-title strong{line-height:1.2}
+#destaquesContainer .games-empty,#classificacaoContainer .games-empty,#cenariosContainer .games-empty{line-height:1.5}
