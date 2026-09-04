@@ -661,7 +661,10 @@ function cenarioGeralHtml(){
   const caminho=String(cct.CAMINHO_TITULO||'').trim();
   const adversarios=String(cct.ADVERSARIOS_CRITICOS||'').trim();
   const status=String(cct.STATUS_TITULO||'').trim();
-  const cenario=String(cct.CENARIO_GERAL||'').trim();
+  const cenarioRaw=String(cct.CENARIO_GERAL||'').trim();
+  const cenario=cenarioRaw
+    .replace(/Principal ameaça atual:/gi,'Maior teto projetado no momento:')
+    .replace(/Principal ameaca atual:/gi,'Maior teto projetado no momento:');
   const precisa=String(cct.O_QUE_PRECISA_TITULO||cct.O_QUE_PRECISA||'').trim();
   const abertas=String(cct.MODALIDADES_ABERTAS||'').trim();
 
