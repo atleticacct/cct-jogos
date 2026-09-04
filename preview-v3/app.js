@@ -20,6 +20,21 @@ const MODALIDADE_IDS = {
   'Handebol Masculino':'HAN-M'
 };
 
+const MODALIDADE_NOMES_GERAL = {
+  'ATL-F':'Atletismo Feminino',
+  'ATL-M':'Atletismo Masculino',
+  'BAS-F':'Basquete Feminino',
+  'BAS-M':'Basquete Masculino',
+  'FUT-F':'Futsal Feminino',
+  'FUT-M':'Futsal Masculino',
+  'HAN-F':'Handebol Feminino',
+  'HAN-M':'Handebol Masculino',
+  'VOL-F':'Voleibol Feminino',
+  'VOL-M':'Voleibol Masculino',
+  'NAT-F':'Natação Feminino',
+  'NAT-M':'Natação Masculino'
+};
+
 let apiData = {
   jogos: [],
   classificacao: [],
@@ -527,23 +542,166 @@ function classificacaoGrupoHtml(grupo,linhas){
     </section>`;
 }
 
+function parseDetalhamentoGeral(r){
+  const raw=String(r?.DETALHAMENTO_JSON||'').trim();
+  if(raw){
+    try{
+      const itens=JSON.parse(raw);
+      if(Array.isArray(itens)) return itens;
+    }catch(e){}
+  }
+  return [];
+}
+
 function classificacaoGeralHtml(){
   const linhas=apiData.classificacao_geral
     .filter(x=>x.ID_COMPETICAO===jogosUI.competicao)
     .sort((a,b)=>(Number(a.POSICAO)||999)-(Number(b.POSICAO)||999));
   if(!linhas.length) return '';
+
+  const maiorConfirmado=Math.max(0,...linhas.map(r=>numeroCenarioGeral(r.PONTOS)??0));
+  const haConfirmados=maiorConfirmado>0;
+
   return `
-    <section class="general-ranking">
-      <div class="section-head compact-head"><div><i></i><h3>CLASSIFICAÇÃO GERAL</h3></div></div>
-      <div class="general-ranking-list">
-        ${linhas.map(r=>`<div class="${String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM'?'cct-general':''}">
-          <b>${escapeHtml(r.POSICAO||'')}</b>
-          <strong>${escapeHtml(r.EQUIPE||'')}</strong>
-          <span>${escapeHtml(r.PONTOS||'0')} pts</span>
-          <small>${[r.OUROS&&`${r.OUROS} 🥇`,r.PRATAS&&`${r.PRATAS} 🥈`,r.BRONZES&&`${r.BRONZES} 🥉`].filter(Boolean).join(' • ')}</small>
-        </div>`).join('')}
+    <section class="general-ranking general-ranking-v45">
+      <div class="general-ranking-head-v45">
+        <div>
+          <small>GERAL DA COMPETIÇÃO</small>
+          <h3>Classificação geral</h3>
+          <p>${haConfirmados
+            ? 'Pontuação confirmada até o momento. Toque em uma atlética para ver a composição.'
+            : 'A pontuação final ainda não começou a ser consolidada. As faixas projetadas já estão sendo calculadas.'}</p>
+        </div>
+        <span>${uiIcon('trophy')}</span>
+      </div>
+
+      <div class="general-ranking-list general-ranking-list-v45">
+        ${linhas.map((r,idx)=>{
+          const cct=String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM' || String(r.EQUIPE||'').toUpperCase()==='CCT';
+          const pts=numeroCenarioGeral(r.PONTOS)??0;
+          const pmin=numeroCenarioGeral(r.PONTOS_MINIMOS);
+          const pmax=numeroCenarioGeral(r.PONTOS_MAXIMOS);
+          const pos=haConfirmados?(Number(r.POSICAO)||idx+1):'—';
+          const faixa=(pmin!==null && pmax!==null)?`${pmin}–${pmax} pts`:'Faixa em cálculo';
+          const medalhas=[
+            Number(r.OUROS)>0?`${r.OUROS}× 1º`:null,
+            Number(r.PRATAS)>0?`${r.PRATAS}× 2º`:null,
+            Number(r.BRONZES)>0?`${r.BRONZES}× 3º`:null
+          ].filter(Boolean).join(' • ');
+          return `<button type="button" class="general-ranking-row-v45 ${cct?'cct-general':''}" data-general-team="${escapeHtml(r.EQUIPE||'')}">
+            <span class="general-rank-pos">${escapeHtml(pos)}</span>
+            <span class="general-rank-main">
+              <strong>${escapeHtml(r.EQUIPE||'')}</strong>
+              <small>${medalhas||'Toque para ver modalidade por modalidade'}</small>
+            </span>
+            <span class="general-rank-score">
+              <b>${escapeHtml(pts)}</b>
+              <small>confirmados</small>
+              <em>${escapeHtml(faixa)}</em>
+            </span>
+            <span class="general-rank-chevron">${uiIcon('chevron')}</span>
+          </button>`;
+        }).join('')}
       </div>
     </section>`;
+}
+
+function abrirDetalheClassificacaoGeral(equipe){
+  const r=apiData.classificacao_geral.find(x=>
+    x.ID_COMPETICAO===jogosUI.competicao &&
+    String(x.EQUIPE||'').trim().toUpperCase()===String(equipe||'').trim().toUpperCase()
+  );
+  if(!r) return;
+
+  const itens=parseDetalhamentoGeral(r);
+  const pts=numeroCenarioGeral(r.PONTOS)??0;
+  const pmin=numeroCenarioGeral(r.PONTOS_MINIMOS);
+  const pmax=numeroCenarioGeral(r.PONTOS_MAXIMOS);
+  const bonus=numeroCenarioGeral(r.BONUS_ABERTURA_APLICADO)??0;
+  const ajuste=numeroCenarioGeral(r.AJUSTE_MANUAL_APLICADO)??0;
+  const modalidadePts=numeroCenarioGeral(r.PONTOS_MODALIDADES_CONFIRMADOS)??Math.max(0,pts-bonus-ajuste);
+  const cct=String(r.EQUIPE||'').trim().toUpperCase()==='CCT';
+
+  const individuais=itens.filter(i=>i.individual);
+  const coletivas=itens.filter(i=>!i.individual);
+
+  const statusHtml=i=>{
+    const nome=i.nome||MODALIDADE_NOMES_GERAL[i.id]||i.id||'Modalidade';
+    let detalhe='',cls='';
+    if(i.status==='CONFIRMADO'){
+      detalhe=`${i.posicao}º lugar • ${i.pontos} pts`;
+      cls='confirmed';
+    }else if(i.status==='NAO_PARTICIPOU'){
+      detalhe='Não participou';
+      cls='muted';
+    }else if(i.status==='PENDENTE'){
+      detalhe='Aguardando resultado oficial';
+      cls='pending';
+    }else{
+      const a=i.posMin??'—',b=i.posMax??'—';
+      const p1=i.pontosMin??'—',p2=i.pontosMax??'—';
+      detalhe=`${a}º–${b}º • ${p1}–${p2} pts`;
+      cls='open';
+    }
+    return `<div class="general-breakdown-item ${cls}">
+      <span>${i.individual?uiIcon('running'):uiIcon('trophy')}</span>
+      <div><strong>${escapeHtml(nome)}</strong><small>${escapeHtml(detalhe)}</small></div>
+      ${i.status==='CONFIRMADO'?`<b>${escapeHtml(i.pontos)}</b>`:''}
+    </div>`;
+  };
+
+  const body=$('#modalContent');
+  if(!body) return;
+  body.innerHTML=`
+    <span class="chip">CLASSIFICAÇÃO GERAL</span>
+    <div class="general-detail-title">
+      <span>${uiIcon('trophy')}</span>
+      <div>
+        <small>${cct?'ATLÉTICA CCT':'ATLÉTICA'}</small>
+        <h2>${escapeHtml(r.EQUIPE||'')}</h2>
+        <p>Composição automática da pontuação geral.</p>
+      </div>
+    </div>
+
+    <div class="general-detail-metrics">
+      <div><small>CONFIRMADOS</small><strong>${escapeHtml(pts)}</strong></div>
+      <div><small>MÍNIMO</small><strong>${escapeHtml(pmin??'—')}</strong></div>
+      <div><small>MÁXIMO</small><strong>${escapeHtml(pmax??'—')}</strong></div>
+    </div>
+
+    <div class="general-score-origin">
+      <div><span>Pontos das modalidades</span><b>${escapeHtml(modalidadePts)}</b></div>
+      <div><span>Bônus da abertura confirmado</span><b>${escapeHtml(bonus)}</b></div>
+      ${ajuste!==0?`<div><span>Ajuste oficial</span><b>${escapeHtml(ajuste)}</b></div>`:''}
+    </div>
+
+    ${individuais.length?`
+      <div class="general-detail-section">
+        <div class="general-detail-section-head">
+          <span>${uiIcon('running')}</span>
+          <div><small>RESULTADOS INDIVIDUAIS</small><strong>Atletismo e Natação</strong></div>
+        </div>
+        <div class="general-breakdown-list">${individuais.map(statusHtml).join('')}</div>
+      </div>`:''}
+
+    ${coletivas.length?`
+      <div class="general-detail-section">
+        <div class="general-detail-section-head">
+          <span>${uiIcon('trophy')}</span>
+          <div><small>MODALIDADES COLETIVAS</small><strong>Situação por esporte</strong></div>
+        </div>
+        <div class="general-breakdown-list">${coletivas.map(statusHtml).join('')}</div>
+      </div>`:''}
+
+    ${!itens.length?`<div class="games-empty">O detalhamento por modalidade ainda não foi publicado pelo motor V4.5.</div>`:''}
+  `;
+  $('#modal')?.classList.add('open');
+}
+
+function ativarDetalhesClassificacaoGeral(){
+  $$('[data-general-team]').forEach(btn=>{
+    btn.addEventListener('click',()=>abrirDetalheClassificacaoGeral(btn.dataset.generalTeam));
+  });
 }
 
 function renderizarClassificacao(){
@@ -562,6 +720,7 @@ function renderizarClassificacao(){
     if(toolbar) toolbar.hidden=true;
     const geral=classificacaoGeralHtml();
     container.innerHTML=geral || '<div class="games-empty">Esta competição ainda não possui classificação geral publicada.</div>';
+    ativarDetalhesClassificacaoGeral();
     return;
   }
 
