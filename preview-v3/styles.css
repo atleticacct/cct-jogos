@@ -702,3 +702,53 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
 .general-rivals p{
   color:#b8c4bc !important;
 }
+
+
+/* =========================================================
+   V4.4.3 — REFINO DO CENÁRIO GERAL
+   ========================================================= */
+.scenario-intro-icon{
+  width:36px;
+  height:36px;
+  display:grid;
+  place-items:center;
+  flex:0 0 36px;
+  border:1px solid #2a4532;
+  border-radius:12px;
+  background:#102117;
+  color:#79e39a;
+}
+.scenario-intro-icon .ui-icon{width:21px;height:21px}
+.scenario-card-target-icon{width:23px!important;height:23px!important;color:#79e39a}
+.scenario-detail-head .target{display:grid;place-items:center;color:#79e39a}
+
+.general-position.is-pending strong{color:#9ba69f}
+.general-position.is-pending span{
+  max-width:84px;
+  margin-left:auto;
+  margin-right:auto;
+  line-height:1.25;
+}
+.general-needed.is-incomplete{
+  border-color:#355742!important;
+  background:linear-gradient(135deg,#122219,#0d120f)!important;
+}
+.general-needed.is-incomplete strong{
+  color:#d7e4da;
+  font-weight:700;
+}
+
+/* O cenário geral é deliberadamente mais compacto no celular. */
+.general-scenario-hero{padding:16px}
+.general-scenario-metrics{padding:12px 16px 0;gap:7px}
+.general-scenario-metrics>div{padding:10px 7px}
+.general-scenario-body{gap:8px;padding:12px 16px 16px}
+.general-scenario-body>div{padding:12px}
+.general-updated p{font-variant-numeric:tabular-nums}
+
+@media(max-width:390px){
+  .general-scenario-hero{padding:14px}
+  .general-scenario-metrics{padding:10px 13px 0}
+  .general-scenario-body{padding:10px 13px 14px;gap:7px}
+  .general-scenario-body>div{padding:11px}
+}

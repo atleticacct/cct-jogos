@@ -603,6 +603,22 @@ function numeroCenarioGeral(v){
   return Number.isFinite(n)?n:null;
 }
 
+function formatarAtualizacaoCenarioGeral(v){
+  const raw=String(v||'').trim();
+  if(!raw) return '';
+
+  const br=raw.match(/^(\d{2}\/\d{2}\/\d{4})(?:[ T•-]+(\d{1,2}:\d{2})(?::\d{2})?)?/);
+  if(br) return br[2]?`${br[1]} • ${br[2]}`:br[1];
+
+  const d=new Date(raw);
+  if(!Number.isNaN(d.getTime())){
+    const data=d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+    const hora=d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    return `${data} • ${hora}`;
+  }
+  return raw;
+}
+
 function cenarioGeralHtml(){
   const linhas=apiData.classificacao_geral
     .filter(x=>x.ID_COMPETICAO===jogosUI.competicao)
@@ -621,11 +637,22 @@ function cenarioGeralHtml(){
     return `<div class="games-empty">A classificação geral existe, mas a CCT ainda não foi localizada nela.</div>`;
   }
 
+  const pontosConfirmados=linhas.map(r=>numeroCenarioGeral(r.PONTOS)??0);
+  const maiorPontuacaoConfirmada=Math.max(0,...pontosConfirmados);
+  const haPontuacaoConfirmada=maiorPontuacaoConfirmada>0;
+  const lideresConfirmados=haPontuacaoConfirmada
+    ? linhas.filter(r=>(numeroCenarioGeral(r.PONTOS)??0)===maiorPontuacaoConfirmada)
+    : [];
+
   const lider=linhas[0];
   const pos=Number(cct.POSICAO)||linhas.indexOf(cct)+1;
   const pts=numeroCenarioGeral(cct.PONTOS) ?? 0;
-  const ptsLider=numeroCenarioGeral(cct.PONTOS_LIDER ?? cct.PONTOS_LIDER_ATUAL ?? lider?.PONTOS) ?? 0;
-  const nomeLider=String(cct.LIDER_ATUAL || cct.LIDER || lider?.EQUIPE || 'Líder');
+  const ptsLider=haPontuacaoConfirmada?maiorPontuacaoConfirmada:0;
+  const nomeLider=haPontuacaoConfirmada
+    ? (lideresConfirmados.length===1
+        ? String(lideresConfirmados[0].EQUIPE||'Líder')
+        : `${lideresConfirmados.length} equipes empatadas`)
+    : 'Aguardando pontuação';
   const diferenca=numeroCenarioGeral(cct.DIFERENCA_LIDER);
   const gap=diferenca!==null?Math.abs(diferenca):Math.max(0,ptsLider-pts);
 
@@ -637,16 +664,37 @@ function cenarioGeralHtml(){
   const cenario=String(cct.CENARIO_GERAL||'').trim();
   const precisa=String(cct.O_QUE_PRECISA_TITULO||cct.O_QUE_PRECISA||'').trim();
   const abertas=String(cct.MODALIDADES_ABERTAS||'').trim();
-  const atualizado=String(cct.ATUALIZADO_CENARIO||cct.ATUALIZADO_EM||'').trim();
 
-  const statusFallback=pos===1?'LIDERANÇA ATUAL':'TÍTULO EM DISPUTA';
-  const cenarioFallback=pos===1
-    ? `A CCT lidera a classificação geral com ${pts} ponto${pts===1?'':'s'}.`
-    : `A CCT está em ${pos}º lugar, com ${pts} ponto${pts===1?'':'s'}, ${gap} atrás de ${nomeLider}.`;
+  const atualizacoes=[cct.ATUALIZADO_CENARIO,cct.ATUALIZADO_EM]
+    .map(v=>String(v||'').trim()).filter(Boolean);
+  const atualizadoRaw=atualizacoes.find(v=>/\d{1,2}:\d{2}/.test(v)) || atualizacoes[0] || '';
+  const atualizado=formatarAtualizacaoCenarioGeral(atualizadoRaw);
+
+  const textoPendencia=`${precisa} ${caminho}`.toUpperCase();
+  const cenarioIncompleto=(
+    textoPendencia.includes('PARA GERAR METAS EXATAS') ||
+    (textoPendencia.includes('ATLETISMO') && textoPendencia.includes('NATA') && textoPendencia.includes('BONUS'))
+  );
+
+  const statusFallback=haPontuacaoConfirmada
+    ? (pos===1?'LIDERANÇA ATUAL':'TÍTULO EM DISPUTA')
+    : 'TÍTULO EM DISPUTA';
+
+  const cenarioFallback=!haPontuacaoConfirmada
+    ? `A pontuação geral ainda não começou a ser confirmada. A faixa projetada da CCT é de ${ptsMin??0} a ${ptsMax??0} pontos.`
+    : (pos===1
+        ? `A CCT lidera a classificação geral com ${pts} ponto${pts===1?'':'s'}.`
+        : `A CCT está em ${pos}º lugar, com ${pts} ponto${pts===1?'':'s'}, ${gap} atrás de ${nomeLider}.`);
 
   const precisaFallback=ptsMax!==null
     ? `O potencial máximo informado para a CCT é ${ptsMax} pontos. O cálculo exato depende também do potencial dos adversários.`
-    : `O cenário macro já mostra posição e diferença para a liderança. Para transformar isso em uma conta matemática do título, o motor geral precisa ter os potenciais máximos validados.`;
+    : `O cenário macro já mostra a situação atual. Para transformar isso em uma conta matemática do título, o motor geral precisa ter os potenciais máximos validados.`;
+
+  const textoIncompleto='Aguardando resultados de Atletismo/Natação e confirmação dos bônus de abertura da CCT e dos principais rivais.';
+  const posicaoDisplay=haPontuacaoConfirmada?`${pos}º`:'—';
+  const posicaoLegenda=haPontuacaoConfirmada?'posição atual':'posição ainda não definida';
+  const liderPontosDisplay=haPontuacaoConfirmada?ptsLider:'—';
+  const liderNomeDisplay=haPontuacaoConfirmada?nomeLider:'Aguardando pontuação';
 
   return `
     <section class="general-scenario-card">
@@ -656,9 +704,9 @@ function cenarioGeralHtml(){
           <small>CAMPEONATO</small>
           <h3>${escapeHtml(status||statusFallback)}</h3>
         </div>
-        <div class="general-position">
-          <strong>${escapeHtml(pos+'º')}</strong>
-          <span>posição atual</span>
+        <div class="general-position ${haPontuacaoConfirmada?'':'is-pending'}">
+          <strong>${escapeHtml(posicaoDisplay)}</strong>
+          <span>${escapeHtml(posicaoLegenda)}</span>
         </div>
       </div>
 
@@ -666,7 +714,7 @@ function cenarioGeralHtml(){
         <div><small>CONFIRMADOS</small><strong>${escapeHtml(pts)}</strong><span>CCT</span></div>
         ${ptsMin!==null?`<div><small>MÍNIMO</small><strong>${escapeHtml(ptsMin)}</strong><span>projetado</span></div>`:''}
         ${ptsMax!==null?`<div><small>MÁXIMO</small><strong>${escapeHtml(ptsMax)}</strong><span>projetado</span></div>`:''}
-        <div><small>LÍDER PARCIAL</small><strong>${escapeHtml(ptsLider)}</strong><span>${escapeHtml(nomeLider)}</span></div>
+        <div><small>LÍDER PARCIAL</small><strong>${escapeHtml(liderPontosDisplay)}</strong><span>${escapeHtml(liderNomeDisplay)}</span></div>
       </div>
 
       <div class="general-scenario-body">
@@ -674,13 +722,13 @@ function cenarioGeralHtml(){
           <small>CENÁRIO ATUAL</small>
           <p>${escapeHtml(cenario||cenarioFallback)}</p>
         </div>
-        <div class="general-needed">
-          <small>O QUE A CCT PRECISA PARA O TÍTULO</small>
-          <strong>${escapeHtml(precisa||precisaFallback)}</strong>
+        <div class="general-needed ${cenarioIncompleto?'is-incomplete':''}">
+          <small>${cenarioIncompleto?'CENÁRIO AINDA INCOMPLETO':'O QUE A CCT PRECISA PARA O TÍTULO'}</small>
+          <strong>${escapeHtml(cenarioIncompleto?textoIncompleto:(precisa||precisaFallback))}</strong>
         </div>
-        ${caminho?`<div class="general-path"><small>CAMINHO POR MODALIDADE</small><p>${escapeHtml(caminho)}</p></div>`:''}
+        ${(!cenarioIncompleto && caminho)?`<div class="general-path"><small>CAMINHO POR MODALIDADE</small><p>${escapeHtml(caminho)}</p></div>`:''}
         ${adversarios?`<div class="general-rivals"><small>ADVERSÁRIOS CRÍTICOS</small><p>${escapeHtml(adversarios)}</p></div>`:''}
-        ${abertas?`<div><small>MODALIDADES AINDA EM DISPUTA</small><p>${escapeHtml(abertas)}</p></div>`:''}
+        ${abertas?`<div><small>MODALIDADES COM PONTUAÇÃO A DEFINIR</small><p>${escapeHtml(abertas)}</p></div>`:''}
         ${atualizado?`<div class="general-updated"><small>ATUALIZAÇÃO</small><p>${escapeHtml(atualizado)}</p></div>`:''}
       </div>
     </section>`;
@@ -717,7 +765,7 @@ function renderizarCenarios(){
           <span class="chip">${escapeHtml(modalidadeNome(c.ID_MODALIDADE))}</span>
           <h3>${escapeHtml(c.STATUS||'Situação')}</h3>
         </div>
-        <span class="target">🎯</span>
+        <span class="target">${uiIcon('target','scenario-card-target-icon')}</span>
       </div>
       <div class="scenario-detail-body">
         <div><small>CENÁRIO ATUAL</small><p>${escapeHtml(c.CENARIO_ATUAL||'Aguardando atualização.')}</p></div>
