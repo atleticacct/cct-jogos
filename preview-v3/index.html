@@ -10,7 +10,7 @@
   <title>Atlética CCT</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=33" />
+  <link rel="stylesheet" href="styles.css?v=43" />
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -165,9 +165,13 @@
         </div>
 
         <div id="painelCenarios" class="competition-panel" hidden>
-          <div class="panel-intro">
+          <div class="segmented scenario-type" id="cenariosTipo">
+            <button class="selected" data-cenarios-tipo="modalidade" type="button">Por modalidade</button>
+            <button data-cenarios-tipo="geral" type="button">Geral da competição</button>
+          </div>
+          <div class="panel-intro scenario-intro">
             <span>🎯</span>
-            <div><strong>Situação da CCT</strong><small>O que cada modalidade precisa para avançar.</small></div>
+            <div><strong id="cenariosIntroTitle">Situação da CCT</strong><small id="cenariosIntroText">O que cada modalidade precisa para avançar.</small></div>
           </div>
           <div id="cenariosContainer"><div class="games-loading">Carregando cenários...</div></div>
         </div>
@@ -322,9 +326,9 @@
     </div>
   </div>
 
-  <script src="firebase-config.js?v=33"></script>
+  <script src="firebase-config.js?v=43"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-  <script src="app.js?v=33"></script>
+  <script src="app.js?v=43"></script>
 </body>
 </html>

@@ -56,9 +56,10 @@ function firebaseConfigurado(){
 function pessoaAtivaAuth(p){ return !p || !('ATIVO' in p) || String(p.ATIVO||'SIM').trim().toUpperCase()!=='NÃO'; }
 function pessoaMembroAprovada(p){
   if(!p) return false;
-  const flag=campoPessoa(p,'MEMBRO_ATLETICA','MEMBRO_ATLÉTICA','MEMBRO_CCT','E_MEMBRO','É_MEMBRO');
-  const tipo=String(campoPessoa(p,'TIPO','PERFIL','CARGO')||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
-  return isSim(flag) || tipo.includes('MEMBRO');
+  // V3.8.1: acesso interno depende exclusivamente da autorização explícita
+  // da diretoria na coluna MEMBRO_ATLETICA. O campo TIPO é apenas cadastral.
+  const flag=campoPessoa(p,'MEMBRO_ATLETICA','MEMBRO_ATLÉTICA');
+  return isSim(flag);
 }
 function authSocioAprovado(){ return !!(cctAuthState.ready && cctAuthState.user && cctAuthState.socio); }
 function authMembroAprovado(){ return !!(cctAuthState.ready && cctAuthState.user && cctAuthState.membro); }
@@ -175,7 +176,8 @@ let jogosUI = {
   modalidadeFiltro: '',
   aba: 'jogos',
   classificacaoModalidade: '',
-  classificacaoTipo: 'modalidade'
+  classificacaoTipo: 'modalidade',
+  cenariosTipo: 'modalidade'
 };
 
 let agendaUI = {
@@ -595,10 +597,113 @@ function proximoJogoCenarioHtml(idJogo){
   return `<span>${escapeHtml(j.DATA||'')} • ${escapeHtml(j.HORA||'')}<small>${escapeHtml((j.EQUIPE_A||'A DEFINIR')+' × '+(j.EQUIPE_B||'A DEFINIR'))}</small></span>`;
 }
 
+function numeroCenarioGeral(v){
+  if(v===null || v===undefined || String(v).trim()==='') return null;
+  const n=Number(String(v).replace(',','.'));
+  return Number.isFinite(n)?n:null;
+}
+
+function cenarioGeralHtml(){
+  const linhas=apiData.classificacao_geral
+    .filter(x=>x.ID_COMPETICAO===jogosUI.competicao)
+    .sort((a,b)=>(Number(a.POSICAO)||999)-(Number(b.POSICAO)||999));
+
+  if(!linhas.length){
+    return `<div class="games-empty">A classificação geral ainda não foi publicada para esta competição.</div>`;
+  }
+
+  const cct=linhas.find(r=>
+    String(r.DESTAQUE_CCT||'').trim().toUpperCase()==='SIM' ||
+    String(r.EQUIPE||'').trim().toUpperCase()==='CCT'
+  );
+
+  if(!cct){
+    return `<div class="games-empty">A classificação geral existe, mas a CCT ainda não foi localizada nela.</div>`;
+  }
+
+  const lider=linhas[0];
+  const pos=Number(cct.POSICAO)||linhas.indexOf(cct)+1;
+  const pts=numeroCenarioGeral(cct.PONTOS) ?? 0;
+  const ptsLider=numeroCenarioGeral(cct.PONTOS_LIDER ?? cct.PONTOS_LIDER_ATUAL ?? lider?.PONTOS) ?? 0;
+  const nomeLider=String(cct.LIDER_ATUAL || cct.LIDER || lider?.EQUIPE || 'Líder');
+  const diferenca=numeroCenarioGeral(cct.DIFERENCA_LIDER);
+  const gap=diferenca!==null?Math.abs(diferenca):Math.max(0,ptsLider-pts);
+
+  const ptsMax=numeroCenarioGeral(cct.PONTOS_MAXIMOS);
+  const status=String(cct.STATUS_TITULO||'').trim();
+  const cenario=String(cct.CENARIO_GERAL||'').trim();
+  const precisa=String(cct.O_QUE_PRECISA_TITULO||cct.O_QUE_PRECISA||'').trim();
+  const abertas=String(cct.MODALIDADES_ABERTAS||'').trim();
+  const atualizado=String(cct.ATUALIZADO_CENARIO||cct.ATUALIZADO_EM||'').trim();
+
+  const statusFallback=pos===1?'LIDERANÇA ATUAL':'TÍTULO EM DISPUTA';
+  const cenarioFallback=pos===1
+    ? `A CCT lidera a classificação geral com ${pts} ponto${pts===1?'':'s'}.`
+    : `A CCT está em ${pos}º lugar, com ${pts} ponto${pts===1?'':'s'}, ${gap} atrás de ${nomeLider}.`;
+
+  const precisaFallback=ptsMax!==null
+    ? `O potencial máximo informado para a CCT é ${ptsMax} pontos. O cálculo exato depende também do potencial dos adversários.`
+    : `O cenário macro já mostra posição e diferença para a liderança. Para transformar isso em uma conta matemática do título, o motor geral precisa ter os potenciais máximos validados.`;
+
+  return `
+    <section class="general-scenario-card">
+      <div class="general-scenario-hero">
+        <div>
+          <span class="chip">GERAL DA COMPETIÇÃO</span>
+          <small>CAMPEONATO</small>
+          <h3>${escapeHtml(status||statusFallback)}</h3>
+        </div>
+        <div class="general-position">
+          <strong>${escapeHtml(pos+'º')}</strong>
+          <span>posição atual</span>
+        </div>
+      </div>
+
+      <div class="general-scenario-metrics">
+        <div><small>CCT</small><strong>${escapeHtml(pts)}</strong><span>pontos</span></div>
+        <div><small>LÍDER</small><strong>${escapeHtml(ptsLider)}</strong><span>${escapeHtml(nomeLider)}</span></div>
+        <div><small>DIFERENÇA</small><strong>${escapeHtml(gap)}</strong><span>pontos</span></div>
+        ${ptsMax!==null?`<div><small>MÁXIMO CCT</small><strong>${escapeHtml(ptsMax)}</strong><span>pontos</span></div>`:''}
+      </div>
+
+      <div class="general-scenario-body">
+        <div>
+          <small>CENÁRIO ATUAL</small>
+          <p>${escapeHtml(cenario||cenarioFallback)}</p>
+        </div>
+        <div class="general-needed">
+          <small>O QUE A CCT PRECISA PARA O TÍTULO</small>
+          <strong>${escapeHtml(precisa||precisaFallback)}</strong>
+        </div>
+        ${abertas?`<div><small>MODALIDADES AINDA EM DISPUTA</small><p>${escapeHtml(abertas)}</p></div>`:''}
+        ${atualizado?`<div class="general-updated"><small>ATUALIZAÇÃO</small><p>${escapeHtml(atualizado)}</p></div>`:''}
+      </div>
+    </section>`;
+}
+
 function renderizarCenarios(){
   const container=$('#cenariosContainer');
   if(!container) return;
-  const linhas=apiData.cenarios.filter(c=>c.ID_COMPETICAO===jogosUI.competicao).sort((a,b)=>modalidadeNome(a.ID_MODALIDADE).localeCompare(modalidadeNome(b.ID_MODALIDADE),'pt-BR'));
+
+  $$('#cenariosTipo [data-cenarios-tipo]').forEach(btn=>
+    btn.classList.toggle('selected',btn.dataset.cenariosTipo===jogosUI.cenariosTipo)
+  );
+
+  const introTitle=$('#cenariosIntroTitle');
+  const introText=$('#cenariosIntroText');
+  if(jogosUI.cenariosTipo==='geral'){
+    if(introTitle) introTitle.textContent='Cenário geral da CCT';
+    if(introText) introText.textContent='A situação macro da CCT na disputa pelo título da competição.';
+    container.innerHTML=cenarioGeralHtml();
+    return;
+  }
+
+  if(introTitle) introTitle.textContent='Situação da CCT';
+  if(introText) introText.textContent='O que cada modalidade precisa para avançar.';
+
+  const linhas=apiData.cenarios
+    .filter(c=>c.ID_COMPETICAO===jogosUI.competicao)
+    .sort((a,b)=>modalidadeNome(a.ID_MODALIDADE).localeCompare(modalidadeNome(b.ID_MODALIDADE),'pt-BR'));
 
   container.innerHTML=linhas.length ? linhas.map(c=>`
     <article class="scenario-detail-card" data-scenario-card="${escapeHtml(c.ID_MODALIDADE||'')}">
@@ -681,6 +786,7 @@ function renderizarAbaCompeticao(){
 
 function abrirCenarioModalidade(idModalidade){
   jogosUI.aba='cenarios';
+  jogosUI.cenariosTipo='modalidade';
   renderizarAbaCompeticao();
   requestAnimationFrame(()=>{
     const card=document.querySelector(`[data-scenario-card="${CSS.escape(idModalidade)}"]`);
@@ -731,6 +837,13 @@ function bindCompeticaoUI(){
     renderizarClassificacao();
   });
 
+  $('#cenariosTipo')?.addEventListener('click',e=>{
+    const btn=e.target.closest('[data-cenarios-tipo]');
+    if(!btn) return;
+    jogosUI.cenariosTipo=btn.dataset.cenariosTipo;
+    renderizarCenarios();
+  });
+
   $('#competicaoBtn')?.addEventListener('click',abrirSeletorCompeticao);
 
   $('#jogosContainer')?.addEventListener('click',e=>{
@@ -762,6 +875,7 @@ function abrirSeletorCompeticao(){
     jogosUI.modalidadeFiltro='';
     jogosUI.classificacaoModalidade='';
     jogosUI.classificacaoTipo='modalidade';
+    jogosUI.cenariosTipo='modalidade';
     const filtroModalidade=$('#modalidadeFiltro');
     if(filtroModalidade) filtroModalidade.value='';
     const nome=$('#competicaoNome');

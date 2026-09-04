@@ -501,3 +501,184 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
 .member-auth-secondary{margin-top:10px;border:1px solid #344139;background:#101512;color:#b5c0b8;border-radius:12px;padding:11px 14px;font-size:9px;font-weight:900;letter-spacing:.4px}
 .member-schedule-notice.static{cursor:default}
 @media(max-width:390px){.profile-auth-status{grid-template-columns:36px 1fr}.profile-auth-status>span{width:36px;height:36px}.access-badge{font-size:6.5px}}
+
+
+/* =========================================================
+   V4.3 — CENÁRIO GERAL + CENTRALIZAÇÃO VISUAL DO LOGO CCT
+   ========================================================= */
+
+/* O arquivo do escudo possui respiro interno assimétrico.
+   O deslocamento abaixo corrige o centro óptico sem afetar outros logos. */
+.match-card .team.cct-team{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+}
+.match-card .team.cct-team img{
+  display:block !important;
+  width:58px !important;
+  height:58px !important;
+  max-width:58px !important;
+  min-width:58px !important;
+  margin:0 auto 8px !important;
+  object-fit:contain !important;
+  object-position:center !important;
+  transform:translateX(-3px);
+  transform-origin:center center;
+}
+.match-card .team.cct-team strong{
+  width:100%;
+  text-align:center;
+}
+
+/* Alternância entre cenário por modalidade e cenário geral */
+.scenario-type{
+  margin-top:0;
+  margin-bottom:12px;
+}
+.scenario-type button{
+  min-width:0;
+  font-size:10px;
+}
+.scenario-intro{
+  margin-top:0;
+}
+
+/* Cenário geral da competição */
+.general-scenario-card{
+  overflow:hidden;
+  border:1px solid #315b3d;
+  border-radius:24px;
+  background:
+    radial-gradient(circle at 86% 8%,rgba(35,209,96,.13),transparent 34%),
+    linear-gradient(145deg,#132218,#0d130f 68%);
+  box-shadow:0 18px 42px rgba(0,0,0,.24);
+}
+.general-scenario-hero{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  padding:18px;
+  border-bottom:1px solid #253128;
+}
+.general-scenario-hero>div:first-child>small{
+  display:block;
+  margin-top:14px;
+  color:#78dc96;
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:1.2px;
+}
+.general-scenario-hero h3{
+  margin:4px 0 0;
+  max-width:285px;
+  font-size:23px;
+  line-height:1.05;
+}
+.general-position{
+  min-width:86px;
+  padding:12px 10px;
+  border:1px solid #315b3d;
+  border-radius:18px;
+  background:#0d1510;
+  text-align:center;
+}
+.general-position strong{
+  display:block;
+  color:var(--green);
+  font-size:30px;
+  line-height:1;
+}
+.general-position span{
+  display:block;
+  margin-top:5px;
+  color:#829087;
+  font-size:8px;
+  font-weight:800;
+}
+
+.general-scenario-metrics{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  padding:14px 18px 0;
+}
+.general-scenario-metrics:has(> div:nth-child(4)){
+  grid-template-columns:repeat(2,minmax(0,1fr));
+}
+.general-scenario-metrics>div{
+  min-width:0;
+  padding:11px 8px;
+  border:1px solid #29372e;
+  border-radius:14px;
+  background:#101712;
+  text-align:center;
+}
+.general-scenario-metrics small{
+  display:block;
+  color:#72dc91;
+  font-size:7px;
+  font-weight:900;
+  letter-spacing:.9px;
+}
+.general-scenario-metrics strong{
+  display:block;
+  margin:3px 0;
+  font-size:21px;
+}
+.general-scenario-metrics span{
+  display:block;
+  overflow:hidden;
+  color:#87938a;
+  font-size:8px;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.general-scenario-body{
+  display:grid;
+  gap:10px;
+  padding:14px 18px 18px;
+}
+.general-scenario-body>div{
+  padding:13px;
+  border:1px solid #253128;
+  border-radius:15px;
+  background:#0d120f;
+}
+.general-scenario-body small{
+  display:block;
+  margin-bottom:5px;
+  color:#71d98f;
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:.8px;
+}
+.general-scenario-body p{
+  margin:0;
+  color:#a9b4ac;
+  font-size:11px;
+  line-height:1.55;
+}
+.general-scenario-body strong{
+  display:block;
+  font-size:12px;
+  line-height:1.5;
+}
+.general-needed{
+  border-color:#347d49 !important;
+  background:linear-gradient(135deg,#102619,#0d120f) !important;
+}
+.general-updated{
+  opacity:.8;
+}
+
+@media(max-width:390px){
+  .general-scenario-hero h3{font-size:20px}
+  .general-position{min-width:78px}
+  .general-scenario-metrics{gap:6px;padding-left:14px;padding-right:14px}
+  .general-scenario-body{padding-left:14px;padding-right:14px}
+}
