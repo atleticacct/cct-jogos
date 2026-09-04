@@ -31,8 +31,8 @@ const MODALIDADE_NOMES_GERAL = {
   'HAN-M':'Handebol Masculino',
   'VOL-F':'Voleibol Feminino',
   'VOL-M':'Voleibol Masculino',
-  'NAT-F':'Natação Feminino',
-  'NAT-M':'Natação Masculino'
+  'NAT-F':'Natação Feminina',
+  'NAT-M':'Natação Masculina'
 };
 
 let apiData = {
