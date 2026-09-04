@@ -682,3 +682,23 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
   .general-scenario-metrics{gap:6px;padding-left:14px;padding-right:14px}
   .general-scenario-body{padding-left:14px;padding-right:14px}
 }
+
+
+/* =========================================================
+   V4.4 — CAMINHOS PARA O TÍTULO
+   ========================================================= */
+.general-path{
+  border-color:#2f8e4a !important;
+  background:linear-gradient(135deg,#102b1a,#0c120e) !important;
+}
+.general-path p{
+  color:#d8efe0 !important;
+  font-weight:750;
+}
+.general-rivals{
+  border-style:dashed !important;
+  border-color:#506259 !important;
+}
+.general-rivals p{
+  color:#b8c4bc !important;
+}

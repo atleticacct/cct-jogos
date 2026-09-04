@@ -629,7 +629,10 @@ function cenarioGeralHtml(){
   const diferenca=numeroCenarioGeral(cct.DIFERENCA_LIDER);
   const gap=diferenca!==null?Math.abs(diferenca):Math.max(0,ptsLider-pts);
 
+  const ptsMin=numeroCenarioGeral(cct.PONTOS_MINIMOS);
   const ptsMax=numeroCenarioGeral(cct.PONTOS_MAXIMOS);
+  const caminho=String(cct.CAMINHO_TITULO||'').trim();
+  const adversarios=String(cct.ADVERSARIOS_CRITICOS||'').trim();
   const status=String(cct.STATUS_TITULO||'').trim();
   const cenario=String(cct.CENARIO_GERAL||'').trim();
   const precisa=String(cct.O_QUE_PRECISA_TITULO||cct.O_QUE_PRECISA||'').trim();
@@ -660,10 +663,10 @@ function cenarioGeralHtml(){
       </div>
 
       <div class="general-scenario-metrics">
-        <div><small>CCT</small><strong>${escapeHtml(pts)}</strong><span>pontos</span></div>
-        <div><small>LÍDER</small><strong>${escapeHtml(ptsLider)}</strong><span>${escapeHtml(nomeLider)}</span></div>
-        <div><small>DIFERENÇA</small><strong>${escapeHtml(gap)}</strong><span>pontos</span></div>
-        ${ptsMax!==null?`<div><small>MÁXIMO CCT</small><strong>${escapeHtml(ptsMax)}</strong><span>pontos</span></div>`:''}
+        <div><small>CONFIRMADOS</small><strong>${escapeHtml(pts)}</strong><span>CCT</span></div>
+        ${ptsMin!==null?`<div><small>MÍNIMO</small><strong>${escapeHtml(ptsMin)}</strong><span>projetado</span></div>`:''}
+        ${ptsMax!==null?`<div><small>MÁXIMO</small><strong>${escapeHtml(ptsMax)}</strong><span>projetado</span></div>`:''}
+        <div><small>LÍDER PARCIAL</small><strong>${escapeHtml(ptsLider)}</strong><span>${escapeHtml(nomeLider)}</span></div>
       </div>
 
       <div class="general-scenario-body">
@@ -675,6 +678,8 @@ function cenarioGeralHtml(){
           <small>O QUE A CCT PRECISA PARA O TÍTULO</small>
           <strong>${escapeHtml(precisa||precisaFallback)}</strong>
         </div>
+        ${caminho?`<div class="general-path"><small>CAMINHO POR MODALIDADE</small><p>${escapeHtml(caminho)}</p></div>`:''}
+        ${adversarios?`<div class="general-rivals"><small>ADVERSÁRIOS CRÍTICOS</small><p>${escapeHtml(adversarios)}</p></div>`:''}
         ${abertas?`<div><small>MODALIDADES AINDA EM DISPUTA</small><p>${escapeHtml(abertas)}</p></div>`:''}
         ${atualizado?`<div class="general-updated"><small>ATUALIZAÇÃO</small><p>${escapeHtml(atualizado)}</p></div>`:''}
       </div>
