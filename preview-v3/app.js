@@ -1976,15 +1976,16 @@ function parceirosPublicos(){
 }
 function parceiroCardHtml(x,index=0){
   const nome=parceiroCampo(x,'TITULO','NOME')||'Parceiro CCT';
-  const beneficio=parceiroCampo(x,'BENEFICIO','BENEFÍCIO','VANTAGEM','OFERTA')||parceiroCampo(x,'DESCRICAO','DESCRIÇÃO');
+  const beneficioReal=parceiroCampo(x,'BENEFICIO','BENEFÍCIO','VANTAGEM','OFERTA');
+  const descricao=parceiroCampo(x,'DESCRICAO','DESCRIÇÃO');
+  const destaqueTexto=beneficioReal||descricao;
+  const destaqueLabel=beneficioReal?'BENEFÍCIO':'PARCERIA CCT';
   const detalhes=parceiroCampo(x,'DETALHES','OBSERVACAO','OBSERVAÇÃO','SUBTITULO');
   const cupom=parceiroCampo(x,'CUPOM','CODIGO','CÓDIGO');
   const img=normalizeImageUrl(parceiroCampo(x,'IMAGEM_URL','LOGO_URL','FOTO_URL'));
   const link=linkSeguro(parceiroCampo(x,'LINK','LINK_PARCEIRO','SITE','INSTAGRAM'));
   const cta=parceiroCampo(x,'TEXTO_BOTAO','TEXTO_BOTÃO')||'CONHECER PARCEIRO';
   const destaque=isSim(x.DESTAQUE);
-  const publico=parceiroPublicosAlvo(x);
-  const publicoLabel=publico.some(v=>['TODOS','TODAS','PUBLICO','PUBLICA','GERAL'].includes(v))?'TODOS':publico.join(' • ');
   const inicial=(nome.trim().charAt(0)||'C').toUpperCase();
   return `<article class="partner-card ${destaque?'featured':''}">
     <div class="partner-card-top">
@@ -1992,11 +1993,10 @@ function parceiroCardHtml(x,index=0){
       <div class="partner-heading">
         <small>${destaque?'PARCEIRO EM DESTAQUE':'PARCEIRO CCT'}</small>
         <h3>${escapeHtml(nome)}</h3>
-        <em class="partner-audience">PARA: ${escapeHtml(publicoLabel)}</em>
       </div>
       ${destaque?`<span class="partner-star">${uiIcon('star')}</span>`:''}
     </div>
-    ${beneficio?`<div class="partner-benefit"><span>BENEFÍCIO</span><strong>${escapeHtml(beneficio)}</strong></div>`:''}
+    ${destaqueTexto?`<div class="partner-benefit"><span>${destaqueLabel}</span><strong>${escapeHtml(destaqueTexto)}</strong></div>`:''}
     ${detalhes?`<p class="partner-details">${escapeHtml(detalhes)}</p>`:''}
     ${cupom?`<button class="partner-coupon" type="button" data-copy-coupon="${escapeHtml(cupom)}"><small>CUPOM</small><b>${escapeHtml(cupom)}</b><span>TOQUE PARA COPIAR</span></button>`:''}
     ${link?`<a class="partner-cta" href="${escapeHtml(link)}" target="_blank" rel="noopener">${escapeHtml(cta)} <b>›</b></a>`:''}
@@ -2005,18 +2005,13 @@ function parceiroCardHtml(x,index=0){
 function abrirParceiros(){
   const itens=parceirosPublicos();
   const total=itens.length;
-  const destaque=itens.filter(x=>isSim(x.DESTAQUE)).length;
-  const perfisParceiro=perfilPublicosParceiro();
-  const nomesPerfil={ATLETA:'ATLETA',TORCEDOR:'TORCEDOR(A)',MEMBRO:'MEMBRO',SOCIO:'SÓCIO(A)'};
-  const perfilTxt=perfisParceiro.map(x=>nomesPerfil[x]||x).join(' + ');
   mc.innerHTML=`
     <div class="partners-head">
       <span class="chip">PARCEIROS CCT</span>
       <div class="partners-title-row">
         <div class="partners-title-icon">${uiIcon('handshake')}</div>
-        <div><h2>Quem joga junto com a CCT</h2><p>Benefícios, descontos e marcas que fortalecem nossa Atlética.</p><span class="partners-profile">EXIBINDO VANTAGENS PARA: ${escapeHtml(perfilTxt)}</span></div>
+        <div><h2>Quem joga junto com a CCT</h2><p>Parceiros, benefícios e marcas que fortalecem nossa Atlética.</p></div>
       </div>
-      ${total?`<div class="partners-summary"><strong>${total}</strong><span>${total===1?'parceiro ativo':'parceiros ativos'}</span>${destaque?`<em>${destaque} em destaque</em>`:''}</div>`:''}
     </div>
     <div class="partners-list">
       ${total?itens.map(parceiroCardHtml).join(''):`<div class="partner-empty">${uiIcon('handshake')}<strong>Novas parcerias em breve</strong><p>Estamos preparando benefícios e vantagens para a comunidade CCT.</p></div>`}

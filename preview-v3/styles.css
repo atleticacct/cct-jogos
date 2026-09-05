@@ -416,8 +416,8 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
 .partner-card.featured{border-color:#3d704b;background:radial-gradient(circle at 100% 0,rgba(35,209,96,.12),transparent 36%),linear-gradient(145deg,#16251a,#0d120f)}
 .partner-card.featured:before{content:"";position:absolute;left:0;top:18px;bottom:18px;width:3px;background:var(--green);border-radius:0 4px 4px 0}
 .partner-card-top{display:grid;grid-template-columns:58px 1fr auto;gap:12px;align-items:center}
-.partner-logo{width:58px;height:58px;border-radius:16px;display:grid;place-items:center;overflow:hidden;background:#e9efe9;border:1px solid #385443;color:#13351e;font-size:22px;font-weight:950}
-.partner-logo img{width:100%;height:100%;object-fit:contain;background:#fff;padding:5px}
+.partner-logo{width:58px;height:58px;border-radius:16px;display:grid;place-items:center;overflow:hidden;background:#fff;border:1px solid #385443;color:#13351e;font-size:22px;font-weight:950;padding:5px;box-sizing:border-box}
+.partner-logo img{display:block;width:100%;height:100%;object-fit:contain;background:transparent;padding:0;box-sizing:border-box;border-radius:10px}
 .partner-heading{min-width:0}
 .partner-heading small{display:block;color:#79d994!important;font-size:8px!important;font-weight:900!important;letter-spacing:1px!important;margin-bottom:4px}
 .partner-heading h3{margin:0!important;color:#f6f8f6!important;font-size:19px!important;line-height:1.1}
