@@ -6,7 +6,7 @@ function uiIcon(name,extraClass=''){
   return `<svg class="${cls}" aria-hidden="true"><use href="#i-${safe}"></use></svg>`;
 }
 
-const API_URL = 'https://script.google.com/macros/s/AKfycbwanjoMA8Kd9pdtGWlraMN7agGTdlY_8zMaXBQQQL_7zRBPwZltu8oVMfUQFHgAQOKzbA/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwKdhs9Qfkcbnv1fub8p6QFRJ-NWDN-dRZiYj3byaK0_OdTXP3PKksSEuLO27I1hjRkDA/exec';
 
 const PROFILE_KEY = 'cctProfileV2';
 const MODALIDADE_IDS = {
