@@ -415,14 +415,12 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
 .partner-card{position:relative;overflow:hidden;border:1px solid #2b382f;border-radius:21px;padding:16px;background:linear-gradient(145deg,#141a16,#0d120f);box-shadow:0 15px 35px rgba(0,0,0,.18)}
 .partner-card.featured{border-color:#3d704b;background:radial-gradient(circle at 100% 0,rgba(35,209,96,.12),transparent 36%),linear-gradient(145deg,#16251a,#0d120f)}
 .partner-card.featured:before{content:"";position:absolute;left:0;top:18px;bottom:18px;width:3px;background:var(--green);border-radius:0 4px 4px 0}
-.partner-card-top{display:grid;grid-template-columns:58px 1fr auto;gap:12px;align-items:center}
-.partner-logo{width:58px;height:58px;border-radius:16px;display:grid;place-items:center;overflow:hidden;background:#fff;border:1px solid #385443;color:#13351e;font-size:22px;font-weight:950;padding:5px;box-sizing:border-box}
-.partner-logo img{display:block;width:100%;height:100%;object-fit:contain;background:transparent;padding:0;box-sizing:border-box;border-radius:10px}
+.partner-card-top{display:grid;grid-template-columns:58px 1fr;gap:12px;align-items:center}
+.partner-logo{width:58px;height:58px;border-radius:16px;display:grid;place-items:center;overflow:hidden;background:transparent;border:0;color:#13351e;font-size:22px;font-weight:950;padding:0;box-sizing:border-box}
+.partner-logo img{display:block;width:100%;height:100%;object-fit:cover;background:transparent;padding:0;box-sizing:border-box;border-radius:16px}
 .partner-heading{min-width:0}
 .partner-heading small{display:block;color:#79d994!important;font-size:8px!important;font-weight:900!important;letter-spacing:1px!important;margin-bottom:4px}
 .partner-heading h3{margin:0!important;color:#f6f8f6!important;font-size:19px!important;line-height:1.1}
-.partner-star{display:grid;place-items:center;width:34px;height:34px;border-radius:12px;background:#18351f;color:#8ef0aa}
-.partner-star .ui-icon{width:19px;height:19px}
 .partner-benefit{margin-top:15px;border-radius:15px;padding:13px 14px;background:linear-gradient(135deg,#17351f,#132219);border:1px solid #31583d}
 .partner-benefit span{display:block;color:#78db95;font-size:8px;font-weight:900;letter-spacing:1px;margin-bottom:4px}
 .partner-benefit strong{display:block;color:#eaf7ee;font-size:14px;line-height:1.35}
@@ -443,7 +441,7 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
 .partner-join small{display:block;color:#72d990;font-size:7px;font-weight:900;letter-spacing:.8px}
 .partner-join strong{display:block;font-size:13px;margin-top:3px}
 .partner-join>b{font-size:22px;color:var(--green)}
-@media(max-width:370px){.partners-title-row{grid-template-columns:44px 1fr}.partners-title-icon{width:44px;height:44px}.partners-title-row h2{font-size:24px!important}.partner-card-top{grid-template-columns:50px 1fr auto}.partner-logo{width:50px;height:50px}}
+@media(max-width:370px){.partners-title-row{grid-template-columns:44px 1fr}.partners-title-icon{width:44px;height:44px}.partners-title-row h2{font-size:24px!important}.partner-card-top{grid-template-columns:50px 1fr}.partner-logo{width:50px;height:50px}}
 
 
 /* V3.6 — hubs de conteúdo, menu compacto e públicos de parceiros */

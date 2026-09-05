@@ -1994,7 +1994,6 @@ function parceiroCardHtml(x,index=0){
         <small>${destaque?'PARCEIRO EM DESTAQUE':'PARCEIRO CCT'}</small>
         <h3>${escapeHtml(nome)}</h3>
       </div>
-      ${destaque?`<span class="partner-star">${uiIcon('star')}</span>`:''}
     </div>
     ${destaqueTexto?`<div class="partner-benefit"><span>${destaqueLabel}</span><strong>${escapeHtml(destaqueTexto)}</strong></div>`:''}
     ${detalhes?`<p class="partner-details">${escapeHtml(detalhes)}</p>`:''}
