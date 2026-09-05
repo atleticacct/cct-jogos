@@ -13,6 +13,7 @@ const API_CACHE_MAX_MS = 7 * 24 * 60 * 60 * 1000; // fallback por até 7 dias
 const API_RETRY_GUARD_MS = 20 * 1000;
 let apiAtualizacaoPromise = null;
 let ultimaTentativaApi = 0;
+let cctEvents = []; // declarado cedo: o cache pode renderizar Eventos imediatamente
 
 
 const PROFILE_KEY = 'cctProfileV2';
@@ -1577,7 +1578,6 @@ inicializarPerfil();
 
 /* Eventos via Painel Administrativo (Google Sheets / Apps Script) */
 const EVENTS_API=API_URL; // compatibilidade: eventos usam a API principal oficial
-let cctEvents=[];
 function eventDateValue(e){const p=(e.DATA||'').split('/');return p.length===3?new Date(+p[2],+p[1]-1,+p[0],...(e.HORA||'00:00').split(':').map(Number)).getTime():Number.MAX_SAFE_INTEGER}
 function eventMeta(e){return [e.DATA,e.HORA,e.LOCAL].filter(Boolean).join(' • ')}
 function normalizeImageUrl(url){
