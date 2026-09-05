@@ -1,206 +1,343 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#07110b" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="CCT Jogos" />
+  <meta name="apple-mobile-web-app-title" content="Atlética CCT" />
+  <title>Atlética CCT</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css" />
-  <title>CCT Jogos</title>
+  <link rel="stylesheet" href="styles.css?v=469" />
 </head>
 <body>
+  <svg class="icon-sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 10.5 12 3l8.5 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-5v-6h-4v6H5a1.5 1.5 0 0 1-1.5-1.5z"/></symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M8 4h8v4c0 4-1.8 6.5-4 6.5S8 12 8 8z"/><path d="M8 6H4v2c0 2.5 1.5 4 4.2 4.5M16 6h4v2c0 2.5-1.5 4-4.2 4.5M12 14.5V19M8.5 21h7M9.5 19h5"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.8-4.2 3.2-6.5 7.5-6.5s6.7 2.3 7.5 6.5"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 17h12l-1.5-2v-4.5a4.5 4.5 0 0 0-9 0V15z"/><path d="M10 20h4"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16.5 9"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m5 18 5-5 3 3 2-2 4 4"/></symbol>
+    <symbol id="i-form" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
+    <symbol id="i-map-pin" viewBox="0 0 24 24"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></symbol>
+    <symbol id="i-handshake" viewBox="0 0 24 24"><path d="m4 12 4-4 4 3 3-2 5 5-4 4-4-2-3 1-5-5z"/><path d="m8 8-2-2-4 4 2 2M16 8l2-2 4 4-2 2"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.6 2.6 0 0 1 5 1c0 2-2.5 2.2-2.5 4M12 17h.01"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4l11-11-4-4L4 16zM13.5 6.5l4 4"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c.6-3.6 2.7-5.5 6-5.5s5.4 1.9 6 5.5M14.5 15c3-.2 5 1.5 5.5 4.5"/></symbol>
+    <symbol id="i-store" viewBox="0 0 24 24"><path d="M4 9h16v12H4zM3 9l2-5h14l2 5"/><path d="M8 21v-7h8v7"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M22 12h-3M12 22v-3M2 12h3"/></symbol>
+    <symbol id="i-running" viewBox="0 0 24 24"><circle cx="14" cy="4.5" r="2"/><path d="m12 8 3 2 2 4M12 8 9 12l-4 1M11 12l3 3-2 5M9 12l-3 5"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  </svg>
+
+  <div id="splash" class="splash">
+    <div class="splash-glow"></div>
+    <img src="assets/mascote.png" alt="Mascote CCT" class="splash-mascot" />
+    <div class="splash-copy">
+      <div class="eyebrow">ATLÉTICA CCT</div>
+      <h1>ATLÉTICA CCT</h1>
+      <p>A cachorrada está on.</p>
+    </div>
+  </div>
+
   <div class="app-shell">
     <header class="topbar">
+      <button class="icon-btn" id="menuBtn" aria-label="Abrir menu">
+        <span></span><span></span><span></span>
+      </button>
       <div class="brand">
-        <img src="logo.jpeg" alt="Logo Atlética CCT" />
-        <div>
-          <span class="eyebrow">ATLÉTICA CCT</span>
-          <strong>CCT Jogos</strong>
-        </div>
+        <img src="assets/logo-cct-header.png" alt="Atlética CCT" />
+        <div><strong>ATLÉTICA CCT</strong><small>UDESC JOINVILLE</small></div>
       </div>
-      <button class="icon-btn" aria-label="Avisos" onclick="goTo('infos')">🔔</button>
+      <button class="icon-btn bell" id="alertBtn" aria-label="Avisos"><svg class="ui-icon"><use href="#i-bell"></use></svg><b>2</b></button>
     </header>
 
     <main id="content">
-      <!-- HOME -->
-      <section class="screen active" id="home">
-        <div class="welcome">
-          <span class="eyebrow">JUDESC 2026</span>
-          <h1>Fala, atleta! 👋</h1>
-          <p>Tudo que você precisa para acompanhar os jogos da CCT.</p>
+      <section class="screen active" data-screen="inicio">
+        <div class="hero" id="homeHero" style="--hero:url('assets/volei-praia-2.jpg')">
+          <div class="hero-overlay"></div>
+          <div class="hero-content">
+            <span class="chip live" id="homeHeroBadge">EM DESTAQUE</span>
+            <h2 id="homeHeroTitle">ATLÉTICA CCT</h2>
+            <p id="homeHeroText">Acompanhe competições, agenda, eventos e tudo da CCT.</p>
+            <button class="primary" id="homeHeroButton" type="button">VER COMPETIÇÃO <span>›</span></button>
+          </div>
         </div>
 
-        <article class="hero-card">
-          <div class="hero-top">
-            <span>PRÓXIMO JOGO</span>
-            <span class="live-dot">HOJE</span>
-          </div>
-          <div class="sport-row">
-            <div class="sport-icon">🏐</div>
-            <div>
-              <h2>Vôlei Masculino</h2>
-              <p>UDESC × UFSC</p>
-            </div>
-          </div>
-          <div class="meta">
-            <span>🕑 14:30</span>
-            <span>📍 Ginásio 2</span>
-          </div>
-        </article>
+        <div id="homeUrgentContainer"></div>
 
         <div class="section-head">
-          <h3>Próximos jogos</h3>
-          <button onclick="goTo('jogos')">Ver todos</button>
+          <div><i></i><h3>SEU PRÓXIMO JOGO</h3></div>
+          <button data-go="perfil">PERFIL</button>
         </div>
 
-        <div class="card-list">
-          <article class="game-card">
-            <span class="game-icon">⚽</span>
-            <div class="grow">
-              <strong>Futsal Masculino</strong>
-              <small>UDESC × UNIVILLE</small>
-            </div>
-            <div class="right">
-              <strong>17:00</strong>
-              <small>Quadra 1</small>
-            </div>
-          </article>
-          <article class="game-card">
-            <span class="game-icon">🏀</span>
-            <div class="grow">
-              <strong>Basquete Masculino</strong>
-              <small>UDESC × UNOESC</small>
-            </div>
-            <div class="right">
-              <strong>19:30</strong>
-              <small>Ginásio 3</small>
-            </div>
-          </article>
+        <div id="homeNextGameContainer" class="home-next-game-container">
+          <div class="games-loading">Carregando próximo jogo...</div>
         </div>
 
         <div class="section-head">
-          <h3>Aviso importante</h3>
+          <div><i></i><h3>COMPETIÇÕES</h3></div>
+          <button data-go="jogos">VER TODAS ›</button>
         </div>
-        <article class="alert-card">
-          <div>⚠️</div>
-          <div>
-            <strong>Alteração de horário</strong>
-            <p>O jogo de Futsal Masculino passou para 17:00.</p>
-          </div>
-        </article>
-      </section>
+        <div class="horizontal" id="homeCompetitionsContainer"><div class="games-loading">Carregando competições...</div></div>
 
-      <!-- JOGOS -->
-      <section class="screen" id="jogos">
-        <div class="page-title">
-          <span class="eyebrow">COMPETIÇÃO</span>
-          <h1>Jogos</h1>
-          <p>Confira os confrontos e filtre pela modalidade.</p>
+        <div id="homeAgendaSection" class="home-optional-section" hidden>
+          <div class="section-head">
+            <div><i></i><h3 id="homeAgendaTitle">AGENDA DE HOJE</h3></div>
+            <button data-go="agenda">VER AGENDA ›</button>
+          </div>
+          <div class="timeline mini" id="homeAgendaContainer"></div>
         </div>
 
-        <div class="chips" id="sportFilters">
-          <button class="chip active" data-filter="Todos">Todos</button>
-          <button class="chip" data-filter="Vôlei">Vôlei</button>
-          <button class="chip" data-filter="Futsal">Futsal</button>
-          <button class="chip" data-filter="Basquete">Basquete</button>
-          <button class="chip" data-filter="Handebol">Handebol</button>
+        <div id="homeEventSection" class="home-optional-section" hidden>
+          <div class="section-head">
+            <div><i></i><h3>EVENTOS</h3></div>
+            <button data-go="eventos">VER TODOS ›</button>
+          </div>
+          <div id="homeEventContainer" class="events-dynamic"></div>
         </div>
 
-        <div class="date-label">18 DE OUTUBRO — HOJE</div>
-        <div class="card-list" id="gamesList"></div>
-      </section>
-
-      <!-- AGENDA -->
-      <section class="screen" id="agenda">
-        <div class="page-title">
-          <span class="eyebrow">SEU DIA</span>
-          <h1>Agenda</h1>
-          <p>Jogos, refeições, reuniões e programação.</p>
+        <div id="homeMediaSection" class="home-optional-section" hidden>
+          <div class="section-head">
+            <div><i></i><h3>MÍDIA CCT</h3></div>
+            <button data-open="media">VER TUDO ›</button>
+          </div>
+          <div class="media-grid" id="homeMediaContainer"></div>
         </div>
 
-        <div class="timeline">
-          <div class="timeline-item">
-            <time>07:00</time><span class="dot"></span>
-            <div><strong>Café da manhã</strong><small>Alojamento</small></div>
+        <div id="homeUsefulSection" class="home-optional-section" hidden>
+          <div class="section-head">
+            <div><i></i><h3>ACESSOS ÚTEIS</h3></div>
           </div>
-          <div class="timeline-item">
-            <time>08:00</time><span class="dot"></span>
-            <div><strong>Reunião técnica</strong><small>Sala de reuniões</small></div>
-          </div>
-          <div class="timeline-item highlight">
-            <time>14:30</time><span class="dot"></span>
-            <div><strong>🏐 Jogo — UDESC × UFSC</strong><small>Ginásio 2</small></div>
-          </div>
-          <div class="timeline-item">
-            <time>19:30</time><span class="dot"></span>
-            <div><strong>Jantar</strong><small>Alojamento</small></div>
-          </div>
-          <div class="timeline-item">
-            <time>22:00</time><span class="dot"></span>
-            <div><strong>Confraternização</strong><small>Espaço da Atlética</small></div>
-          </div>
+          <div id="homeUsefulContainer" class="home-useful-grid"></div>
         </div>
       </section>
 
-      <!-- INFOS -->
-      <section class="screen" id="infos">
-        <div class="page-title">
-          <span class="eyebrow">CENTRAL CCT</span>
-          <h1>Informações</h1>
-          <p>Documentos e informações úteis durante os jogos.</p>
+      <section class="screen" data-screen="jogos">
+        <div class="page-title"><div><i></i><div><small>COMPETIÇÃO</small><h2 id="competicaoTitulo">Jogos</h2></div></div></div>
+
+        <button class="select-card" id="competicaoBtn" type="button">
+          <span id="competicaoNome">Interlaje 2026</span><span>⌄</span>
+        </button>
+
+        <div class="competition-tabs" id="competitionTabs" aria-label="Área da competição">
+          <button class="selected" data-comp-tab="jogos" type="button">Jogos</button>
+          <button data-comp-tab="classificacao" type="button">Classificação</button>
+          <button data-comp-tab="cenarios" type="button">Cenários</button>
+          <button data-comp-tab="destaques" type="button">Destaques</button>
         </div>
 
-        <div class="info-list">
-          <button>📄 <span>Regulamento</span><b>›</b></button>
-          <button>🚌 <span>Transporte</span><b>›</b></button>
-          <button>🛏️ <span>Alojamento</span><b>›</b></button>
-          <button>🍽️ <span>Alimentação</span><b>›</b></button>
-          <button>📍 <span>Locais das competições</span><b>›</b></button>
-          <button>👕 <span>Uniformes</span><b>›</b></button>
-          <button>☎️ <span>Contatos importantes</span><b>›</b></button>
-          <button>🏆 <span>Classificação</span><b>›</b></button>
-          <button>🎉 <span>Programação social</span><b>›</b></button>
+        <div id="painelJogos" class="competition-panel">
+          <div class="segmented games-type-tabs" id="tipoJogos">
+            <button class="selected" data-tipo-jogos="todos" type="button"><span>Todos os Jogos</span><b id="gamesAllCount">0</b></button>
+            <button data-tipo-jogos="meus" type="button"><span>Meus Jogos</span><b id="myGamesCount">0</b></button>
+            <button data-tipo-jogos="representacoes" type="button"><span>Representações CCT</span><b id="representationsCount">0</b></button>
+          </div>
+
+          <div class="game-filter-row">
+            <div class="filters" id="filtrosJogos">
+              <button data-filtro="hoje" type="button">Hoje</button>
+              <button data-filtro="amanha" type="button">Amanhã</button>
+              <button class="selected" data-filtro="todos" type="button">Todos</button>
+            </div>
+            <label class="modality-filter">
+              <span>Modalidade</span>
+              <select id="modalidadeFiltro" aria-label="Filtrar jogos por modalidade">
+                <option value="">Todas</option>
+              </select>
+            </label>
+          </div>
+
+          <div id="jogosResumo" class="games-summary"></div>
+          <div id="jogosContainer"><div class="games-loading">Carregando jogos...</div></div>
+        </div>
+
+        <div id="painelClassificacao" class="competition-panel" hidden>
+          <div class="segmented classification-type" id="classificacaoTipo">
+            <button class="selected" data-classificacao-tipo="modalidade" type="button">Por modalidade</button>
+            <button data-classificacao-tipo="geral" type="button">Geral do campeonato</button>
+          </div>
+          <div class="classification-toolbar" id="classificacaoToolbar">
+            <label for="classificacaoModalidade">Modalidade</label>
+            <select id="classificacaoModalidade" aria-label="Escolher modalidade"></select>
+          </div>
+          <div id="classificacaoContainer"><div class="games-loading">Carregando classificação...</div></div>
+        </div>
+
+        <div id="painelCenarios" class="competition-panel" hidden>
+          <div class="segmented scenario-type" id="cenariosTipo">
+            <button class="selected" data-cenarios-tipo="modalidade" type="button">Por modalidade</button>
+            <button data-cenarios-tipo="geral" type="button">Geral da competição</button>
+          </div>
+          <div class="panel-intro scenario-intro">
+            <span class="scenario-intro-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-target"></use></svg></span>
+            <div><strong id="cenariosIntroTitle">Situação da CCT</strong><small id="cenariosIntroText">O que cada modalidade precisa para avançar.</small></div>
+          </div>
+          <div id="cenariosContainer"><div class="games-loading">Carregando cenários...</div></div>
+        </div>
+
+        <div id="painelDestaques" class="competition-panel" hidden>
+          <div class="panel-intro">
+            <span>🏅</span>
+            <div><strong>Destaques da CCT</strong><small>Medalhas, títulos, recordes e conquistas do campeonato.</small></div>
+          </div>
+          <div id="destaquesContainer"><div class="games-loading">Carregando destaques...</div></div>
         </div>
       </section>
 
-      <!-- PERFIL -->
-      <section class="screen" id="perfil">
-        <div class="profile">
-          <div class="profile-logo"><img src="logo.jpeg" alt="" /></div>
-          <h1>Meu perfil</h1>
-          <p>Personalize quais modalidades aparecem para você.</p>
+      <section class="screen" data-screen="agenda">
+        <div class="page-title"><div><i></i><div><small id="agendaEyebrow">CCT</small><h2 id="agendaTitle">Agenda</h2></div></div></div>
+        <div class="panel-intro" id="agendaIntro"><span id="agendaIntroIcon">📅</span><div><strong id="agendaIntroTitle">Programação da CCT</strong><small id="agendaIntroText">Acompanhe treinos, reuniões, atendimentos e outros compromissos da CCT.</small></div></div>
+        <div id="agendaProfileContext"></div>
+        <div class="timeline" id="agendaContainer"><div class="games-loading">Carregando agenda...</div></div>
+      </section>
+
+      <section class="screen" data-screen="eventos">
+        <div class="page-title"><div><i></i><div><small>VIVA A CCT</small><h2>Eventos</h2></div></div></div>
+        <div id="eventsContainer" class="events-dynamic">
+          <div class="event-loading">Carregando eventos...</div>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="perfil">
+        <div class="profile-hero profile-hero-new">
+          <button class="profile-avatar-button" id="profileAvatarBtn" type="button" aria-label="Alterar foto do perfil">
+            <span class="profile-avatar-wrap is-empty">
+              <img id="profileAvatarImage" alt="Foto do perfil" hidden>
+              <span class="profile-online"></span>
+              <span class="profile-camera" aria-hidden="true">＋</span>
+            </span>
+          </button>
+          <input id="profileAvatarInput" class="profile-avatar-input" type="file" accept="image/*">
+          <div class="profile-identity">
+            <small>MEU PERFIL CCT</small>
+            <h2 id="profileNameDisplay">Seu nome</h2>
+            <div class="profile-meta">
+              <span class="profile-role-badge" id="profileRoleBadge">ATLETA</span>
+              <p id="profileSummary">Escolha suas modalidades</p>
+            </div>
+            <div class="profile-access-badges" id="profileAccessBadges" aria-live="polite"></div>
+          </div>
+          <button class="profile-edit-btn" id="editProfileBtn" type="button" aria-label="Editar perfil"><svg class="ui-icon"><use href="#i-edit"></use></svg></button>
+        </div>
+
+        <div class="profile-card focus-card">
+          <div class="profile-card-title">
+            <div><span class="profile-title-icon"><svg class="ui-icon"><use href="#i-star"></use></svg></span><div><strong>SÓ MEUS ESPORTES</strong><small>Priorize no app apenas o que você acompanha</small></div></div>
+            <label class="switch"><input id="onlyMySports" type="checkbox" checked><span class="slider"></span></label>
+          </div>
+          <p class="profile-helper">Quando ativado, a tela inicial prioriza as modalidades escolhidas. A área “Meus Jogos” continua mostrando somente as suas modalidades.</p>
         </div>
 
         <div class="profile-card">
-          <h3>Minhas modalidades</h3>
-          <label><input type="checkbox" value="Vôlei" checked> 🏐 Vôlei</label>
-          <label><input type="checkbox" value="Futsal" checked> ⚽ Futsal</label>
-          <label><input type="checkbox" value="Basquete"> 🏀 Basquete</label>
-          <label><input type="checkbox" value="Handebol"> 🤾 Handebol</label>
-          <button class="primary" id="saveSports">Salvar preferências</button>
-          <small id="savedMsg"></small>
+          <div class="section-head"><div><i></i><h3>MINHAS MODALIDADES</h3></div><span class="profile-count" id="sportsCount">0 selecionadas</span></div>
+          <p class="profile-intro">Escolha tudo o que você joga ou quer acompanhar. As alterações atualizam “Meus Jogos” automaticamente.</p>
+          <div class="sport-grid" id="sportGrid"><div class="games-loading profile-sports-loading">Carregando modalidades...</div></div>
         </div>
 
-        <div class="install-card">
-          <strong>📲 Instalar CCT Jogos</strong>
-          <p>No iPhone: abra no Safari → Compartilhar → Adicionar à Tela de Início.</p>
+        <div class="profile-card">
+          <div class="section-head"><div><i></i><h3>MINHA EXPERIÊNCIA</h3></div></div>
+          <button class="profile-link-row" data-profile-action="my-games" type="button"><span class="profile-row-icon"><svg class="ui-icon"><use href="#i-trophy"></use></svg></span><div><strong>Meus jogos</strong><small>Partidas das modalidades selecionadas</small></div><b>›</b></button>
+          <button class="profile-link-row" data-profile-action="my-schedule" type="button"><span class="profile-row-icon"><svg class="ui-icon"><use href="#i-calendar"></use></svg></span><div><strong>Minha programação</strong><small>Agenda personalizada pelo seu perfil</small></div><b>›</b></button>
+          <button class="profile-link-row" data-profile-action="documents" type="button"><span class="profile-row-icon"><svg class="ui-icon"><use href="#i-file"></use></svg></span><div><strong>Documentos</strong><small>Regulamentos e arquivos publicados</small></div><b>›</b></button>
+        </div>
+
+        <div class="profile-card" id="profileNotificationsCard">
+          <div class="section-head"><div><i></i><h3>NOTIFICAÇÕES</h3></div><button class="profile-alert-link" data-profile-action="active-alerts" type="button">VER AVISOS ›</button></div>
+          <label class="setting-row"><span><svg class="ui-icon"><use href="#i-alert"></use></svg></span><div><strong>Avisos importantes</strong><small>Mudança de horário, local e urgências</small></div><label class="switch"><input id="notifyUrgent" type="checkbox" checked><span class="slider"></span></label></label>
+          <label class="setting-row"><span><svg class="ui-icon"><use href="#i-trophy"></use></svg></span><div><strong>Jogos e resultados</strong><small>Lembretes e placares dos meus esportes</small></div><label class="switch"><input id="notifyGames" type="checkbox" checked><span class="slider"></span></label></label>
+          <label class="setting-row"><span><svg class="ui-icon"><use href="#i-star"></use></svg></span><div><strong>Eventos da CCT</strong><small>Festas, integrações e novidades</small></div><label class="switch"><input id="notifyEvents" type="checkbox" checked><span class="slider"></span></label></label>
+        </div>
+
+        <button class="member-entry" data-go="membros"><span class="member-entry-icon"><svg class="ui-icon"><use href="#i-lock"></use></svg></span><div><small>MEMBROS DA ATLÉTICA</small><strong>Área da Atlética</strong><p>Agenda interna, escalas, tarefas e pedidos</p></div><b>›</b></button>
+        <div class="save-feedback" id="saveFeedback">✓ Preferências salvas neste aparelho</div>
+      </section>
+
+      <section class="screen" data-screen="membros">
+        <div class="page-title"><div><i></i><div><small>ACESSO RESTRITO</small><h2>Área da Atlética</h2></div></div></div>
+        <div class="member-lock" id="memberLock">
+          <div class="lock-icon"><svg class="ui-icon"><use href="#i-lock"></use></svg></div>
+          <h3>Área exclusiva para membros</h3>
+          <p id="memberLockText">Entre com sua conta Google. O acesso só será liberado quando o mesmo e-mail estiver autorizado pela Atlética no painel administrativo.</p>
+          <div class="member-auth-account" id="memberAuthAccount" hidden></div>
+          <button class="primary" id="memberLoginBtn" type="button">ENTRAR COM GOOGLE</button>
+          <button class="member-auth-secondary" id="memberLogoutBtn" type="button" hidden>SAIR DA CONTA</button>
+        </div>
+        <div class="member-dashboard" id="memberDashboard" hidden>
+          <div class="member-summary">
+            <div><small>HOJE</small><strong id="memberTodayCount">0</strong><span>compromissos</span></div>
+            <div><small>REPRESENTAÇÕES</small><strong id="memberRepCount">0</strong><span>jogos</span></div>
+            <div><small>AVISOS</small><strong id="memberAlertCount">0</strong><span>internos</span></div>
+          </div>
+          <div class="section-head"><div><i></i><h3>ATALHOS INTERNOS</h3></div></div>
+          <div class="member-grid">
+            <button data-member-open="agenda"><span><svg class="ui-icon"><use href="#i-calendar"></use></svg></span><strong>Agenda interna</strong><small>Reuniões, montagens e compromissos</small></button>
+            <button data-member-open="representacoes"><span><svg class="ui-icon"><use href="#i-trophy"></use></svg></span><strong>Representações CCT</strong><small>Jogos em que a CCT precisa estar presente</small></button>
+            <button data-member-open="salinha"><span><svg class="ui-icon"><use href="#i-store"></use></svg></span><strong>Escala da salinha</strong><small>Horários e compromissos internos</small></button>
+            <button data-member-open="docs"><span><svg class="ui-icon"><use href="#i-file"></use></svg></span><strong>Documentos internos</strong><small>Arquivos exclusivos da equipe</small></button>
+            <button data-member-open="avisos"><span><svg class="ui-icon"><use href="#i-alert"></use></svg></span><strong>Avisos internos</strong><small>Recados exclusivos para membros</small></button>
+            <button data-member-open="pessoas"><span><svg class="ui-icon"><use href="#i-users"></use></svg></span><strong>Equipe interna</strong><small>Diretoria e contatos internos</small></button>
+            <button data-member-open="locais"><span><svg class="ui-icon"><use href="#i-map-pin"></use></svg></span><strong>Locais internos</strong><small>Pontos de encontro e organização</small></button>
+            <button data-member-open="forms"><span><svg class="ui-icon"><use href="#i-form"></use></svg></span><strong>Formulários internos</strong><small>Links e pedidos exclusivos da equipe</small></button>
+          </div>
+          <div class="section-head"><div><i></i><h3>PRÓXIMAS REPRESENTAÇÕES</h3></div></div>
+          <div class="internal-list" id="memberRepresentationsList">
+            <div class="games-empty">Nenhuma representação cadastrada.</div>
+          </div>
         </div>
       </section>
+
     </main>
 
     <nav class="bottom-nav">
-      <button class="nav-item active" data-screen="home"><span>⌂</span><small>Início</small></button>
-      <button class="nav-item" data-screen="jogos"><span>◉</span><small>Jogos</small></button>
-      <button class="nav-item" data-screen="agenda"><span>▣</span><small>Agenda</small></button>
-      <button class="nav-item" data-screen="infos"><span>ⓘ</span><small>Infos</small></button>
-      <button class="nav-item" data-screen="perfil"><span>●</span><small>Perfil</small></button>
+      <button class="active" data-go="inicio"><svg class="nav-icon"><use href="#i-home"></use></svg><span>Início</span></button>
+      <button data-go="jogos"><svg class="nav-icon"><use href="#i-trophy"></use></svg><span>Jogos</span></button>
+      <button data-go="agenda"><svg class="nav-icon"><use href="#i-calendar"></use></svg><span>Agenda</span></button>
+      <button data-go="eventos"><svg class="nav-icon"><use href="#i-star"></use></svg><span>Eventos</span></button>
+      <button data-go="perfil"><svg class="nav-icon"><use href="#i-user"></use></svg><span>Perfil</span></button>
     </nav>
   </div>
 
-  <script src="app.js"></script>
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <aside class="drawer" id="drawer">
+    <div class="drawer-head"><img src="assets/logo-cct-header.png" /><div><strong>ATLÉTICA CCT</strong><small>UDESC • JOINVILLE</small></div><button id="closeDrawer">×</button></div>
+    <div class="drawer-banner" style="--db:url('assets/logo-cct-header.png')"><div><small>DESDE 2005</small><strong>PAIXÃO QUE MOVE A CCT</strong></div></div>
+    <div class="drawer-links">
+      <div class="drawer-section-label">EXPLORE</div>
+      <button data-go="jogos"><svg class="drawer-icon"><use href="#i-trophy"></use></svg><span>Competições</span><b>›</b></button>
+      <button data-go="membros"><svg class="drawer-icon"><use href="#i-lock"></use></svg><span>Área da Atlética</span><b>›</b></button>
+      <div class="drawer-section-label">SERVIÇOS E CONTEÚDO</div>
+      <button data-open="forms"><svg class="drawer-icon"><use href="#i-form"></use></svg><span>Pedidos e Formulários</span><b>›</b></button>
+      <button data-open="media"><svg class="drawer-icon"><use href="#i-image"></use></svg><span>Mídia CCT</span><b>›</b></button>
+      <button data-open="docs"><svg class="drawer-icon"><use href="#i-file"></use></svg><span>Documentos</span><b>›</b></button>
+      <button data-open="places"><svg class="drawer-icon"><use href="#i-map-pin"></use></svg><span>Locais</span><b>›</b></button>
+      <div class="drawer-section-label">COMUNIDADE CCT</div>
+      <button data-open="partners" class="drawer-partners"><svg class="drawer-icon"><use href="#i-handshake"></use></svg><span><strong>Parceiros</strong><small>Benefícios e vantagens</small></span><b>›</b></button>
+      <button data-open="about"><svg class="drawer-icon"><use href="#i-info"></use></svg><span>Sobre a Atlética</span><b>›</b></button>
+      <button data-open="contacts"><svg class="drawer-icon"><use href="#i-mail"></use></svg><span>Contatos</span><b>›</b></button>
+      <button data-open="help"><svg class="drawer-icon"><use href="#i-help"></use></svg><span>Ajuda</span><b>›</b></button>
+    </div>
+  </aside>
+
+  <div class="modal" id="modal">
+    <div class="modal-sheet">
+      <button class="modal-close" id="modalClose">×</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <script src="firebase-config.js?v=443"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="app.js?v=469"></script>
 </body>
 </html>
