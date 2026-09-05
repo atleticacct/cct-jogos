@@ -7,6 +7,13 @@ function uiIcon(name,extraClass=''){
 }
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbwKdhs9Qfkcbnv1fub8p6QFRJ-NWDN-dRZiYj3byaK0_OdTXP3PKksSEuLO27I1hjRkDA/exec';
+const API_CACHE_KEY = 'cctApiCacheV1';
+const API_CACHE_FRESH_MS = 2 * 60 * 1000; // 2 minutos
+const API_CACHE_MAX_MS = 7 * 24 * 60 * 60 * 1000; // fallback por até 7 dias
+const API_RETRY_GUARD_MS = 20 * 1000;
+let apiAtualizacaoPromise = null;
+let ultimaTentativaApi = 0;
+
 
 const PROFILE_KEY = 'cctProfileV2';
 const MODALIDADE_IDS = {
@@ -1119,58 +1126,149 @@ function abrirSeletorCompeticao(){
   }));
 }
 
-async function carregarDadosAPI(){
+
+function aplicarDadosAPI(dados,{fonte='rede'}={}){
+  if(!dados || typeof dados!=='object') return false;
+
+  apiData.jogos=dados.jogos||[];
+  apiData.classificacao=dados.classificacao||[];
+  apiData.classificacao_geral=dados.classificacao_geral||[];
+  apiData.cenarios=dados.cenarios||[];
+  apiData.competicoes=dados.competicoes||[];
+  apiData.modalidades=dados.modalidades||[];
+  apiData.agenda=dados.agenda||[];
+  apiData.avisos=dados.avisos||[];
+  apiData.conteudos=dados.conteudos||[];
+  apiData.locais=dados.locais||[];
+  apiData.pessoas=dados.pessoas||[];
+  resolverPermissoesAuth();
+  apiData.eventos=dados.eventos||[];
+  apiData.destaques=dados.destaques||[];
+
+  if(!apiData.competicoes.some(c=>c.ID_COMPETICAO===jogosUI.competicao) && apiData.competicoes[0]){
+    jogosUI.competicao=apiData.competicoes[0].ID_COMPETICAO;
+  }
+
+  const nome=$('#competicaoNome');
+  if(nome) nome.textContent=competitionName(jogosUI.competicao);
+
+  renderizarFiltrosModalidades();
+  renderizarSeletorClassificacao();
+  renderizarAbaCompeticao();
+  renderizarProximoJogoHome();
+  renderizarModulosGerais();
+
+  console.log(`API CCT aplicada (${fonte}):`,apiData);
+  return true;
+}
+
+function lerCacheAPI(){
   try{
-    const resposta=await fetch(API_URL,{cache:'no-store'});
-    if(!resposta.ok) throw new Error('HTTP '+resposta.status);
-    const dados=await resposta.json();
+    const bruto=localStorage.getItem(API_CACHE_KEY);
+    if(!bruto) return null;
+    const cache=JSON.parse(bruto);
+    if(!cache || !cache.salvoEm || !cache.dados) return null;
+    const idade=Date.now()-Number(cache.salvoEm);
+    if(!Number.isFinite(idade) || idade<0 || idade>API_CACHE_MAX_MS){
+      localStorage.removeItem(API_CACHE_KEY);
+      return null;
+    }
+    return {...cache,idade};
+  }catch(e){
+    console.warn('Cache CCT indisponível:',e);
+    return null;
+  }
+}
 
-    apiData.jogos=dados.jogos||[];
-    apiData.classificacao=dados.classificacao||[];
-    apiData.classificacao_geral=dados.classificacao_geral||[];
-    apiData.cenarios=dados.cenarios||[];
-    apiData.competicoes=dados.competicoes||[];
-    apiData.modalidades=dados.modalidades||[];
-    apiData.agenda=dados.agenda||[];
-    apiData.avisos=dados.avisos||[];
-    apiData.conteudos=dados.conteudos||[];
-    apiData.locais=dados.locais||[];
-    apiData.pessoas=dados.pessoas||[];
-    resolverPermissoesAuth();
-    apiData.eventos=dados.eventos||[];
-    apiData.destaques=dados.destaques||[];
+function salvarCacheAPI(dados){
+  try{
+    localStorage.setItem(API_CACHE_KEY,JSON.stringify({
+      versao:1,
+      salvoEm:Date.now(),
+      dados
+    }));
+  }catch(e){
+    console.warn('Não foi possível salvar o cache CCT:',e);
+  }
+}
 
-    if(!apiData.competicoes.some(c=>c.ID_COMPETICAO===jogosUI.competicao) && apiData.competicoes[0]){
-      jogosUI.competicao=apiData.competicoes[0].ID_COMPETICAO;
+function mostrarErroAPI(){
+  const container=$('#jogosContainer');
+  if(container) container.innerHTML='<div class="games-empty">Não foi possível atualizar os jogos agora.</div>';
+  const home=$('#homeNextGameContainer');
+  if(home) home.innerHTML='<div class="games-empty">Não foi possível atualizar o próximo jogo agora.</div>';
+  const cls=$('#classificacaoContainer');
+  if(cls) cls.innerHTML='<div class="games-empty">Não foi possível atualizar a classificação agora.</div>';
+  const cen=$('#cenariosContainer');
+  if(cen) cen.innerHTML='<div class="games-empty">Não foi possível atualizar os cenários agora.</div>';
+  const des=$('#destaquesContainer');
+  if(des) des.innerHTML='<div class="games-empty">Não foi possível atualizar os destaques agora.</div>';
+}
+
+async function atualizarDadosAPIRede({silencioso=false}={}){
+  const agora=Date.now();
+  if(apiAtualizacaoPromise) return apiAtualizacaoPromise;
+  if(silencioso && agora-ultimaTentativaApi<API_RETRY_GUARD_MS) return null;
+  ultimaTentativaApi=agora;
+
+  apiAtualizacaoPromise=(async()=>{
+    try{
+      const resposta=await fetch(API_URL,{cache:'no-store'});
+      if(!resposta.ok) throw new Error('HTTP '+resposta.status);
+      const dados=await resposta.json();
+      if(dados?.sucesso===false) throw new Error(dados.erro||'API');
+      salvarCacheAPI(dados);
+      aplicarDadosAPI(dados,{fonte:'rede'});
+      return dados;
+    }catch(erro){
+      console.error('Erro ao atualizar API CCT:',erro);
+      if(!silencioso && !lerCacheAPI()) mostrarErroAPI();
+      return null;
+    }finally{
+      apiAtualizacaoPromise=null;
+    }
+  })();
+
+  return apiAtualizacaoPromise;
+}
+
+async function carregarDadosAPI(){
+  const cache=lerCacheAPI();
+
+  if(cache){
+    // Mostra imediatamente os últimos dados salvos no aparelho.
+    aplicarDadosAPI(cache.dados,{fonte:'cache local'});
+
+    // Se ainda estiver recente, não faz uma nova chamada ao Apps Script.
+    if(cache.idade<API_CACHE_FRESH_MS){
+      console.log(`Cache CCT recente (${Math.round(cache.idade/1000)}s).`);
+      return;
     }
 
-    const nome=$('#competicaoNome');
-    if(nome) nome.textContent=competitionName(jogosUI.competicao);
+    // Cache antigo: mantém a tela pronta e atualiza silenciosamente em segundo plano.
+    atualizarDadosAPIRede({silencioso:true});
+    return;
+  }
 
-    renderizarFiltrosModalidades();
-    renderizarSeletorClassificacao();
-    renderizarAbaCompeticao();
-    renderizarProximoJogoHome();
-    renderizarModulosGerais();
+  // Primeiro acesso neste aparelho: precisa buscar a API uma vez.
+  await atualizarDadosAPIRede({silencioso:false});
+}
 
-    console.log('API CCT carregada:',apiData);
-  }catch(erro){
-    console.error('Erro ao carregar API CCT:',erro);
-    const container=$('#jogosContainer');
-    if(container) container.innerHTML='<div class="games-empty">Não foi possível atualizar os jogos agora.</div>';
-    const home=$('#homeNextGameContainer');
-    if(home) home.innerHTML='<div class="games-empty">Não foi possível atualizar o próximo jogo agora.</div>';
-    const cls=$('#classificacaoContainer');
-    if(cls) cls.innerHTML='<div class="games-empty">Não foi possível atualizar a classificação agora.</div>';
-    const cen=$('#cenariosContainer');
-    if(cen) cen.innerHTML='<div class="games-empty">Não foi possível atualizar os cenários agora.</div>';
-    const des=$('#destaquesContainer');
-    if(des) des.innerHTML='<div class="games-empty">Não foi possível atualizar os destaques agora.</div>';
+function atualizarAPISeNecessario(){
+  const cache=lerCacheAPI();
+  if(!cache || cache.idade>=API_CACHE_FRESH_MS){
+    atualizarDadosAPIRede({silencioso:true});
   }
 }
 
 bindCompeticaoUI();
 carregarDadosAPI();
+
+// Sem polling contínuo: ao voltar para o app, atualiza apenas se o cache tiver 2+ minutos.
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible') atualizarAPISeNecessario();
+});
+window.addEventListener('focus',atualizarAPISeNecessario);
 
 function go(screen){
   $$('.screen').forEach(x=>x.classList.toggle('active',x.dataset.screen===screen));
