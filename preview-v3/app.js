@@ -322,7 +322,8 @@ function jogoEhRepresentacaoCCT(jogo){
 function representanteHtml(jogo){
   if(!jogoTemCCT(jogo)) return '';
   const d=representanteModalidadeDados(jogo);
-  return pessoaJogoHtml(d.nome,d.foto,'REPRESENTANTE DA MODALIDADE','is-modality-rep','Representante a definir');
+  if(!d.nome) return '';
+  return pessoaJogoHtml(d.nome,d.foto,'REPRESENTANTE DA MODALIDADE','is-modality-rep');
 }
 
 function representacaoCctHtml(jogo){
@@ -1354,9 +1355,21 @@ function aplicarIdentidadePerfil(){
   const name=$('#profileNameDisplay');
   const badge=$('#profileRoleBadge');
   const avatar=$('#profileAvatarImage');
+  const avatarWrap=avatar?.closest('.profile-avatar-wrap');
   if(name) name.textContent=(p.name||'Seu nome').trim()||'Seu nome';
   if(badge) badge.textContent=roleLabel(p.role);
-  if(avatar) avatar.src=p.avatar||'assets/representante-demo.png';
+  if(avatar){
+    const foto=String(p.avatar||'').trim();
+    if(foto){
+      avatar.src=foto;
+      avatar.hidden=false;
+      avatarWrap?.classList.remove('is-empty');
+    }else{
+      avatar.removeAttribute('src');
+      avatar.hidden=true;
+      avatarWrap?.classList.add('is-empty');
+    }
+  }
   const access=$('#profileAccessBadges');
   if(access) access.innerHTML=statusAcessoHtml();
 }
@@ -1791,7 +1804,7 @@ function atualizarCabecalhoAgenda(modo){
   if(icon) icon.innerHTML=uiIcon('calendar');
   if(introTitle) introTitle.textContent=personalizada?'Sua agenda personalizada':'Programação da CCT';
   if(introText){
-    if(!personalizada) introText.textContent='Treinos, atendimentos, reuniões e compromissos publicados pelo painel.';
+    if(!personalizada) introText.textContent='Acompanhe treinos, reuniões, atendimentos e outros compromissos da CCT.';
     else if(authMembroAprovado()) introText.textContent='Esportes, compromissos internos, representações e eventos autorizados para sua conta.';
     else if(role==='torcedor') introText.textContent='Jogos que você acompanha e eventos da CCT.';
     else introText.textContent='Treinos, jogos e eventos relacionados ao seu perfil.';
@@ -1817,7 +1830,7 @@ function renderizarAgenda(){
 
   if(contexto) contexto.innerHTML='';
   const linhas=somentePublicos(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
-  c.innerHTML=linhas.length?agendaAgrupadaHtml(linhas):'<div class="games-empty">Nenhum compromisso público na agenda.</div>';
+  c.innerHTML=linhas.length?agendaAgrupadaHtml(linhas):'<div class="games-empty"><strong>Nenhum compromisso agendado no momento.</strong><span>Quando houver treinos, reuniões, atendimentos ou outras atividades da CCT, elas aparecerão aqui.</span></div>';
   const h=$('#homeAgendaContainer');
   if(h){
     const hoje=new Date();
@@ -1825,7 +1838,9 @@ function renderizarAgenda(){
     const temHoje=itens.length>0;
     if(!itens.length) itens=linhas.filter(a=>dataVal(a.DATA,a.HORA_INICIO)>=Date.now()).slice(0,3);
     const homeTitle=$('#homeAgendaTitle'); if(homeTitle) homeTitle.textContent=temHoje?'AGENDA DE HOJE':'PRÓXIMOS NA AGENDA';
-    h.innerHTML=itens.length?itens.slice(0,3).map(agendaItemHtml).join(''):'<div class="games-empty">Nada na agenda pública por enquanto.</div>';
+    h.innerHTML=itens.length?itens.slice(0,3).map(agendaItemHtml).join(''):'';
+    const section=$('#homeAgendaSection');
+    if(section) section.hidden=!itens.length;
   }
 }
 
@@ -1933,7 +1948,7 @@ function abrirContatos(escopo='publico'){
   const base=escopo==='membros'?somenteMembros(apiData.pessoas):somentePublicos(apiData.pessoas);
   const itens=base.filter(x=>String(x.ATIVO||'SIM').toUpperCase()!=='NÃO');
   const interno=escopo==='membros';
-  mc.innerHTML=`<div class="hub-head"><span class="chip">${interno?'MEMBROS':'CONTATOS CCT'}</span><div class="hub-title"><span>${uiIcon('mail')}</span><div><h2>${interno?'Equipe interna':'Fale com a CCT'}</h2><p>${interno?'Diretoria, responsáveis e contatos de organização.':'Encontre rapidamente a pessoa certa para esportes, eventos, parcerias ou atendimento geral.'}</p></div></div></div><div class="contacts-hub-list">${itens.length?itens.map(p=>{const foto=normalizeImageUrl(p.FOTO_URL);const whats=linkSeguro(p.LINK_WHATSAPP);const cargo=interno?(p.CARGO||p.TIPO||''):[p.CARGO,p.TIPO].filter(Boolean).join(' • ');const rotulo=interno?'':(p.TIPO||'CCT');return `<article class="contact-hub-card">${foto?`<img src="${escapeHtml(foto)}" alt="">`:`<span class="contact-hub-avatar">${escapeHtml((p.NOME||'C').charAt(0))}</span>`}<div>${rotulo?`<small>${escapeHtml(rotulo)}</small>`:''}<strong>${escapeHtml(p.NOME||'Contato CCT')}</strong>${cargo?`<p>${escapeHtml(cargo)}</p>`:''}<div class="contact-actions">${whats?`<a href="${escapeHtml(whats)}" target="_blank" rel="noopener">WHATSAPP ›</a>`:''}${p.EMAIL?`<a href="mailto:${escapeHtml(p.EMAIL)}">E-MAIL ›</a>`:''}</div></div></article>`}).join(''):hubEmpty('mail','Nenhum contato publicado','Os canais oficiais da CCT aparecerão aqui.')}</div>`;
+  mc.innerHTML=`<div class="hub-head"><span class="chip">${interno?'MEMBROS':'CONTATOS CCT'}</span><div class="hub-title"><span>${uiIcon('mail')}</span><div><h2>${interno?'Equipe interna':'Fale com a CCT'}</h2><p>${interno?'Diretoria, responsáveis e contatos de organização.':'Encontre rapidamente a pessoa certa para esportes, eventos, parcerias ou atendimento geral.'}</p></div></div></div><div class="contacts-hub-list">${itens.length?itens.map(p=>{const foto=normalizeImageUrl(p.FOTO_URL);const whats=linkSeguro(p.LINK_WHATSAPP);const cargo=[p.CARGO,p.TIPO].filter(Boolean).join(' • ');return `<article class="contact-hub-card">${foto?`<img src="${escapeHtml(foto)}" alt="">`:`<span class="contact-hub-avatar">${escapeHtml((p.NOME||'C').charAt(0))}</span>`}<div><small>${escapeHtml(p.TIPO||'CCT')}</small><strong>${escapeHtml(p.NOME||'Contato CCT')}</strong>${cargo?`<p>${escapeHtml(cargo)}</p>`:''}<div class="contact-actions">${whats?`<a href="${escapeHtml(whats)}" target="_blank" rel="noopener">WHATSAPP ›</a>`:''}${p.EMAIL?`<a href="mailto:${escapeHtml(p.EMAIL)}">E-MAIL ›</a>`:''}</div></div></article>`}).join(''):hubEmpty('mail','Nenhum contato publicado','Os canais oficiais da CCT aparecerão aqui.')}</div>`;
   modal.classList.add('open'); closeDrawer();
 }
 function renderizarHeroHome(){
@@ -1957,12 +1972,48 @@ function mediaTipoMeta(x){
 }
 function renderizarMidiaHome(){
   const c=$('#homeMediaContainer'); if(!c)return; const itens=mediaItensPublicos().slice(0,2);
+  const section=$('#homeMediaSection');
   c.classList.toggle('single-item',itens.length===1);
-  if(!itens.length){c.innerHTML='<div class="games-empty media-empty">Nenhum conteúdo de mídia publicado.</div>';return;}
+  if(!itens.length){c.innerHTML=''; if(section)section.hidden=true; return;}
+  if(section)section.hidden=false;
   c.innerHTML=itens.map(x=>{const [ico,cta]=mediaTipoMeta(x);const img=normalizeImageUrl(x.IMAGEM_URL)||'assets/volei-praia-1.jpg';const link=linkSeguro(x.LINK);return `<article class="home-media-card ${link?'is-clickable':''}" style="--media:url('${img.replace(/'/g,"%27")}')" ${link?`data-media-link="${escapeHtml(link)}"`:''}><span>${ico}</span><div><strong>${escapeHtml(x.TITULO||'Mídia CCT')}</strong>${link?`<small>${escapeHtml(x.TEXTO_BOTAO||cta)}</small>`:`<small>${escapeHtml(x.DESCRICAO||'Conteúdo da CCT')}</small>`}</div></article>`;}).join('');
   c.querySelectorAll('[data-media-link]').forEach(el=>el.addEventListener('click',()=>window.open(el.dataset.mediaLink,'_blank','noopener')));
 }
 function renderizarCompeticoesHome(){ const c=$('#homeCompetitionsContainer'); if(!c)return; const comps=apiData.competicoes.filter(x=>!('PUBLICADO'in x)||isSim(x.PUBLICADO)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)); c.innerHTML=comps.length?comps.map(x=>`<article class="visual-card competition-home-card" style="--bg:url('${normalizeImageUrl(x.IMAGEM_URL)||'assets/levantamento-1.jpg'}')" data-home-competition="${escapeHtml(x.ID_COMPETICAO)}"><div><span class="chip ${isSim(x.DESTAQUE)?'live':''}">${escapeHtml(x.STATUS||'COMPETIÇÃO')}</span><h4>${escapeHtml(x.NOME||x.ID_COMPETICAO)}</h4><p>${escapeHtml(x.ANO||'')}</p></div></article>`).join(''):'<div class="games-empty">Nenhuma competição publicada.</div>'; c.querySelectorAll('[data-home-competition]').forEach(el=>el.addEventListener('click',()=>{jogosUI.competicao=el.dataset.homeCompetition; go('jogos'); renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();})); }
+
+
+function renderizarAtalhosUteisHome(){
+  const section=$('#homeUsefulSection');
+  const container=$('#homeUsefulContainer');
+  if(!section||!container) return;
+
+  const faltandoConteudoHome=[
+    !somentePublicos(apiData.agenda).length,
+    !(apiData.eventos||[]).length,
+    !mediaItensPublicos().length
+  ].some(Boolean);
+
+  if(!faltandoConteudoHome){ section.hidden=true; container.innerHTML=''; return; }
+
+  const atalhos=[];
+  if(conteudosFiltrados('DOCUMENT','publico').length) atalhos.push({id:'docs',icone:'file',titulo:'Documentos',texto:'Regulamentos e arquivos oficiais'});
+  if(conteudosFiltrados('FORM','publico').length) atalhos.push({id:'forms',icone:'form',titulo:'Pedidos e Formulários',texto:'Acesse pedidos e formulários ativos'});
+  if(parceirosPublicos().length) atalhos.push({id:'partners',icone:'handshake',titulo:'Parceiros',texto:'Conheça quem fortalece a CCT'});
+  const locais=somentePublicos(apiData.locais).filter(x=>!('PUBLICADO' in x)||isSim(x.PUBLICADO));
+  if(locais.length) atalhos.push({id:'places',icone:'map-pin',titulo:'Locais',texto:'Veja sedes e locais das competições'});
+
+  if(!atalhos.length){ section.hidden=true; container.innerHTML=''; return; }
+
+  section.hidden=false;
+  container.innerHTML=atalhos.slice(0,4).map(a=>`<button class="home-useful-card" type="button" data-home-useful="${a.id}"><span>${uiIcon(a.icone)}</span><div><strong>${escapeHtml(a.titulo)}</strong><small>${escapeHtml(a.texto)}</small></div><b>›</b></button>`).join('');
+  container.querySelectorAll('[data-home-useful]').forEach(btn=>btn.addEventListener('click',()=>{
+    const id=btn.dataset.homeUseful;
+    if(id==='docs') return abrirConteudos('DOCUMENT','Documentos');
+    if(id==='forms') return abrirConteudos('FORM','Pedidos e Formulários');
+    if(id==='partners') return abrirParceiros();
+    if(id==='places') return abrirLocais('publico');
+  }));
+}
 
 function abrirAgendaMembros(filtro=''){
   if(!authMembroAprovado()){ atualizarAcessoAreaMembros(); go('membros'); return; }
@@ -2050,12 +2101,13 @@ function renderizarModulosGerais(){
   const featured=cctEvents.find(e=>isSim(e.DESTAQUE))||cctEvents[0];
 
   if(home){
-    home.innerHTML=featured
-      ? eventCard(featured,true)
-      : '<div class="event-empty">Novos eventos em breve.</div>';
+    home.innerHTML=featured ? eventCard(featured,true) : '';
+    const section=$('#homeEventSection');
+    if(section) section.hidden=!featured;
   }
 
   bindEventButtons();
+  renderizarAtalhosUteisHome();
 }
 function abrirAjuda(){
   const contato=somentePublicos(apiData.pessoas).find(p=>String(p.ATIVO||'SIM').toUpperCase()!=='NÃO' && (linkSeguro(p.LINK_WHATSAPP)||p.EMAIL));

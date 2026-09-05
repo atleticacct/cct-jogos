@@ -90,26 +90,35 @@
         </div>
         <div class="horizontal" id="homeCompetitionsContainer"><div class="games-loading">Carregando competições...</div></div>
 
-        <div class="section-head">
-          <div><i></i><h3 id="homeAgendaTitle">AGENDA DE HOJE</h3></div>
-          <button data-go="agenda">VER AGENDA ›</button>
-        </div>
-        <div class="timeline mini" id="homeAgendaContainer"><div class="games-loading">Carregando agenda...</div></div>
-
-        <div class="section-head">
-          <div><i></i><h3>EVENTOS</h3></div>
-          <button data-go="eventos">VER TODOS ›</button>
-        </div>
-        <div id="homeEventContainer" class="events-dynamic">
-          <div class="event-loading">Carregando próximo evento...</div>
+        <div id="homeAgendaSection" class="home-optional-section" hidden>
+          <div class="section-head">
+            <div><i></i><h3 id="homeAgendaTitle">AGENDA DE HOJE</h3></div>
+            <button data-go="agenda">VER AGENDA ›</button>
+          </div>
+          <div class="timeline mini" id="homeAgendaContainer"></div>
         </div>
 
-        <div class="section-head">
-          <div><i></i><h3>MÍDIA CCT</h3></div>
-          <button data-open="media">VER TUDO ›</button>
+        <div id="homeEventSection" class="home-optional-section" hidden>
+          <div class="section-head">
+            <div><i></i><h3>EVENTOS</h3></div>
+            <button data-go="eventos">VER TODOS ›</button>
+          </div>
+          <div id="homeEventContainer" class="events-dynamic"></div>
         </div>
-        <div class="media-grid" id="homeMediaContainer">
-          <div class="games-loading">Carregando mídia...</div>
+
+        <div id="homeMediaSection" class="home-optional-section" hidden>
+          <div class="section-head">
+            <div><i></i><h3>MÍDIA CCT</h3></div>
+            <button data-open="media">VER TUDO ›</button>
+          </div>
+          <div class="media-grid" id="homeMediaContainer"></div>
+        </div>
+
+        <div id="homeUsefulSection" class="home-optional-section" hidden>
+          <div class="section-head">
+            <div><i></i><h3>ACESSOS ÚTEIS</h3></div>
+          </div>
+          <div id="homeUsefulContainer" class="home-useful-grid"></div>
         </div>
       </section>
 
@@ -187,7 +196,7 @@
 
       <section class="screen" data-screen="agenda">
         <div class="page-title"><div><i></i><div><small id="agendaEyebrow">CCT</small><h2 id="agendaTitle">Agenda</h2></div></div></div>
-        <div class="panel-intro" id="agendaIntro"><span id="agendaIntroIcon">📅</span><div><strong id="agendaIntroTitle">Programação da CCT</strong><small id="agendaIntroText">Treinos, atendimentos, reuniões e compromissos publicados pelo painel.</small></div></div>
+        <div class="panel-intro" id="agendaIntro"><span id="agendaIntroIcon">📅</span><div><strong id="agendaIntroTitle">Programação da CCT</strong><small id="agendaIntroText">Acompanhe treinos, reuniões, atendimentos e outros compromissos da CCT.</small></div></div>
         <div id="agendaProfileContext"></div>
         <div class="timeline" id="agendaContainer"><div class="games-loading">Carregando agenda...</div></div>
       </section>
@@ -202,8 +211,8 @@
       <section class="screen" data-screen="perfil">
         <div class="profile-hero profile-hero-new">
           <button class="profile-avatar-button" id="profileAvatarBtn" type="button" aria-label="Alterar foto do perfil">
-            <span class="profile-avatar-wrap">
-              <img id="profileAvatarImage" src="assets/representante-demo.png" alt="Foto do perfil">
+            <span class="profile-avatar-wrap is-empty">
+              <img id="profileAvatarImage" alt="Foto do perfil" hidden>
               <span class="profile-online"></span>
               <span class="profile-camera" aria-hidden="true">＋</span>
             </span>

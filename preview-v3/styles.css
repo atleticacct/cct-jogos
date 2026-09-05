@@ -925,3 +925,22 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
 .classification-group-title{align-items:center}
 .classification-group-title strong{line-height:1.2}
 #destaquesContainer .games-empty,#classificacaoContainer .games-empty,#cenariosContainer .games-empty{line-height:1.5}
+
+
+/* V4.6.8 — home sem seções vazias + perfil sem foto padrão */
+.home-optional-section[hidden]{display:none!important}
+.home-useful-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:20px}
+.home-useful-card{min-height:94px;border:1px solid #28372d;border-radius:18px;background:linear-gradient(145deg,#101a13,#0b100d);color:#fff;padding:14px;text-align:left;display:grid;grid-template-columns:38px 1fr auto;gap:10px;align-items:center}
+.home-useful-card>span{width:38px;height:38px;border-radius:12px;background:#18301f;display:grid;place-items:center;color:#79e69a}
+.home-useful-card>span .ui-icon{width:20px;height:20px}
+.home-useful-card strong{display:block;font-size:11px;line-height:1.25}
+.home-useful-card small{display:block;margin-top:4px;color:#78867d;font-size:8px;line-height:1.35}
+.home-useful-card>b{color:var(--green);font-size:19px}
+.profile-avatar-wrap{width:76px;height:76px;border-radius:50%}
+.profile-avatar-wrap.is-empty{border:2px dashed #3c754d;background:radial-gradient(circle at 50% 45%,rgba(70,125,84,.14),transparent 58%),#0e1711}
+.profile-avatar-wrap.is-empty .profile-online{display:none}
+.profile-avatar-wrap img[hidden]{display:none!important}
+@media(max-width:370px){
+  .home-useful-grid{grid-template-columns:1fr}
+  .profile-avatar-wrap{width:68px;height:68px}
+}
