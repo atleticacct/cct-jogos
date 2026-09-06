@@ -1029,3 +1029,20 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
   width:100%;
   box-sizing:border-box;
 }
+
+/* =========================================================
+   V4.7.7 — SAFE AREA iOS / PWA instalado
+   Evita que menu, marca e sino fiquem sob a barra de status.
+   Em navegadores sem safe-area, env() vale 0 e o layout não muda.
+   ========================================================= */
+.topbar{
+  height:calc(76px + env(safe-area-inset-top, 0px));
+  padding-top:calc(10px + env(safe-area-inset-top, 0px));
+}
+
+/* O menu lateral também precisa respeitar o recorte/status bar
+   quando o app é aberto pela Tela de Início do iPhone. */
+.drawer-head{
+  height:calc(78px + env(safe-area-inset-top, 0px));
+  padding-top:calc(12px + env(safe-area-inset-top, 0px));
+}
