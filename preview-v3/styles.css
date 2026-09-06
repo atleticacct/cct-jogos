@@ -1015,3 +1015,17 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
   .scenario-meta-box>small{align-items:flex-start}
   .scenario-meta-type{font-size:6px!important}
 }
+
+
+/* =========================================================
+   V4.7.6 — Agenda vazia igual ao estado vazio de Eventos
+   ========================================================= */
+#agendaContainer.agenda-empty-events{
+  margin-top:0!important;
+  display:grid;
+  gap:13px;
+}
+#agendaContainer.agenda-empty-events>.event-empty{
+  width:100%;
+  box-sizing:border-box;
+}

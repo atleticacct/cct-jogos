@@ -1897,10 +1897,18 @@ function atualizarCabecalhoAgenda(modo){
 function renderizarAgenda(){
   const c=$('#agendaContainer'); if(!c)return;
   const contexto=$('#agendaProfileContext');
+  const intro=$('#agendaIntro');
   atualizarCabecalhoAgenda(agendaUI.modo);
+
+  const aplicarEstadoAgenda=(temItens)=>{
+    c.classList.toggle('timeline',!!temItens);
+    c.classList.toggle('events-dynamic',!temItens);
+    c.classList.toggle('agenda-empty-events',!temItens);
+  };
 
   if(agendaUI.modo==='minha'){
     const info=programacaoPersonalizada();
+    if(intro) intro.hidden=false;
     if(contexto){
       contexto.innerHTML=programacaoContextoHtml(info);
       contexto.querySelector('[data-agenda-general]')?.addEventListener('click',()=>{
@@ -1908,13 +1916,25 @@ function renderizarAgenda(){
       });
       contexto.querySelector('[data-go-member-area]')?.addEventListener('click',()=>go('membros'));
     }
-    c.innerHTML=info.itens.length?agendaAgrupadaHtml(info.itens):'<div class="games-empty"><strong>Sua programação ainda está vazia.</strong><span>Selecione modalidades no Perfil ou aguarde novos jogos, treinos e eventos.</span></div>';
+    aplicarEstadoAgenda(info.itens.length>0);
+    c.innerHTML=info.itens.length
+      ? agendaAgrupadaHtml(info.itens)
+      : '<div class="event-empty">Nenhum compromisso publicado no momento.</div>';
     return;
   }
 
   if(contexto) contexto.innerHTML='';
   const linhas=somentePublicos(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
-  c.innerHTML=linhas.length?agendaAgrupadaHtml(linhas):'<div class="agenda-empty-clean"><span>'+uiIcon('calendar','agenda-empty-icon')+'</span><strong>Nenhum compromisso agendado.</strong><small>Quando houver uma nova programação da CCT, ela aparecerá aqui.</small></div>';
+  const temAgenda=linhas.length>0;
+
+  // Quando a agenda geral estiver vazia, ela usa exatamente o mesmo padrão visual de Eventos:
+  // somente título da tela + cartão simples de estado vazio, sem o bloco introdutório.
+  if(intro) intro.hidden=!temAgenda;
+  aplicarEstadoAgenda(temAgenda);
+  c.innerHTML=temAgenda
+    ? agendaAgrupadaHtml(linhas)
+    : '<div class="event-empty">Nenhum compromisso publicado no momento.</div>';
+
   const h=$('#homeAgendaContainer');
   if(h){
     const hoje=new Date();
