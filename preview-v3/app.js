@@ -921,6 +921,35 @@ function cenarioGeralHtml(){
     </section>`;
 }
 
+function primeiraFraseCenario(texto,limite=110){
+  const t=String(texto||'').replace(/\s+/g,' ').trim();
+  if(!t) return '';
+  const m=t.match(/^(.+?[.!?])(?:\s|$)/);
+  let frase=(m?m[1]:t).trim();
+  if(frase.length>limite) frase=frase.slice(0,limite-1).trimEnd()+'…';
+  return frase;
+}
+function resumoCenarioAtual(c){
+  const t=String(c.CENARIO_ATUAL||'').replace(/\s+/g,' ').trim();
+  const pos=t.match(/A CCT est[aá] em\s+([^.,]+?)\s+com\s+([0-9]+)\s+pontos?/i);
+  if(pos){
+    const coloc=pos[1].replace(/\s+do\s+Grupo\s+/i,' • Grupo ');
+    return `${coloc} • ${pos[2]} pts`;
+  }
+  return primeiraFraseCenario(t,100)||'Aguardando atualização.';
+}
+function resumoCenarioPrecisa(c){
+  const meta=String(c.META_TECNICA||'').replace(/\s+/g,' ').trim();
+  if(meta) return meta;
+  const status=String(c.STATUS||'').toUpperCase();
+  if(status.includes('ELIMIN')) return 'Campanha encerrada.';
+  if(status.includes('CLASSIFIC')||status.includes('GARANT')) return 'Vaga garantida.';
+  return primeiraFraseCenario(c.O_QUE_PRECISA,125)||'Aguardando definição.';
+}
+function tipoMetaCenario(c){
+  return String(c.TIPO_META||'').trim().toUpperCase();
+}
+
 function renderizarCenarios(){
   const container=$('#cenariosContainer');
   if(!container) return;
@@ -939,28 +968,55 @@ function renderizarCenarios(){
   }
 
   if(introTitle) introTitle.textContent='Situação da CCT';
-  if(introText) introText.textContent='O que cada modalidade precisa para avançar.';
+  if(introText) introText.textContent='Resumo rápido de cada modalidade.';
 
   const linhas=apiData.cenarios
     .filter(c=>c.ID_COMPETICAO===jogosUI.competicao)
     .sort((a,b)=>modalidadeNome(a.ID_MODALIDADE).localeCompare(modalidadeNome(b.ID_MODALIDADE),'pt-BR'));
 
-  container.innerHTML=linhas.length ? linhas.map(c=>`
-    <article class="scenario-detail-card" data-scenario-card="${escapeHtml(c.ID_MODALIDADE||'')}">
-      <div class="scenario-detail-head">
+  container.innerHTML=linhas.length ? linhas.map(c=>{
+    const atual=resumoCenarioAtual(c);
+    const precisa=resumoCenarioPrecisa(c);
+    const temDetalhes=!!(c.CENARIO_ATUAL||c.O_QUE_PRECISA||c.PROXIMO_JOGO);
+    return `
+    <article class="scenario-detail-card scenario-compact-card" data-scenario-card="${escapeHtml(c.ID_MODALIDADE||'')}">
+      <div class="scenario-detail-head scenario-compact-head">
         <div>
           <span class="chip">${escapeHtml(modalidadeNome(c.ID_MODALIDADE))}</span>
           <h3>${escapeHtml(c.STATUS||'Situação')}</h3>
         </div>
         <span class="target">${uiIcon('target','scenario-card-target-icon')}</span>
       </div>
-      <div class="scenario-detail-body">
-        <div><small>CENÁRIO ATUAL</small><p>${escapeHtml(c.CENARIO_ATUAL||'Aguardando atualização.')}</p></div>
-        <div><small>O QUE A CCT PRECISA</small><strong>${escapeHtml(c.O_QUE_PRECISA||'Aguardando definição.')}</strong></div>
-        ${c.PROXIMO_JOGO?`<div class="scenario-next"><small>PRÓXIMO JOGO</small>${proximoJogoCenarioHtml(c.PROXIMO_JOGO)}</div>`:''}
+      <div class="scenario-quick">
+        <div><small>AGORA</small><strong>${escapeHtml(atual)}</strong></div>
+        <div class="scenario-meta-box">
+          <small>META TÉCNICA ${tipoMetaCenario(c)?`<span class="scenario-meta-type">${escapeHtml(tipoMetaCenario(c))}</span>`:''}</small>
+          <strong>${escapeHtml(precisa)}</strong>
+          ${c.RIVAL_REFERENCIA?`<span class="scenario-meta-rival">Referência: ${escapeHtml(c.RIVAL_REFERENCIA)}</span>`:''}
+        </div>
+        ${c.PROXIMO_JOGO?`<div class="scenario-quick-next"><small>PRÓXIMO JOGO</small>${proximoJogoCenarioHtml(c.PROXIMO_JOGO)}</div>`:''}
       </div>
-    </article>
-  `).join('') : '<div class="games-empty">Nenhum cenário de classificação publicado para esta competição.</div>';
+      ${temDetalhes?`<button class="scenario-toggle" type="button" data-scenario-toggle aria-expanded="false">VER CONTEXTO <b>⌄</b></button>
+      <div class="scenario-detail-body scenario-collapsible" data-scenario-details hidden>
+        ${c.DETALHE_META?`<div><small>COMO FOI CALCULADO</small><p>${escapeHtml(c.DETALHE_META)}</p></div>`:''}
+        ${c.CENARIO_ATUAL?`<div><small>CENÁRIO ATUAL</small><p>${escapeHtml(c.CENARIO_ATUAL)}</p></div>`:''}
+        ${(!c.META_TECNICA&&c.O_QUE_PRECISA)?`<div><small>REGRA ATUAL</small><strong>${escapeHtml(c.O_QUE_PRECISA)}</strong></div>`:''}
+      </div>`:''}
+    </article>`;
+  }).join('') : '<div class="games-empty">Nenhum cenário de classificação publicado para esta competição.</div>';
+
+  container.querySelectorAll('[data-scenario-toggle]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const card=btn.closest('[data-scenario-card]');
+      const detalhes=card?.querySelector('[data-scenario-details]');
+      if(!detalhes) return;
+      const abrir=detalhes.hidden;
+      detalhes.hidden=!abrir;
+      card.classList.toggle('is-expanded',abrir);
+      btn.setAttribute('aria-expanded',String(abrir));
+      btn.innerHTML=abrir?'OCULTAR CONTEXTO <b>⌃</b>':'VER CONTEXTO <b>⌄</b>';
+    });
+  });
 }
 
 
@@ -1033,6 +1089,14 @@ function abrirCenarioModalidade(idModalidade){
     const card=document.querySelector(`[data-scenario-card="${CSS.escape(idModalidade)}"]`);
     if(card){
       card.classList.add('scenario-focus');
+      const detalhes=card.querySelector('[data-scenario-details]');
+      const toggle=card.querySelector('[data-scenario-toggle]');
+      if(detalhes&&toggle){
+        detalhes.hidden=false;
+        card.classList.add('is-expanded');
+        toggle.setAttribute('aria-expanded','true');
+        toggle.innerHTML='OCULTAR DETALHES <b>⌃</b>';
+      }
       card.scrollIntoView({behavior:'smooth',block:'center'});
       setTimeout(()=>card.classList.remove('scenario-focus'),1800);
     }
@@ -1305,7 +1369,27 @@ modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('o
 $('#alertBtn').onclick=()=>abrirAvisos();
 
 setTimeout(()=>$('#splash').classList.add('hide'),1500);
-if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}
+if('serviceWorker' in navigator){
+  window.addEventListener('load',async()=>{
+    try{
+      const reg=await navigator.serviceWorker.register('sw.js?v=475',{updateViaCache:'none'});
+      reg.update().catch(()=>{});
+      const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
+      if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
+      reg.addEventListener('updatefound',()=>{
+        const worker=reg.installing;
+        worker?.addEventListener('statechange',()=>ativar(worker));
+      });
+      navigator.serviceWorker.addEventListener('controllerchange',()=>{
+        const chave='cctSwReloadV475';
+        if(sessionStorage.getItem(chave)==='1') return;
+        sessionStorage.setItem(chave,'1');
+        location.reload();
+      });
+    }catch(e){ console.warn('Service Worker indisponível:',e); }
+  });
+}
+
 
 function acessoMembroPreviewAtivo(){ return authMembroAprovado(); }
 
@@ -1830,7 +1914,7 @@ function renderizarAgenda(){
 
   if(contexto) contexto.innerHTML='';
   const linhas=somentePublicos(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
-  c.innerHTML=linhas.length?agendaAgrupadaHtml(linhas):'<div class="games-empty"><strong>Nenhum compromisso agendado no momento.</strong><span>Quando houver treinos, reuniões, atendimentos ou outras atividades da CCT, elas aparecerão aqui.</span></div>';
+  c.innerHTML=linhas.length?agendaAgrupadaHtml(linhas):'<div class="agenda-empty-clean"><span>'+uiIcon('calendar','agenda-empty-icon')+'</span><strong>Nenhum compromisso agendado.</strong><small>Quando houver uma nova programação da CCT, ela aparecerá aqui.</small></div>';
   const h=$('#homeAgendaContainer');
   if(h){
     const hoje=new Date();

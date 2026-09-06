@@ -944,3 +944,74 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
   .home-useful-grid{grid-template-columns:1fr}
   .profile-avatar-wrap{width:68px;height:68px}
 }
+
+
+/* V4.6.9 — Agenda vazia + Cenários compactos */
+.timeline>.games-empty{
+  display:block!important;
+  grid-template-columns:none!important;
+  min-height:0!important;
+  width:100%;
+  box-sizing:border-box;
+}
+.agenda-empty-state{padding:22px 16px!important;text-align:center!important}
+.agenda-empty-state strong{margin:0!important;font-size:12px!important}
+
+.scenario-compact-card{padding:14px 15px}
+.scenario-compact-head{align-items:center}
+.scenario-compact-head h3{margin-top:7px;font-size:16px}
+.scenario-quick{display:grid;gap:8px;margin-top:12px}
+.scenario-quick>div{
+  background:#0d120f;border:1px solid #243028;border-radius:12px;padding:10px 11px;
+}
+.scenario-quick small{
+  display:block;color:#71d98f;font-size:7.5px;font-weight:900;letter-spacing:.85px;margin-bottom:4px;
+}
+.scenario-quick strong{display:block;font-size:11.5px;line-height:1.35;color:#eef4ef}
+.scenario-quick-next span{display:block;font-size:11px;font-weight:800}
+.scenario-quick-next span small{color:#7f8c83;margin-top:3px;letter-spacing:0;font-size:8px}
+.scenario-toggle{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:10px;padding:9px 2px 0;border:0;border-top:1px solid #243028;background:transparent;
+  color:#8ee6a8;font-size:8px;font-weight:900;letter-spacing:.7px;cursor:pointer;
+}
+.scenario-toggle b{font-size:14px;line-height:1}
+.scenario-collapsible{margin-top:10px}
+.scenario-collapsible[hidden]{display:none!important}
+.scenario-compact-card:not(.is-expanded) .scenario-detail-body{display:none}
+@media(max-width:390px){
+  .scenario-quick strong{font-size:11px}
+  .scenario-compact-head h3{font-size:15px}
+}
+
+
+/* =========================================================
+   V4.7.5 — Agenda limpa + Meta Técnica nos Cenários
+   ========================================================= */
+.agenda-empty-clean{
+  width:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:150px;padding:24px 20px;text-align:center;border:1px solid #273029;border-radius:18px;
+  background:#101512;color:#fff;
+}
+.agenda-empty-clean>span{
+  width:44px;height:44px;border-radius:14px;display:grid;place-items:center;margin-bottom:10px;
+  background:#17291d;border:1px solid #31573d;color:#83e5a0;
+}
+.agenda-empty-clean .agenda-empty-icon{width:22px;height:22px}
+.agenda-empty-clean strong{display:block;font-size:13px;line-height:1.3}
+.agenda-empty-clean small{display:block;max-width:270px;margin-top:6px;color:#7e8b83;font-size:9px;line-height:1.45}
+
+.scenario-meta-box{border-color:#315b3d!important;background:linear-gradient(145deg,#102417,#0c130f)!important}
+.scenario-meta-box>small{display:flex!important;align-items:center;justify-content:space-between;gap:8px}
+.scenario-meta-type{
+  display:inline-flex!important;align-items:center;width:auto!important;margin:0!important;padding:3px 6px;border-radius:999px;
+  background:#183521;color:#90e8a8!important;font-size:6.5px!important;letter-spacing:.55px!important;white-space:nowrap
+}
+.scenario-meta-rival{display:block;margin-top:6px;color:#748178;font-size:8px;font-weight:750}
+.scenario-quick strong{font-size:12px;line-height:1.42}
+.scenario-toggle{margin-top:9px}
+@media(max-width:390px){
+  .agenda-empty-clean{min-height:132px;padding:20px 16px}
+  .scenario-meta-box>small{align-items:flex-start}
+  .scenario-meta-type{font-size:6px!important}
+}
