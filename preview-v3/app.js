@@ -1077,6 +1077,431 @@ function tipoMetaCenario(c){
   return String(c.TIPO_META||'').trim().toUpperCase();
 }
 
+/* V4.8.1 — Simulador local de cenários do Vôlei
+ * - roda somente no aparelho, sem escrever na planilha;
+ * - fixa o resultado escolhido para o próximo jogo da CCT;
+ * - mantém os demais jogos em aberto e testa as combinações possíveis por grupo;
+ * - usa 2x0 = 3 pts, 2x1 = 2 pts, 1x2 = 1 pt, 0x2 = 0 pt;
+ * - quando o resultado em sets não resolve critérios posteriores, informa empate técnico.
+ */
+const SIM_VOLEI_RESULTADOS_CCT=[
+  {id:'V20',label:'CCT vence por 2x0',cctSets:2,rivalSets:0,pontos:3},
+  {id:'V21',label:'CCT vence por 2x1',cctSets:2,rivalSets:1,pontos:2},
+  {id:'D12',label:'CCT perde por 1x2',cctSets:1,rivalSets:2,pontos:1},
+  {id:'D02',label:'CCT perde por 0x2',cctSets:0,rivalSets:2,pontos:0}
+];
+const SIM_VOLEI_RESULTADOS_AB=[
+  {id:'A20',a:2,b:0,label:'A 2x0'},
+  {id:'A21',a:2,b:1,label:'A 2x1'},
+  {id:'B21',a:1,b:2,label:'B 2x1'},
+  {id:'B20',a:0,b:2,label:'B 2x0'}
+];
+
+function simVoleiNum(v,fallback=0){
+  if(v===null||v===undefined||String(v).trim()==='') return fallback;
+  const n=Number(String(v).replace(',','.'));
+  return Number.isFinite(n)?n:fallback;
+}
+function simVoleiNorm(v){
+  return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+}
+function simVoleiEhModalidade(id){ return simVoleiNorm(id).startsWith('VOL'); }
+function simVoleiEhGrupo(j){
+  const f=simVoleiNorm(j?.FASE);
+  return f==='FASE DE GRUPOS' || f.includes('GRUPO');
+}
+function simVoleiFinalizado(j){
+  const s=simVoleiNorm(j?.STATUS);
+  return s==='FINALIZADO'||s==='FINAL'||s==='ENCERRADO';
+}
+function simVoleiGameKey(j,idx=0){
+  return String(j?.ID_JOGO||`${j?.ID_MODALIDADE||''}|${j?.GRUPO||''}|${j?.EQUIPE_A||''}|${j?.EQUIPE_B||''}|${j?.DATA||''}|${j?.HORA||''}|${idx}`);
+}
+function simVoleiProximoJogoCct(idModalidade,idPreferido=''){
+  const candidatos=apiData.jogos
+    .filter(j=>j.ID_COMPETICAO===jogosUI.competicao && j.ID_MODALIDADE===idModalidade && simVoleiEhGrupo(j) && jogoTemCCT(j) && !simVoleiFinalizado(j))
+    .map((j,i)=>({j,i,d:parseBrDate(j.DATA,j.HORA)}))
+    .sort((a,b)=>{
+      if(a.j.ID_JOGO===idPreferido) return -1;
+      if(b.j.ID_JOGO===idPreferido) return 1;
+      const ta=a.d?.getTime(); const tb=b.d?.getTime();
+      if(Number.isFinite(ta)&&Number.isFinite(tb)) return ta-tb;
+      if(Number.isFinite(ta)) return -1;
+      if(Number.isFinite(tb)) return 1;
+      return a.i-b.i;
+    });
+  return candidatos[0]?.j||null;
+}
+function simVoleiResultadoCctParaAB(j,resultado){
+  const cctA=simVoleiNorm(j.EQUIPE_A)==='CCT';
+  return cctA
+    ? {id:resultado.id,a:resultado.cctSets,b:resultado.rivalSets}
+    : {id:resultado.id,a:resultado.rivalSets,b:resultado.cctSets};
+}
+function simVoleiCloneStats(mapa){
+  const out=new Map();
+  mapa.forEach((v,k)=>out.set(k,{...v}));
+  return out;
+}
+function simVoleiStatsLinha(r){
+  return {
+    equipe:String(r.EQUIPE||'').trim(),
+    grupo:String(r.GRUPO||'').trim().toUpperCase(),
+    pontos:simVoleiNum(r.PONTOS),
+    jogos:simVoleiNum(r.JOGOS),
+    vitorias:simVoleiNum(r.VITORIAS),
+    derrotas:simVoleiNum(r.DERROTAS),
+    setsVencidos:simVoleiNum(r.SETS_VENCIDOS),
+    setsPerdidos:simVoleiNum(r.SETS_PERDIDOS),
+    pontosPro:simVoleiNum(r.PRO),
+    pontosContra:simVoleiNum(r.CONTRA),
+    amarelos:simVoleiNum(r.CARTOES_AMARELOS),
+    vermelhos:simVoleiNum(r.CARTOES_VERMELHOS)
+  };
+}
+function simVoleiAplicarResultado(stats,j,out){
+  const ka=simVoleiNorm(j.EQUIPE_A), kb=simVoleiNorm(j.EQUIPE_B);
+  const a=stats.get(ka), b=stats.get(kb);
+  if(!a||!b) return;
+  a.jogos++; b.jogos++;
+  a.setsVencidos+=out.a; a.setsPerdidos+=out.b;
+  b.setsVencidos+=out.b; b.setsPerdidos+=out.a;
+  if(out.a===2&&out.b===0){a.pontos+=3;a.vitorias++;b.derrotas++;}
+  else if(out.a===2&&out.b===1){a.pontos+=2;b.pontos+=1;a.vitorias++;b.derrotas++;}
+  else if(out.a===1&&out.b===2){a.pontos+=1;b.pontos+=2;b.vitorias++;a.derrotas++;}
+  else if(out.a===0&&out.b===2){b.pontos+=3;b.vitorias++;a.derrotas++;}
+}
+function simVoleiSetAverage(s){
+  if(s.setsPerdidos>0) return s.setsVencidos/s.setsPerdidos;
+  return s.setsVencidos>0?Number.POSITIVE_INFINITY:0;
+}
+function simVoleiEqAverage(a,b){
+  if(a===b) return true;
+  if(!Number.isFinite(a)&&!Number.isFinite(b)) return true;
+  return Math.abs(a-b)<1e-12;
+}
+function simVoleiResultadoConfronto(equipe1,equipe2,jogos,outcomes){
+  const n1=simVoleiNorm(equipe1), n2=simVoleiNorm(equipe2);
+  for(const wrap of jogos){
+    const j=wrap.j;
+    const a=simVoleiNorm(j.EQUIPE_A), b=simVoleiNorm(j.EQUIPE_B);
+    if(!((a===n1&&b===n2)||(a===n2&&b===n1))) continue;
+    let pa=null,pb=null;
+    const proj=outcomes.get(wrap.key);
+    if(proj){pa=proj.a;pb=proj.b;}
+    else if(simVoleiFinalizado(j)){pa=simVoleiNum(j.PLACAR_A,null);pb=simVoleiNum(j.PLACAR_B,null);}
+    if(pa===null||pb===null||pa===pb) return '';
+    return pa>pb?String(j.EQUIPE_A||''):String(j.EQUIPE_B||'');
+  }
+  return '';
+}
+function simVoleiRankearGrupo(stats,jogos,outcomes){
+  let arr=[...stats.values()].map(s=>({...s,setAverage:simVoleiSetAverage(s)}));
+  arr.sort((a,b)=>b.pontos-a.pontos || (b.setAverage-a.setAverage) || simVoleiNorm(a.equipe).localeCompare(simVoleiNorm(b.equipe)));
+  const final=[];
+  const pendentes=new Set();
+  for(let i=0;i<arr.length;){
+    let k=i+1;
+    while(k<arr.length && arr[k].pontos===arr[i].pontos && simVoleiEqAverage(arr[k].setAverage,arr[i].setAverage)) k++;
+    let bloco=arr.slice(i,k);
+    if(bloco.length===2){
+      const vencedor=simVoleiResultadoConfronto(bloco[0].equipe,bloco[1].equipe,jogos,outcomes);
+      if(vencedor){
+        bloco.sort((a,b)=>simVoleiNorm(a.equipe)===simVoleiNorm(vencedor)?-1:1);
+      }else{
+        bloco.sort((a,b)=>b.setsVencidos-a.setsVencidos || a.setsPerdidos-b.setsPerdidos || simVoleiNorm(a.equipe).localeCompare(simVoleiNorm(b.equipe)));
+      }
+    }else if(bloco.length>1){
+      bloco.sort((a,b)=>b.setsVencidos-a.setsVencidos || a.setsPerdidos-b.setsPerdidos || simVoleiNorm(a.equipe).localeCompare(simVoleiNorm(b.equipe)));
+    }
+    for(let z=0;z<bloco.length-1;z++){
+      const a=bloco[z],b=bloco[z+1];
+      if(a.pontos===b.pontos && simVoleiEqAverage(a.setAverage,b.setAverage) && a.setsVencidos===b.setsVencidos && a.setsPerdidos===b.setsPerdidos){
+        const vencedor=bloco.length===2?simVoleiResultadoConfronto(a.equipe,b.equipe,jogos,outcomes):'';
+        if(!vencedor){pendentes.add(simVoleiNorm(a.equipe));pendentes.add(simVoleiNorm(b.equipe));}
+      }
+    }
+    final.push(...bloco); i=k;
+  }
+  final.forEach((s,idx)=>s.posicao=idx+1);
+  return {ranking:final,pendentes};
+}
+function simVoleiCampanhaArt8(stat,tamanhoGrupo){
+  const possiveis=Math.max(0,(tamanhoGrupo-1)*3);
+  return {
+    equipe:stat.equipe, grupo:stat.grupo, pontos:stat.pontos, pontosPossiveis:possiveis,
+    percentual:possiveis>0?stat.pontos/possiveis:0,
+    saldo:stat.setsVencidos-stat.setsPerdidos,
+    setsVencidos:stat.setsVencidos, setsPerdidos:stat.setsPerdidos,
+    pontosPro:stat.pontosPro
+  };
+}
+function simVoleiCompararArt8(a,b){
+  if(Math.abs(a.percentual-b.percentual)>1e-12) return a.percentual>b.percentual?1:-1;
+  if(a.saldo!==b.saldo) return a.saldo>b.saldo?1:-1;
+  if(a.setsVencidos!==b.setsVencidos) return a.setsVencidos>b.setsVencidos?1:-1;
+  // O próximo critério pode depender dos pontos dos sets, que não são informados
+  // quando o usuário escolhe apenas 2x0/2x1/1x2/0x2. Nesse ponto, não inventamos.
+  return 0;
+}
+function simVoleiDadosGrupos(idModalidade){
+  const linhas=apiData.classificacao.filter(r=>r.ID_COMPETICAO===jogosUI.competicao && r.ID_MODALIDADE===idModalidade);
+  const grupos=new Map();
+  linhas.forEach(r=>{
+    const g=String(r.GRUPO||'').trim().toUpperCase(); if(!g) return;
+    if(!grupos.has(g)) grupos.set(g,{grupo:g,linhas:[],jogos:[]});
+    grupos.get(g).linhas.push(r);
+  });
+  apiData.jogos.forEach((j,idx)=>{
+    if(j.ID_COMPETICAO!==jogosUI.competicao||j.ID_MODALIDADE!==idModalidade||!simVoleiEhGrupo(j)) return;
+    const g=String(j.GRUPO||'').trim().toUpperCase(); if(!grupos.has(g)) return;
+    grupos.get(g).jogos.push({j,key:simVoleiGameKey(j,idx)});
+  });
+  grupos.forEach(g=>{
+    g.base=new Map();
+    g.linhas.forEach(r=>{const s=simVoleiStatsLinha(r);g.base.set(simVoleiNorm(s.equipe),s);});
+    g.tamanho=g.linhas.length;
+  });
+  return grupos;
+}
+function simVoleiEnumerarGrupo(g,fixedKey='',fixedOut=null){
+  const abertos=g.jogos.filter(w=>!simVoleiFinalizado(w.j));
+  const fixo=abertos.find(w=>w.key===fixedKey);
+  const outros=abertos.filter(w=>w.key!==fixedKey);
+  // Segurança: numa chave de 4 equipes há no máximo 6 jogos. Se os dados vierem
+  // fora desse desenho, limitamos o simulador em vez de travar o aparelho.
+  if(outros.length>7) return {cenarios:[],excesso:true};
+  const base=simVoleiCloneStats(g.base);
+  const outcomesBase=new Map();
+  if(fixo&&fixedOut){ simVoleiAplicarResultado(base,fixo.j,fixedOut); outcomesBase.set(fixo.key,fixedOut); }
+  const cenarios=[];
+  function rec(i,stats,outcomes){
+    if(i>=outros.length){
+      const rank=simVoleiRankearGrupo(stats,g.jogos,outcomes);
+      cenarios.push({stats,ranking:rank.ranking,pendentes:rank.pendentes,outcomes:new Map(outcomes)});
+      return;
+    }
+    const w=outros[i];
+    SIM_VOLEI_RESULTADOS_AB.forEach(out=>{
+      const s2=simVoleiCloneStats(stats); const o2=new Map(outcomes);
+      simVoleiAplicarResultado(s2,w.j,out); o2.set(w.key,out);
+      rec(i+1,s2,o2);
+    });
+  }
+  rec(0,base,outcomesBase);
+  return {cenarios,excesso:false};
+}
+function simVoleiUnicosSegundos(g,cenarios){
+  const mapa=new Map();
+  cenarios.forEach(c=>{
+    const segundo=c.ranking[1]; if(!segundo) return;
+    const pend=c.pendentes.has(simVoleiNorm(segundo.equipe));
+    const camp=simVoleiCampanhaArt8(segundo,g.tamanho);
+    const key=[simVoleiNorm(camp.equipe),camp.pontos,camp.pontosPossiveis,camp.saldo,camp.setsVencidos,pend?'P':''].join('|');
+    if(!mapa.has(key)) mapa.set(key,{...camp,pendente:pend});
+  });
+  return [...mapa.values()];
+}
+function simVoleiAvaliarSegundo(cctCamp,outros,vagasSegundos){
+  let podem=0, sempre=0, empates=0;
+  const grupos=[];
+  outros.forEach(({grupo,segundos})=>{
+    if(!segundos.length) return;
+    const cmps=segundos.map(s=>s.pendente?0:simVoleiCompararArt8(s,cctCamp));
+    const pode=cmps.some(v=>v>=0);
+    const sempreMelhor=cmps.every(v=>v>0);
+    const empate=cmps.some(v=>v===0);
+    if(pode) podem++;
+    if(sempreMelhor) sempre++;
+    if(empate) empates++;
+    grupos.push({grupo,pode,sempre:sempreMelhor,empate,segundos});
+  });
+  if(podem<=vagasSegundos-1) return {tipo:'GARANTIDO_SEGUNDO',qualifica:true,podem,sempre,empates,grupos};
+  if(sempre>=vagasSegundos) return {tipo:'FORA_SEGUNDO',qualifica:false,podem,sempre,empates,grupos};
+  return {tipo:'DEPENDE_SEGUNDO',qualifica:null,podem,sempre,empates,grupos};
+}
+function simVoleiFormatPct(v){ return `${(v*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})}%`; }
+function simVoleiFormatSaldo(v){ return `${v>0?'+':''}${v}`; }
+function simVoleiResultadoLabelJogo(j,outId){
+  const out=SIM_VOLEI_RESULTADOS_AB.find(x=>x.id===outId); if(!out) return '';
+  if(out.a===2) return `${j.EQUIPE_A} vence ${out.a}x${out.b}`;
+  return `${j.EQUIPE_B} vence ${out.b}x${out.a}`;
+}
+function simVoleiCondicoesExternas(cctCamp,gruposDados,simulacoes,fixedGroup){
+  const avisos=[];
+  for(const [nome,g] of gruposDados.entries()){
+    if(nome===fixedGroup) continue;
+    const pack=simulacoes.get(nome); if(!pack?.cenarios?.length) continue;
+    const abertos=g.jogos.filter(w=>!simVoleiFinalizado(w.j));
+    for(const w of abertos){
+      const porOutcome={};
+      SIM_VOLEI_RESULTADOS_AB.forEach(out=>{
+        const filtrados=pack.cenarios.filter(c=>c.outcomes.get(w.key)?.id===out.id);
+        if(!filtrados.length) return;
+        const comps=filtrados.map(c=>{
+          const segundo=c.ranking[1];
+          if(!segundo||c.pendentes.has(simVoleiNorm(segundo.equipe))) return 0;
+          return simVoleiCompararArt8(simVoleiCampanhaArt8(segundo,g.tamanho),cctCamp);
+        });
+        porOutcome[out.id]={pode:comps.some(v=>v>=0),sempre:comps.every(v=>v>0)};
+      });
+      ['A20','A21','B21','B20'].forEach(id=>{
+        const x=porOutcome[id]; if(!x?.pode) return;
+        avisos.push({forte:x.sempre,grupo:nome,texto:`${simVoleiResultadoLabelJogo(w.j,id)} ${x.sempre?'coloca':'pode colocar'} o 2º do Grupo ${nome} à frente da CCT.`});
+      });
+    }
+  }
+  const unicos=[]; const seen=new Set();
+  avisos.sort((a,b)=>Number(b.forte)-Number(a.forte));
+  for(const a of avisos){
+    if(seen.has(a.texto)) continue; seen.add(a.texto); unicos.push(a);
+    if(unicos.length>=4) break;
+  }
+  return unicos;
+}
+function simVoleiCalcular(idModalidade,idJogo,resultadoId){
+  const grupos=simVoleiDadosGrupos(idModalidade);
+  const jogo=(idJogo?apiData.jogos.find(j=>String(j.ID_JOGO||'')===String(idJogo)):null) || simVoleiProximoJogoCct(idModalidade,idJogo);
+  const escolha=SIM_VOLEI_RESULTADOS_CCT.find(x=>x.id===resultadoId);
+  if(!jogo||!escolha) return {erro:'Não foi possível localizar o próximo jogo da CCT.'};
+  const grupoCct=String(jogo.GRUPO||'').trim().toUpperCase();
+  const gCct=grupos.get(grupoCct);
+  if(!gCct) return {erro:'Grupo da CCT não encontrado na classificação atual.'};
+  const key=simVoleiGameKey(jogo,apiData.jogos.indexOf(jogo));
+  const fixedOut=simVoleiResultadoCctParaAB(jogo,escolha);
+
+  const simulacoes=new Map(); let excesso=false;
+  for(const [nome,g] of grupos.entries()){
+    const p=simVoleiEnumerarGrupo(g,nome===grupoCct?key:'',nome===grupoCct?fixedOut:null);
+    simulacoes.set(nome,p); excesso=excesso||p.excesso;
+  }
+  if(excesso) return {erro:'Há jogos demais em aberto para uma simulação segura neste aparelho.'};
+
+  // Projeção imediata: apenas o resultado escolhido, sem inventar os demais jogos.
+  const imediatos=simVoleiCloneStats(gCct.base); simVoleiAplicarResultado(imediatos,jogo,fixedOut);
+  const cctAgora=imediatos.get('CCT');
+  const campanhaAgora=simVoleiCampanhaArt8(cctAgora,gCct.tamanho);
+
+  const outros=[...grupos.entries()].filter(([n])=>n!==grupoCct).map(([grupo,g])=>({grupo,segundos:simVoleiUnicosSegundos(g,simulacoes.get(grupo).cenarios)}));
+  const vagasSegundos=Math.max(1,8-grupos.size); // 5 líderes + 3 melhores segundos = quartas
+  const cctCenarios=simulacoes.get(grupoCct).cenarios;
+  const avaliacoes=[];
+  cctCenarios.forEach(c=>{
+    const pos=c.ranking.findIndex(s=>simVoleiNorm(s.equipe)==='CCT')+1;
+    const stat=c.ranking.find(s=>simVoleiNorm(s.equipe)==='CCT');
+    const pendente=c.pendentes.has('CCT');
+    if(!stat||!pos){avaliacoes.push({tipo:'INDEFINIDO',qualifica:null,posicao:0});return;}
+    if(pendente){avaliacoes.push({tipo:'EMPATE_TECNICO',qualifica:null,posicao:pos,stat});return;}
+    if(pos===1){avaliacoes.push({tipo:'DIRETO',qualifica:true,posicao:1,stat});return;}
+    if(pos!==2){avaliacoes.push({tipo:'FORA_GRUPO',qualifica:false,posicao:pos,stat});return;}
+    const camp=simVoleiCampanhaArt8(stat,gCct.tamanho);
+    avaliacoes.push({...simVoleiAvaliarSegundo(camp,outros,vagasSegundos),posicao:2,stat,camp});
+  });
+
+  const allTrue=avaliacoes.length&&avaliacoes.every(a=>a.qualifica===true);
+  const allFalse=avaliacoes.length&&avaliacoes.every(a=>a.qualifica===false);
+  const anyTie=avaliacoes.some(a=>a.tipo==='EMPATE_TECNICO');
+  const posicoes=[...new Set(avaliacoes.map(a=>a.posicao).filter(Boolean))].sort();
+  const cctAbertosDepois=gCct.jogos.filter(w=>!simVoleiFinalizado(w.j)&&w.key!==key&&jogoTemCCT(w.j));
+
+  let status='DEPENDE DE RESULTADOS',classe='warning',texto='O resultado melhora a situação da CCT, mas a classificação ainda varia conforme os jogos restantes.';
+  if(allTrue){
+    status='CLASSIFICAÇÃO GARANTIDA'; classe='success';
+    texto=posicoes.length===1&&posicoes[0]===1
+      ? 'Com esse resultado, a CCT garante a liderança do grupo em todas as combinações restantes.'
+      : 'Com esse resultado, a CCT permanece classificada em todas as combinações ainda possíveis.';
+  }else if(allFalse){
+    status='SEM VAGA NESTE CENÁRIO'; classe='danger';
+    texto='Mesmo nas combinações favoráveis restantes, este resultado não deixa a CCT dentro das vagas calculadas.';
+  }else if(anyTie){
+    status='EMPATE TÉCNICO POSSÍVEL'; classe='neutral';
+    texto='Algumas combinações chegam a critérios que dependem dos pontos dos sets ou de desempates posteriores.';
+  }else if(cctAbertosDepois.length){
+    status='AINDA EM DISPUTA'; classe='warning';
+    texto=`Depois desse resultado, ainda ${cctAbertosDepois.length===1?'resta 1 jogo':'restam '+cctAbertosDepois.length+' jogos'} da própria CCT na fase de grupos.`;
+  }
+
+  const bullets=[];
+  cctAbertosDepois.slice(0,2).forEach(w=>bullets.push(`Ainda resta ${w.j.EQUIPE_A} x ${w.j.EQUIPE_B}; o resultado desse jogo também entra na conta.`));
+  if(!cctAbertosDepois.length){
+    // Se o jogo escolhido encerra a campanha da CCT, conseguimos ser mais objetivos
+    // sobre os resultados externos que ainda podem mexer no corte.
+    const cctFinals=avaliacoes.filter(a=>a.posicao===2&&a.camp);
+    if(cctFinals.length){
+      const base=cctFinals[0].camp;
+      simVoleiCondicoesExternas(base,grupos,simulacoes,grupoCct).forEach(a=>bullets.push(a.forte?`Atenção: ${a.texto}`:a.texto));
+    }
+  }
+  if(!bullets.length){
+    if(allTrue) bullets.push('Os demais resultados podem alterar apenas posição de chaveamento, não a vaga.');
+    else bullets.push('O app continuará recalculando as combinações conforme os placares oficiais forem publicados.');
+  }
+
+  return {
+    status,classe,texto,bullets:bullets.slice(0,5),
+    pontos:campanhaAgora.pontos,pontosPossiveis:campanhaAgora.pontosPossiveis,
+    percentual:campanhaAgora.percentual,saldo:campanhaAgora.saldo,
+    setsVencidos:cctAgora.setsVencidos,setsPerdidos:cctAgora.setsPerdidos,
+    combinacoes:cctCenarios.length + [...simulacoes.entries()].filter(([n])=>n!==grupoCct).reduce((s,[,p])=>s+p.cenarios.length,0),
+    jogo,escolha
+  };
+}
+function simuladorVoleiHtml(c){
+  if(!simVoleiEhModalidade(c.ID_MODALIDADE)) return '';
+  const jogo=simVoleiProximoJogoCct(c.ID_MODALIDADE,c.PROXIMO_JOGO);
+  if(!jogo) return '';
+  return `<div class="scenario-simulator" data-sim-volei data-sim-modalidade="${escapeHtml(c.ID_MODALIDADE||'')}" data-sim-jogo="${escapeHtml(jogo.ID_JOGO||'')}">
+    <button class="scenario-sim-toggle" type="button" data-sim-toggle aria-expanded="false">
+      <span>${uiIcon('target','inline-icon')} SIMULAR CENÁRIO</span><b>›</b>
+    </button>
+    <div class="scenario-sim-panel" data-sim-panel hidden>
+      <div class="scenario-sim-head"><small>PRÓXIMO JOGO</small><strong>${escapeHtml((jogo.EQUIPE_A||'A DEFINIR')+' × '+(jogo.EQUIPE_B||'A DEFINIR'))}</strong><span>${escapeHtml([jogo.DATA,jogo.HORA].filter(Boolean).join(' • '))}</span></div>
+      <label class="scenario-sim-field"><span>Se a CCT...</span><select data-sim-select>
+        <option value="">Escolha um resultado</option>
+        ${SIM_VOLEI_RESULTADOS_CCT.map(o=>`<option value="${o.id}">${escapeHtml(o.label)}</option>`).join('')}
+      </select></label>
+      <div class="scenario-sim-result" data-sim-result><p>Escolha o placar em sets para projetar a situação da CCT.</p></div>
+      <small class="scenario-sim-note">Simulação local • não altera a planilha nem a classificação oficial.</small>
+    </div>
+  </div>`;
+}
+function simVoleiResultadoHtml(r,ms){
+  if(r.erro) return `<div class="scenario-sim-alert danger"><strong>NÃO FOI POSSÍVEL SIMULAR</strong><p>${escapeHtml(r.erro)}</p></div>`;
+  return `<div class="scenario-sim-alert ${escapeHtml(r.classe)}">
+      <small>PROJEÇÃO</small><strong>${escapeHtml(r.status)}</strong><p>${escapeHtml(r.texto)}</p>
+    </div>
+    <div class="scenario-sim-metrics">
+      <div><small>PONTOS</small><strong>${escapeHtml(r.pontos)}/${escapeHtml(r.pontosPossiveis)}</strong></div>
+      <div><small>APROVEIT.</small><strong>${escapeHtml(simVoleiFormatPct(r.percentual))}</strong></div>
+      <div><small>SALDO SETS</small><strong>${escapeHtml(simVoleiFormatSaldo(r.saldo))}</strong></div>
+    </div>
+    <div class="scenario-sim-conditions"><small>O QUE AINDA PESA</small><ul>${r.bullets.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div>
+    <div class="scenario-sim-runtime">${escapeHtml(String(r.combinacoes))} cenários locais analisados • ${escapeHtml(String(Math.max(1,Math.round(ms))))} ms</div>`;
+}
+function bindSimuladoresVolei(container){
+  container.querySelectorAll('[data-sim-toggle]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const root=btn.closest('[data-sim-volei]'); const panel=root?.querySelector('[data-sim-panel]'); if(!panel) return;
+      const abrir=panel.hidden; panel.hidden=!abrir; btn.setAttribute('aria-expanded',String(abrir));
+      btn.querySelector('b').textContent=abrir?'⌄':'›';
+    });
+  });
+  container.querySelectorAll('[data-sim-select]').forEach(sel=>{
+    sel.addEventListener('change',()=>{
+      const root=sel.closest('[data-sim-volei]'); const out=root?.querySelector('[data-sim-result]'); if(!root||!out) return;
+      if(!sel.value){out.innerHTML='<p>Escolha o placar em sets para projetar a situação da CCT.</p>';return;}
+      out.innerHTML='<div class="scenario-sim-loading">Calculando cenário…</div>';
+      requestAnimationFrame(()=>{
+        const t0=performance.now();
+        const r=simVoleiCalcular(root.dataset.simModalidade,root.dataset.simJogo,sel.value);
+        const ms=performance.now()-t0;
+        out.innerHTML=simVoleiResultadoHtml(r,ms);
+      });
+    });
+  });
+}
+
+
 function renderizarCenarios(){
   const container=$('#cenariosContainer');
   if(!container) return;
@@ -1124,6 +1549,7 @@ function renderizarCenarios(){
         </div>
         ${c.PROXIMO_JOGO?`<div class="scenario-quick-next"><small>PRÓXIMO JOGO</small>${proximoJogoCenarioHtml(c.PROXIMO_JOGO)}</div>`:''}
       </div>
+      ${simuladorVoleiHtml(c)}
       ${temDetalhes?`<button class="scenario-toggle" type="button" data-scenario-toggle aria-expanded="false">VER CONTEXTO <b>⌄</b></button>
       <div class="scenario-detail-body scenario-collapsible" data-scenario-details hidden>
         ${c.DETALHE_META?`<div><small>COMO FOI CALCULADO</small><p>${escapeHtml(c.DETALHE_META)}</p></div>`:''}
@@ -1132,6 +1558,8 @@ function renderizarCenarios(){
       </div>`:''}
     </article>`;
   }).join('') : '<div class="games-empty">Nenhum cenário de classificação publicado para esta competição.</div>';
+
+  bindSimuladoresVolei(container);
 
   container.querySelectorAll('[data-scenario-toggle]').forEach(btn=>{
     btn.addEventListener('click',()=>{
