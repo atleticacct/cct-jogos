@@ -1901,6 +1901,132 @@ function bindSimuladoresModalidades(container){
 }
 
 
+/* =========================================================
+   V4.8.5 — Classificados Agora nos cards já classificados
+   - Substitui AGORA + META TÉCNICA quando a vaga já está garantida.
+   - Ordena líderes e melhores segundos pela comparação atual entre grupos.
+   - Mantém tudo local no app, sem nova chamada à planilha/API.
+   ========================================================= */
+function cctStatusClassificado_(c){
+  return simVoleiNorm(c?.STATUS).includes('CLASSIFIC');
+}
+function cctLinhasGruposModalidade_(idModalidade){
+  return apiData.classificacao.filter(r=>
+    r.ID_COMPETICAO===jogosUI.competicao &&
+    r.ID_MODALIDADE===idModalidade &&
+    String(r.GRUPO||'').trim()
+  );
+}
+function cctGruposClassificacao_(idModalidade){
+  const grupos=new Map();
+  cctLinhasGruposModalidade_(idModalidade).forEach(r=>{
+    const g=String(r.GRUPO||'').trim().toUpperCase();
+    if(!grupos.has(g)) grupos.set(g,[]);
+    grupos.get(g).push(r);
+  });
+  grupos.forEach(arr=>arr.sort((a,b)=>{
+    const pa=simVoleiNum(a.POSICAO,999),pb=simVoleiNum(b.POSICAO,999);
+    if(pa!==pb) return pa-pb;
+    const pta=simVoleiNum(a.PONTOS),ptb=simVoleiNum(b.PONTOS);
+    return ptb-pta;
+  }));
+  return grupos;
+}
+function cctVagasMataMata_(idModalidade,grupos){
+  const jogos=apiData.jogos.filter(j=>j.ID_COMPETICAO===jogosUI.competicao&&j.ID_MODALIDADE===idModalidade);
+  const niveis=[
+    {teste:f=>f.includes('OITAVA'),fallback:16},
+    {teste:f=>f.includes('QUARTA'),fallback:8},
+    {teste:f=>f.includes('SEMI'),fallback:4},
+    {teste:f=>f==='FINAL'||f.includes(' FINAL'),fallback:2}
+  ];
+  for(const n of niveis){
+    const encontrados=jogos.filter(j=>n.teste(simVoleiNorm(j.FASE)));
+    if(encontrados.length) return Math.max(grupos.size,encontrados.length*2);
+  }
+  // Interlaje atual: quartas com 8 vagas. Mantemos um fallback conservador
+  // apenas quando a tabela de mata-mata ainda não estiver publicada.
+  return Math.max(grupos.size,Math.min(8,grupos.size+Math.max(0,8-grupos.size)));
+}
+function cctCampanhaClassificado_(r,tamanhoGrupo,idModalidade){
+  const pontos=simVoleiNum(r?.PONTOS);
+  const possiveis=Math.max(0,(tamanhoGrupo-1)*3);
+  const percentual=possiveis?pontos/possiveis:0;
+  const ehVolei=simVoleiEhModalidade(idModalidade);
+  const setsV=simVoleiNum(r?.SETS_VENCIDOS);
+  const setsP=simVoleiNum(r?.SETS_PERDIDOS);
+  const saldo=ehVolei?(setsV-setsP):simVoleiNum(r?.SALDO);
+  return {
+    equipe:String(r?.EQUIPE||''),grupo:String(r?.GRUPO||''),pontos,pontosPossiveis:possiveis,percentual,saldo,
+    pro:simVoleiNum(r?.PRO),contra:simVoleiNum(r?.CONTRA),
+    setsV,setsP,setAverage:simVoleiNum(r?.SET_AVERAGE,-1),average:simVoleiNum(r?.AVERAGE_GERAL,-1),
+    linha:r
+  };
+}
+function cctCompararClassificados_(a,b,idModalidade){
+  if(Math.abs(a.percentual-b.percentual)>1e-12) return b.percentual-a.percentual;
+  if(a.saldo!==b.saldo) return b.saldo-a.saldo;
+  const tipo=simOutroTipo(idModalidade);
+  if(simVoleiEhModalidade(idModalidade)){
+    if(a.setsV!==b.setsV) return b.setsV-a.setsV;
+    if(a.pro!==b.pro) return b.pro-a.pro;
+    if(a.contra!==b.contra) return a.contra-b.contra;
+  }else if(tipo==='BAS'){
+    if(a.average!==b.average && a.average>=0 && b.average>=0) return b.average-a.average;
+    if(a.pro!==b.pro) return b.pro-a.pro;
+    if(a.contra!==b.contra) return a.contra-b.contra;
+  }else{
+    if(a.pro!==b.pro) return b.pro-a.pro;
+    if(a.contra!==b.contra) return a.contra-b.contra;
+  }
+  return String(a.equipe).localeCompare(String(b.equipe),'pt-BR');
+}
+function cctClassificadosAgora_(idModalidade){
+  const grupos=cctGruposClassificacao_(idModalidade);
+  if(!grupos.size) return null;
+  const lideres=[],segundos=[];
+  for(const [g,arr] of grupos){
+    if(arr[0]) lideres.push(cctCampanhaClassificado_(arr[0],arr.length,idModalidade));
+    if(arr[1]) segundos.push(cctCampanhaClassificado_(arr[1],arr.length,idModalidade));
+  }
+  lideres.sort((a,b)=>cctCompararClassificados_(a,b,idModalidade));
+  segundos.sort((a,b)=>cctCompararClassificados_(a,b,idModalidade));
+  const vagas=cctVagasMataMata_(idModalidade,grupos);
+  const qtdSegundos=Math.max(0,vagas-lideres.length);
+  const qualificados=[
+    ...lideres.map((x,i)=>({...x,tipo:'LIDER',ordemCategoria:i+1,rotulo:`${i+1}º melhor 1º`})),
+    ...segundos.slice(0,qtdSegundos).map((x,i)=>({...x,tipo:'SEGUNDO',ordemCategoria:i+1,rotulo:`${i+1}º melhor 2º`}))
+  ];
+  return {qualificados,vagas,lideres:lideres.length,segundos:qtdSegundos};
+}
+function cctPctClassificados_(v){
+  return `${(Number(v||0)*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})}%`;
+}
+function cctSaldoClassificados_(v){
+  const n=Number(v||0);return `${n>0?'+':''}${n}`;
+}
+function classificadosAgoraHtml(c){
+  const dados=cctClassificadosAgora_(c.ID_MODALIDADE);
+  if(!dados?.qualificados?.length) return '';
+  const linhas=dados.qualificados.map(x=>{
+    const cct=simVoleiNorm(x.equipe)==='CCT';
+    return `<div class="scenario-qualified-row${cct?' is-cct':''}">
+      <span class="scenario-qualified-rank">${escapeHtml(x.rotulo)}</span>
+      <strong class="scenario-qualified-team">${escapeHtml(x.equipe)}</strong>
+      <span>${escapeHtml(`${x.pontos}/${x.pontosPossiveis}`)}</span>
+      <span>${escapeHtml(cctPctClassificados_(x.percentual))}</span>
+      <span>${escapeHtml(`saldo ${cctSaldoClassificados_(x.saldo)}`)}</span>
+    </div>`;
+  }).join('');
+  const resumo=dados.segundos>0?`${dados.lideres} líderes + ${dados.segundos} melhores 2º`:`${dados.lideres} líderes`;
+  return `<div class="scenario-qualified-box">
+    <div class="scenario-qualified-title"><small>CLASSIFICADOS AGORA</small><span>${escapeHtml(resumo)} • pontos / aproveitamento / saldo</span></div>
+    <div class="scenario-qualified-list">${linhas}</div>
+    <small class="scenario-qualified-note">Ordem atual considerando os resultados registrados até o momento.</small>
+  </div>`;
+}
+
+
 function renderizarCenarios(){
   const container=$('#cenariosContainer');
   if(!container) return;
@@ -1938,16 +2064,21 @@ function renderizarCenarios(){
         </div>
         <span class="target">${uiIcon('target','scenario-card-target-icon')}</span>
       </div>
-      <div class="scenario-quick">
-        <div><small>AGORA</small><strong>${escapeHtml(atual)}</strong></div>
-        <div class="scenario-meta-box">
-          <small>META TÉCNICA ${tipoMetaCenario(c)?`<span class="scenario-meta-type">${escapeHtml(tipoMetaCenario(c))}</span>`:''}</small>
-          <strong>${escapeHtml(precisa)}</strong>
-          ${c.RIVAL_REFERENCIA?`<span class="scenario-meta-rival">Referência: ${escapeHtml(c.RIVAL_REFERENCIA)}</span>`:''}
-          ${c.METRICA_REFERENCIA?`<span class="scenario-meta-metric">${escapeHtml(c.METRICA_REFERENCIA)}</span>`:''}
-        </div>
-        ${c.PROXIMO_JOGO?`<div class="scenario-quick-next"><small>PRÓXIMO JOGO</small>${proximoJogoCenarioHtml(c.PROXIMO_JOGO)}</div>`:''}
-      </div>
+      ${cctStatusClassificado_(c)
+        ? `<div class="scenario-quick scenario-quick-classified">
+            ${classificadosAgoraHtml(c)}
+            ${c.PROXIMO_JOGO?`<div class="scenario-quick-next"><small>PRÓXIMO JOGO</small>${proximoJogoCenarioHtml(c.PROXIMO_JOGO)}</div>`:''}
+          </div>`
+        : `<div class="scenario-quick">
+            <div><small>AGORA</small><strong>${escapeHtml(atual)}</strong></div>
+            <div class="scenario-meta-box">
+              <small>META TÉCNICA ${tipoMetaCenario(c)?`<span class="scenario-meta-type">${escapeHtml(tipoMetaCenario(c))}</span>`:''}</small>
+              <strong>${escapeHtml(precisa)}</strong>
+              ${c.RIVAL_REFERENCIA?`<span class="scenario-meta-rival">Referência: ${escapeHtml(c.RIVAL_REFERENCIA)}</span>`:''}
+              ${c.METRICA_REFERENCIA?`<span class="scenario-meta-metric">${escapeHtml(c.METRICA_REFERENCIA)}</span>`:''}
+            </div>
+            ${c.PROXIMO_JOGO?`<div class="scenario-quick-next"><small>PRÓXIMO JOGO</small>${proximoJogoCenarioHtml(c.PROXIMO_JOGO)}</div>`:''}
+          </div>`}
       ${simuladorModalidadeHtml(c)}
       ${temDetalhes?`<button class="scenario-toggle" type="button" data-scenario-toggle aria-expanded="false">VER CONTEXTO <b>⌄</b></button>
       <div class="scenario-detail-body scenario-collapsible" data-scenario-details hidden>
