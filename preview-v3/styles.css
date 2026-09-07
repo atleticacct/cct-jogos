@@ -1221,3 +1221,44 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
   .general-title-conditions{gap:6px;padding-left:16px}
   .general-title-conditions li{font-size:10px;line-height:1.42}
 }
+
+/* =========================================================
+   V4.9.0 — Panorama das modalidades em disputa
+   ========================================================= */
+.scenario-quick-live{gap:9px}
+.scenario-live-box{
+  border:1px solid #315b3d;background:linear-gradient(145deg,#102417,#0c130f);
+  border-radius:14px;padding:10px 10px 9px;display:grid;gap:8px;
+}
+.scenario-live-title{display:flex;align-items:flex-end;justify-content:space-between;gap:8px}
+.scenario-live-title small{color:#78da97;font-size:7px;font-weight:950;letter-spacing:.14em;white-space:nowrap}
+.scenario-live-title span{color:#6f7d73;font-size:6.3px;font-weight:750;text-align:right;line-height:1.25}
+.scenario-live-group{display:grid;gap:4px}
+.scenario-live-group>small{color:#7e8d83;font-size:6.6px;font-weight:950;letter-spacing:.12em;padding-left:2px}
+.scenario-live-list{display:grid;gap:4px}
+.scenario-live-row{
+  min-width:0;display:grid;grid-template-columns:minmax(64px,1.35fr) 35px 58px 72px minmax(76px,1fr);
+  gap:4px;align-items:center;min-height:25px;padding:5px 6px;border-radius:8px;border:1px solid #202b24;
+  background:#0c120e;color:#87958c;font-size:6.8px;font-weight:800;line-height:1.12;
+}
+.scenario-live-row strong{min-width:0;color:#eef5f0;font-size:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scenario-live-row span{min-width:0;white-space:nowrap}
+.scenario-live-row span:last-child{color:#718078;text-align:right;overflow:hidden;text-overflow:ellipsis}
+.scenario-live-row.is-cct{border-color:#2d8b4a;background:#102a18;box-shadow:inset 2px 0 0 #23d85c;color:#b9f2c8}
+.scenario-live-row.is-cct strong,.scenario-live-row.is-cct span:last-child{color:#b9f2c8}
+.scenario-live-note{color:#68766e;font-size:6.5px;line-height:1.4}
+.scenario-live-analysis{
+  border:1px solid #2c5639;background:#0d1711;border-radius:12px;padding:9px 10px;display:grid;gap:4px
+}
+.scenario-live-analysis>small{color:#78da97;font-size:7px;font-weight:950;letter-spacing:.13em}
+.scenario-live-analysis>strong{color:#eef5f0;font-size:9.5px;line-height:1.35}
+.scenario-live-analysis>span{color:#89968e;font-size:7.5px;line-height:1.45}
+@media(max-width:430px){
+  .scenario-live-row{grid-template-columns:minmax(58px,1.2fr) 31px 52px 65px minmax(64px,1fr);gap:3px;font-size:6.2px;padding:5px}
+  .scenario-live-row strong{font-size:7.4px}
+  .scenario-live-title span{font-size:5.8px}
+}
+@media(max-width:370px){
+  .scenario-live-row{grid-template-columns:minmax(58px,1.25fr) 31px 52px 62px}
+  .scenario-live-row span:last-child{grid-column:1/-1;text-align:left;padding-left:0;color:#6f7d73}
+}
