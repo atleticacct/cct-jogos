@@ -648,14 +648,34 @@ function classificacaoGrupoHtml(grupo,linhas){
 }
 
 function parseDetalhamentoGeral(r){
+  let itens=[];
   const raw=String(r?.DETALHAMENTO_JSON||'').trim();
   if(raw){
     try{
-      const itens=JSON.parse(raw);
-      if(Array.isArray(itens)) return itens;
+      const parsed=JSON.parse(raw);
+      if(Array.isArray(parsed)) itens=parsed;
     }catch(e){}
   }
-  return [];
+
+  // V4.8.6: o Apps Script pode confirmar automaticamente a pontuação das equipes
+  // eliminadas na fase de grupos. O overlay mantém o detalhamento do app coerente
+  // sem exigir alteração no motor geral antigo.
+  const rawAuto=String(r?.DETALHE_ELIMINADOS_AUTO_V486||'').trim();
+  if(rawAuto){
+    try{
+      const auto=JSON.parse(rawAuto);
+      if(Array.isArray(auto)){
+        auto.forEach(a=>{
+          const id=String(a?.id||'').trim().toUpperCase();
+          if(!id)return;
+          const idx=itens.findIndex(i=>String(i?.id||'').trim().toUpperCase()===id);
+          if(idx>=0) itens[idx]={...itens[idx],...a};
+          else itens.push(a);
+        });
+      }
+    }catch(e){}
+  }
+  return itens;
 }
 
 function classificacaoGeralHtml(){
@@ -1774,7 +1794,9 @@ function simOutroCalcular(idModalidade,idJogo,resultadoId,margemRaw,placarCctRaw
   return {status,classe,texto,titulo,bullets:bullets.slice(0,5),metrics,tipo,restCct,resultado,descricao:simOutroDescricaoMargem(tipo,resultado.id,margem),scoreCompleto};
 }
 function simProximoJogoCctQualquerFase(idModalidade,idPreferido=''){
-  const preferido=idPreferido?apiData.jogos.find(j=>j.ID_COMPETICAO===jogosUI.competicao&&j.ID_MODALIDADE===idModalidade&&String(j.ID_JOGO||'')===String(idPreferido)&&!simVoleiFinalizado(j)):null;
+  // V4.8.6: um ID vindo do cenário só é aceito como preferido se o confronto
+  // realmente envolver a CCT. Evita mostrar jogo de outra chave como "próximo jogo".
+  const preferido=idPreferido?apiData.jogos.find(j=>j.ID_COMPETICAO===jogosUI.competicao&&j.ID_MODALIDADE===idModalidade&&String(j.ID_JOGO||'')===String(idPreferido)&&jogoTemCCT(j)&&!simVoleiFinalizado(j)):null;
   if(preferido) return preferido;
   return apiData.jogos
     .filter(j=>j.ID_COMPETICAO===jogosUI.competicao&&j.ID_MODALIDADE===idModalidade&&jogoTemCCT(j)&&!simVoleiFinalizado(j))
@@ -1886,6 +1908,9 @@ function bindSimuladoresOutros(container){
   });
 }
 function simuladorModalidadeHtml(c){
+  // Modalidade eliminada e sem jogo futuro não precisa exibir um segundo aviso de
+  // campanha encerrada. A V4.8.6 usa esse espaço para classificação final/geral.
+  if(cctStatusEliminado_(c)) return '';
   if(simVoleiEhModalidade(c.ID_MODALIDADE)){
     const grupo=simVoleiProximoJogoCct(c.ID_MODALIDADE,c.PROXIMO_JOGO);
     if(grupo) return simuladorVoleiHtml(c);
@@ -1902,13 +1927,16 @@ function bindSimuladoresModalidades(container){
 
 
 /* =========================================================
-   V4.8.5 — Classificados Agora nos cards já classificados
+   V4.8.6 — Classificados / eliminados + colocação final da fase de grupos
    - Substitui AGORA + META TÉCNICA quando a vaga já está garantida.
    - Ordena líderes e melhores segundos pela comparação atual entre grupos.
    - Mantém tudo local no app, sem nova chamada à planilha/API.
    ========================================================= */
 function cctStatusClassificado_(c){
   return simVoleiNorm(c?.STATUS).includes('CLASSIFIC');
+}
+function cctStatusEliminado_(c){
+  return simVoleiNorm(c?.STATUS).includes('ELIMIN');
 }
 function cctLinhasGruposModalidade_(idModalidade){
   return apiData.classificacao.filter(r=>
@@ -2005,7 +2033,7 @@ function cctPctClassificados_(v){
 function cctSaldoClassificados_(v){
   const n=Number(v||0);return `${n>0?'+':''}${n}`;
 }
-function classificadosAgoraHtml(c){
+function classificadosAgoraHtml(c,{titulo='CLASSIFICADOS AGORA',nota='Ordem atual considerando os resultados registrados até o momento.'}={}){
   const dados=cctClassificadosAgora_(c.ID_MODALIDADE);
   if(!dados?.qualificados?.length) return '';
   const linhas=dados.qualificados.map(x=>{
@@ -2020,10 +2048,59 @@ function classificadosAgoraHtml(c){
   }).join('');
   const resumo=dados.segundos>0?`${dados.lideres} líderes + ${dados.segundos} melhores 2º`:`${dados.lideres} líderes`;
   return `<div class="scenario-qualified-box">
-    <div class="scenario-qualified-title"><small>CLASSIFICADOS AGORA</small><span>${escapeHtml(resumo)} • pontos / aproveitamento / saldo</span></div>
+    <div class="scenario-qualified-title"><small>${escapeHtml(titulo)}</small><span>${escapeHtml(resumo)} • pontos / aproveitamento / saldo</span></div>
     <div class="scenario-qualified-list">${linhas}</div>
-    <small class="scenario-qualified-note">Ordem atual considerando os resultados registrados até o momento.</small>
+    ${nota?`<small class="scenario-qualified-note">${escapeHtml(nota)}</small>`:''}
   </div>`;
+}
+
+function cctLinhaCctModalidade_(idModalidade){
+  return cctLinhasGruposModalidade_(idModalidade).find(r=>simVoleiNorm(r.EQUIPE)==='CCT')||null;
+}
+function cctPosicaoFinalNumero_(v){
+  if(v===null||v===undefined||String(v).trim()==='')return null;
+  const n=Number(String(v).replace(',','.'));return Number.isFinite(n)&&n>0?n:null;
+}
+function cctPontosGeralNumero_(v){
+  if(v===null||v===undefined||String(v).trim()==='')return null;
+  const n=Number(String(v).replace(',','.'));return Number.isFinite(n)?n:null;
+}
+function cctResumoEliminadoHtml_(c){
+  const linha=cctLinhaCctModalidade_(c.ID_MODALIDADE);
+  const pos=cctPosicaoFinalNumero_(linha?.POSICAO_FINAL_ATUAL);
+  const pts=cctPontosGeralNumero_(linha?.PONTOS_GERAL_CONFIRMADOS);
+  const statusFinal=simVoleiNorm(linha?.STATUS_FINAL_MODALIDADE);
+
+  let principal='Posição final aguardando o encerramento/validação da fase de grupos.';
+  let secundario='A CCT está eliminada, mas a colocação final ainda não foi confirmada.';
+  if(pos!==null){
+    principal=`${pos}º LUGAR`;
+    secundario=pts!==null?`${pts} ${pts===1?'ponto confirmado':'pontos confirmados'} para a Classificação Geral.`:'Colocação final definida.';
+  }else if(statusFinal.includes('AGUARDANDO_DESEMPATE')){
+    principal='DESEMPATE PENDENTE';
+    secundario='A posição final depende de um critério de desempate ainda não disponível automaticamente.';
+  }
+
+  return `<div class="scenario-eliminated-final${pos!==null?' is-defined':''}">
+    <div><small>CLASSIFICAÇÃO FINAL DA CCT</small><strong>${escapeHtml(principal)}</strong><span>${escapeHtml(secundario)}</span></div>
+    ${pts!==null?`<b>${escapeHtml(String(pts))}<small>PTS GERAL</small></b>`:''}
+  </div>`;
+}
+function cctEliminadoClassificacaoHtml_(c){
+  const ranking=classificadosAgoraHtml(c,{
+    titulo:'CLASSIFICADOS DA MODALIDADE',
+    nota:'Equipes que avançaram ao mata-mata após a fase de grupos.'
+  });
+  return `<div class="scenario-quick scenario-quick-eliminated">
+    ${ranking}
+    ${cctResumoEliminadoHtml_(c)}
+  </div>`;
+}
+function cctProximoJogoClassificadoHtml_(c){
+  const j=simProximoJogoCctQualquerFase(c.ID_MODALIDADE,c.PROXIMO_JOGO);
+  if(!j) return '';
+  const fase=simMataMataFaseLabel(j.FASE);
+  return `<div class="scenario-quick-next"><small>PRÓXIMO JOGO${fase?` • ${escapeHtml(fase)}`:''}</small><span>${escapeHtml(j.DATA||'')} • ${escapeHtml(j.HORA||'')}<small>${escapeHtml((j.EQUIPE_A||'A DEFINIR')+' × '+(j.EQUIPE_B||'A DEFINIR'))}</small></span></div>`;
 }
 
 
@@ -2067,18 +2144,20 @@ function renderizarCenarios(){
       ${cctStatusClassificado_(c)
         ? `<div class="scenario-quick scenario-quick-classified">
             ${classificadosAgoraHtml(c)}
-            ${c.PROXIMO_JOGO?`<div class="scenario-quick-next"><small>PRÓXIMO JOGO</small>${proximoJogoCenarioHtml(c.PROXIMO_JOGO)}</div>`:''}
+            ${cctProximoJogoClassificadoHtml_(c)}
           </div>`
-        : `<div class="scenario-quick">
-            <div><small>AGORA</small><strong>${escapeHtml(atual)}</strong></div>
-            <div class="scenario-meta-box">
-              <small>META TÉCNICA ${tipoMetaCenario(c)?`<span class="scenario-meta-type">${escapeHtml(tipoMetaCenario(c))}</span>`:''}</small>
-              <strong>${escapeHtml(precisa)}</strong>
-              ${c.RIVAL_REFERENCIA?`<span class="scenario-meta-rival">Referência: ${escapeHtml(c.RIVAL_REFERENCIA)}</span>`:''}
-              ${c.METRICA_REFERENCIA?`<span class="scenario-meta-metric">${escapeHtml(c.METRICA_REFERENCIA)}</span>`:''}
-            </div>
-            ${c.PROXIMO_JOGO?`<div class="scenario-quick-next"><small>PRÓXIMO JOGO</small>${proximoJogoCenarioHtml(c.PROXIMO_JOGO)}</div>`:''}
-          </div>`}
+        : cctStatusEliminado_(c)
+          ? cctEliminadoClassificacaoHtml_(c)
+          : `<div class="scenario-quick">
+              <div><small>AGORA</small><strong>${escapeHtml(atual)}</strong></div>
+              <div class="scenario-meta-box">
+                <small>META TÉCNICA ${tipoMetaCenario(c)?`<span class="scenario-meta-type">${escapeHtml(tipoMetaCenario(c))}</span>`:''}</small>
+                <strong>${escapeHtml(precisa)}</strong>
+                ${c.RIVAL_REFERENCIA?`<span class="scenario-meta-rival">Referência: ${escapeHtml(c.RIVAL_REFERENCIA)}</span>`:''}
+                ${c.METRICA_REFERENCIA?`<span class="scenario-meta-metric">${escapeHtml(c.METRICA_REFERENCIA)}</span>`:''}
+              </div>
+              ${c.PROXIMO_JOGO?`<div class="scenario-quick-next"><small>PRÓXIMO JOGO</small>${proximoJogoCenarioHtml(c.PROXIMO_JOGO)}</div>`:''}
+            </div>`}
       ${simuladorModalidadeHtml(c)}
       ${temDetalhes?`<button class="scenario-toggle" type="button" data-scenario-toggle aria-expanded="false">VER CONTEXTO <b>⌄</b></button>
       <div class="scenario-detail-body scenario-collapsible" data-scenario-details hidden>

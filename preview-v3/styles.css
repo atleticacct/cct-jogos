@@ -1169,3 +1169,28 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
   .scenario-qualified-rank{font-size:5.8px}
   .scenario-qualified-team{font-size:6.8px}
 }
+
+/* =========================================================
+   V4.8.6 — Eliminados: classificados + colocação final compacta
+   ========================================================= */
+.scenario-quick-eliminated{gap:9px}
+.scenario-eliminated-final{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 11px;border:1px solid #4c3f24;border-radius:12px;background:#18160f;
+}
+.scenario-eliminated-final>div{min-width:0;display:grid;gap:4px}
+.scenario-eliminated-final small{margin:0!important;color:#b3a56d!important;font-size:6.6px!important;letter-spacing:.14em!important;font-weight:900}
+.scenario-eliminated-final strong{font-size:12px;line-height:1.08;color:#f1f3ee;letter-spacing:.01em}
+.scenario-eliminated-final span{color:#898f89;font-size:7.4px;line-height:1.35}
+.scenario-eliminated-final>b{
+  flex:0 0 auto;min-width:50px;padding:7px 8px;border-radius:9px;border:1px solid #315b3d;background:#102417;
+  color:#78ef99;font-size:14px;text-align:center;line-height:1
+}
+.scenario-eliminated-final>b small{display:block;margin-top:4px!important;color:#7aa888!important;font-size:5.4px!important;letter-spacing:.08em!important}
+.scenario-eliminated-final.is-defined{border-color:#315b3d;background:linear-gradient(145deg,#132017,#10140f)}
+.scenario-eliminated-final.is-defined>div>small{color:#79d895!important}
+@media(max-width:390px){
+  .scenario-eliminated-final{padding:9px 9px;gap:7px}
+  .scenario-eliminated-final strong{font-size:11px}
+  .scenario-eliminated-final span{font-size:7px}
+}

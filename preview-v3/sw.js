@@ -1,8 +1,8 @@
-/* CCT JOGOS — Service Worker V4.8.5
+/* CCT JOGOS — Service Worker V4.8.6
  * Objetivo: impedir que iPhone/PWA fique preso em JS/CSS antigos.
  * HTML/JS/CSS = network-first; assets estáticos = cache-first.
  */
-const CACHE_NAME='cct-jogos-shell-v485';
+const CACHE_NAME='cct-jogos-shell-v486';
 const CORE=[
   './',
   './index.html',
