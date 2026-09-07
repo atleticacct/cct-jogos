@@ -59,6 +59,85 @@ let apiData = {
   destaques: []
 };
 
+// V4.8.0 — indicador global de atualização dos dados.
+let apiFreshness = {
+  fonte:'',
+  verificando:true,
+  redeConfirmada:false,
+  erroRede:false,
+  ultimaAlteracao:null,
+  ultimaConfirmacaoRede:0
+};
+
+function timestampApiCct(v){
+  if(v===null || v===undefined || v==='') return null;
+  if(v instanceof Date && !Number.isNaN(v.getTime())) return v.getTime();
+  const raw=String(v).trim();
+  const br=raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T•-]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if(br){
+    const d=new Date(Number(br[3]),Number(br[2])-1,Number(br[1]),Number(br[4]||0),Number(br[5]||0),Number(br[6]||0));
+    return Number.isNaN(d.getTime())?null:d.getTime();
+  }
+  const d=new Date(raw);
+  return Number.isNaN(d.getTime())?null:d.getTime();
+}
+
+function ultimaAlteracaoDadosCct(dados){
+  // Prioridade para JOGOS_APP: o trigger grava ATUALIZADO_EM exatamente quando
+  // horário, equipes, placar, status ou outro campo relevante do jogo é editado.
+  let max=null;
+  const jogos=Array.isArray(dados?.jogos)?dados.jogos:[];
+  jogos.forEach(r=>{
+    const t=timestampApiCct(r?.ATUALIZADO_EM);
+    if(t!==null && (max===null || t>max)) max=t;
+  });
+  if(max!==null) return max;
+
+  // Fallback para instalações antigas que ainda não exponham ATUALIZADO_EM em jogos.
+  [dados?.cenarios,dados?.classificacao_geral].filter(Array.isArray).forEach(lista=>lista.forEach(r=>{
+    ['ATUALIZADO_EM','ATUALIZADO_CENARIO','ATUALIZADO'].forEach(c=>{
+      const t=timestampApiCct(r?.[c]);
+      if(t!==null && (max===null || t>max)) max=t;
+    });
+  }));
+  return max;
+}
+
+function formatarHorarioAtualizacaoCct(ts){
+  if(ts===null || ts===undefined) return '';
+  const d=new Date(ts);
+  if(Number.isNaN(d.getTime())) return '';
+  const hoje=new Date();
+  const hora=d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  if(sameDay(d,hoje)) return `hoje às ${hora}`;
+  const ontem=new Date(hoje.getFullYear(),hoje.getMonth(),hoje.getDate()-1);
+  if(sameDay(d,ontem)) return `ontem às ${hora}`;
+  return `${d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} às ${hora}`;
+}
+
+function renderizarStatusAtualizacaoCct(){
+  const box=$('#dataFreshness'), text=$('#dataFreshnessText'), btn=$('#dataRefreshBtn');
+  if(!box||!text||!btn) return;
+  box.classList.remove('checking','ok','warning');
+  const quando=formatarHorarioAtualizacaoCct(apiFreshness.ultimaAlteracao);
+  if(apiFreshness.verificando){
+    box.classList.add('checking');
+    text.textContent=quando ? `Verificando atualização • dados até ${quando}` : 'Atualizando dados...';
+    btn.hidden=true;
+    return;
+  }
+  if(apiFreshness.redeConfirmada && !apiFreshness.erroRede){
+    box.classList.add('ok');
+    text.textContent=quando ? `Atualizado • última alteração ${quando}` : 'Atualizado agora';
+    btn.hidden=true;
+    return;
+  }
+  box.classList.add('warning');
+  text.textContent=quando ? `Atualização não confirmada • dados até ${quando}` : 'Aplicativo ainda não atualizado';
+  btn.hidden=false;
+}
+
+
 
 /* V3.8 — autenticação e autorização */
 var cctAuthState = {
@@ -729,6 +808,50 @@ function ativarDetalhesClassificacaoGeral(){
   });
 }
 
+function normalizarFaseClassificacao(v){
+  return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+}
+function faseFinalInfo(v){
+  const n=normalizarFaseClassificacao(v);
+  if(!n || n.includes('GRUPO')) return null;
+  if(n.includes('QUARTA')) return {nome:'Quartas de final',ordem:1};
+  if(n.includes('SEMI')) return {nome:'Semifinais',ordem:2};
+  if(n.includes('TERCE') || n.includes('3º') || n.includes('3O ')) return {nome:'Disputa de 3º lugar',ordem:3};
+  if(n==='FINAL' || n.includes('FINAL')) return {nome:'Final',ordem:4};
+  return {nome:String(v||'Fase final'),ordem:5};
+}
+function classificacaoFasesFinaisHtml(){
+  const jogos=apiData.jogos
+    .filter(j=>j.ID_COMPETICAO===jogosUI.competicao && j.ID_MODALIDADE===jogosUI.classificacaoModalidade)
+    .map(j=>({j,info:faseFinalInfo(j.FASE)}))
+    .filter(x=>x.info)
+    .sort((a,b)=>a.info.ordem-b.info.ordem || (parseBrDate(a.j.DATA,a.j.HORA)?.getTime()||0)-(parseBrDate(b.j.DATA,b.j.HORA)?.getTime()||0));
+  if(!jogos.length) return '';
+
+  const grupos=new Map();
+  jogos.forEach(x=>{
+    const key=x.info.nome;
+    if(!grupos.has(key)) grupos.set(key,{ordem:x.info.ordem,jogos:[]});
+    grupos.get(key).jogos.push(x.j);
+  });
+
+  const partida=j=>{
+    const finalizado=isFinalizado(j) || normalizarFaseClassificacao(j.STATUS).includes('ENCERR');
+    const temPlacar=j.PLACAR_A!=='' && j.PLACAR_A!==null && j.PLACAR_A!==undefined && j.PLACAR_B!=='' && j.PLACAR_B!==null && j.PLACAR_B!==undefined;
+    const centro=temPlacar ? `${j.PLACAR_A} × ${j.PLACAR_B}` : (j.HORA||'A definir');
+    const cct=jogoTemCCT(j);
+    return `<div class="knockout-match ${cct?'is-cct':''}">
+      <div class="knockout-teams"><strong>${escapeHtml(j.EQUIPE_A||'A DEFINIR')}</strong><span>${escapeHtml(centro)}</span><strong>${escapeHtml(j.EQUIPE_B||'A DEFINIR')}</strong></div>
+      <div class="knockout-meta"><span>${escapeHtml(j.DATA||'Data a definir')}</span><span>${escapeHtml(j.LOCAL||'Local a definir')}</span><em>${escapeHtml(finalizado?'FINALIZADO':(j.STATUS||'AGENDADO'))}</em></div>
+    </div>`;
+  };
+
+  return `<section class="classification-knockout">
+    <div class="classification-knockout-head"><div><small>MATA-MATA</small><strong>Fases finais</strong></div><span>Chave atual da modalidade</span></div>
+    ${[...grupos.entries()].sort((a,b)=>a[1].ordem-b[1].ordem).map(([nome,g])=>`<div class="knockout-stage"><h4>${escapeHtml(nome)}</h4>${g.jogos.map(partida).join('')}</div>`).join('')}
+  </section>`;
+}
+
 function renderizarClassificacao(){
   const container=$('#classificacaoContainer');
   if(!container) return;
@@ -769,9 +892,13 @@ function renderizarClassificacao(){
     grupos.get(chave).push(r);
   });
 
-  container.innerHTML=linhas.length
+  const gruposHtml=linhas.length
     ? [...grupos.entries()].map(([g,rs])=>classificacaoGrupoHtml(g,rs)).join('')
-    : '<div class="games-empty">Nenhuma classificação encontrada para esta modalidade.</div>';
+    : '';
+  const finaisHtml=classificacaoFasesFinaisHtml();
+  container.innerHTML=(gruposHtml||finaisHtml)
+    ? `${gruposHtml}${finaisHtml}`
+    : '<div class="games-empty">Nenhuma classificação ou fase final encontrada para esta modalidade.</div>';
 }
 
 function proximoJogoCenarioHtml(idJogo){
@@ -993,6 +1120,7 @@ function renderizarCenarios(){
           <small>META TÉCNICA ${tipoMetaCenario(c)?`<span class="scenario-meta-type">${escapeHtml(tipoMetaCenario(c))}</span>`:''}</small>
           <strong>${escapeHtml(precisa)}</strong>
           ${c.RIVAL_REFERENCIA?`<span class="scenario-meta-rival">Referência: ${escapeHtml(c.RIVAL_REFERENCIA)}</span>`:''}
+          ${c.METRICA_REFERENCIA?`<span class="scenario-meta-metric">${escapeHtml(c.METRICA_REFERENCIA)}</span>`:''}
         </div>
         ${c.PROXIMO_JOGO?`<div class="scenario-quick-next"><small>PRÓXIMO JOGO</small>${proximoJogoCenarioHtml(c.PROXIMO_JOGO)}</div>`:''}
       </div>
@@ -1196,6 +1324,15 @@ function abrirSeletorCompeticao(){
 function aplicarDadosAPI(dados,{fonte='rede'}={}){
   if(!dados || typeof dados!=='object') return false;
 
+  apiFreshness.fonte=fonte;
+  apiFreshness.ultimaAlteracao=ultimaAlteracaoDadosCct(dados);
+  if(fonte==='rede'){
+    apiFreshness.redeConfirmada=true;
+    apiFreshness.erroRede=false;
+    apiFreshness.verificando=false;
+    apiFreshness.ultimaConfirmacaoRede=Date.now();
+  }
+
   apiData.jogos=dados.jogos||[];
   apiData.classificacao=dados.classificacao||[];
   apiData.classificacao_geral=dados.classificacao_geral||[];
@@ -1224,6 +1361,7 @@ function aplicarDadosAPI(dados,{fonte='rede'}={}){
   renderizarProximoJogoHome();
   renderizarModulosGerais();
 
+  renderizarStatusAtualizacaoCct();
   console.log(`API CCT aplicada (${fonte}):`,apiData);
   return true;
 }
@@ -1276,6 +1414,9 @@ async function atualizarDadosAPIRede({silencioso=false}={}){
   if(apiAtualizacaoPromise) return apiAtualizacaoPromise;
   if(silencioso && agora-ultimaTentativaApi<API_RETRY_GUARD_MS) return null;
   ultimaTentativaApi=agora;
+  apiFreshness.verificando=true;
+  apiFreshness.erroRede=false;
+  renderizarStatusAtualizacaoCct();
 
   apiAtualizacaoPromise=(async()=>{
     try{
@@ -1288,6 +1429,10 @@ async function atualizarDadosAPIRede({silencioso=false}={}){
       return dados;
     }catch(erro){
       console.error('Erro ao atualizar API CCT:',erro);
+      apiFreshness.verificando=false;
+      apiFreshness.erroRede=true;
+      apiFreshness.redeConfirmada=false;
+      renderizarStatusAtualizacaoCct();
       if(!silencioso && !lerCacheAPI()) mostrarErroAPI();
       return null;
     }finally{
@@ -1302,30 +1447,30 @@ async function carregarDadosAPI(){
   const cache=lerCacheAPI();
 
   if(cache){
-    // Mostra imediatamente os últimos dados salvos no aparelho.
+    // Exibe imediatamente o último retrato salvo e confirma em segundo plano
+    // se houve novo placar/alteração na planilha.
+    apiFreshness.verificando=true;
+    apiFreshness.redeConfirmada=false;
+    apiFreshness.erroRede=false;
     aplicarDadosAPI(cache.dados,{fonte:'cache local'});
-
-    // Se ainda estiver recente, não faz uma nova chamada ao Apps Script.
-    if(cache.idade<API_CACHE_FRESH_MS){
-      console.log(`Cache CCT recente (${Math.round(cache.idade/1000)}s).`);
-      return;
-    }
-
-    // Cache antigo: mantém a tela pronta e atualiza silenciosamente em segundo plano.
     atualizarDadosAPIRede({silencioso:true});
     return;
   }
 
-  // Primeiro acesso neste aparelho: precisa buscar a API uma vez.
+  apiFreshness.verificando=true;
+  renderizarStatusAtualizacaoCct();
   await atualizarDadosAPIRede({silencioso:false});
 }
 
 function atualizarAPISeNecessario(){
-  const cache=lerCacheAPI();
-  if(!cache || cache.idade>=API_CACHE_FRESH_MS){
+  const desdeRede=Date.now()-Number(apiFreshness.ultimaConfirmacaoRede||0);
+  if(!apiFreshness.ultimaConfirmacaoRede || desdeRede>=API_CACHE_FRESH_MS){
     atualizarDadosAPIRede({silencioso:true});
   }
 }
+
+$('#dataRefreshBtn')?.addEventListener('click',()=>atualizarDadosAPIRede({silencioso:false}));
+renderizarStatusAtualizacaoCct();
 
 bindCompeticaoUI();
 carregarDadosAPI();

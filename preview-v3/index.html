@@ -13,7 +13,7 @@
   <title>Atlética CCT</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=477" />
+  <link rel="stylesheet" href="styles.css?v=480" />
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -63,6 +63,12 @@
       </div>
       <button class="icon-btn bell" id="alertBtn" aria-label="Avisos"><svg class="ui-icon"><use href="#i-bell"></use></svg><b>2</b></button>
     </header>
+
+    <div class="data-freshness checking" id="dataFreshness" role="status" aria-live="polite">
+      <span class="data-freshness-dot" aria-hidden="true"></span>
+      <span id="dataFreshnessText">Verificando atualização...</span>
+      <button id="dataRefreshBtn" type="button" hidden>ATUALIZAR</button>
+    </div>
 
     <main id="content">
       <section class="screen active" data-screen="inicio">
@@ -341,6 +347,6 @@
   <script src="firebase-config.js?v=443"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-  <script src="app.js?v=477"></script>
+  <script src="app.js?v=480"></script>
 </body>
 </html>
