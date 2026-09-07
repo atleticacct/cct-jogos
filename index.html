@@ -4,13 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#07110b" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Atlética CCT" />
   <title>Atlética CCT</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=469" />
+  <link rel="stylesheet" href="styles.css?v=482" />
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -60,6 +63,12 @@
       </div>
       <button class="icon-btn bell" id="alertBtn" aria-label="Avisos"><svg class="ui-icon"><use href="#i-bell"></use></svg><b>2</b></button>
     </header>
+
+    <div class="data-freshness checking" id="dataFreshness" role="status" aria-live="polite">
+      <span class="data-freshness-dot" aria-hidden="true"></span>
+      <span id="dataFreshnessText">Verificando atualização...</span>
+      <button id="dataRefreshBtn" type="button" hidden>ATUALIZAR</button>
+    </div>
 
     <main id="content">
       <section class="screen active" data-screen="inicio">
@@ -338,6 +347,6 @@
   <script src="firebase-config.js?v=443"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-  <script src="app.js?v=469"></script>
+  <script src="app.js?v=482"></script>
 </body>
 </html>

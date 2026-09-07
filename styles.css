@@ -983,3 +983,130 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
   .scenario-quick strong{font-size:11px}
   .scenario-compact-head h3{font-size:15px}
 }
+
+
+/* =========================================================
+   V4.7.5 — Agenda limpa + Meta Técnica nos Cenários
+   ========================================================= */
+.agenda-empty-clean{
+  width:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:150px;padding:24px 20px;text-align:center;border:1px solid #273029;border-radius:18px;
+  background:#101512;color:#fff;
+}
+.agenda-empty-clean>span{
+  width:44px;height:44px;border-radius:14px;display:grid;place-items:center;margin-bottom:10px;
+  background:#17291d;border:1px solid #31573d;color:#83e5a0;
+}
+.agenda-empty-clean .agenda-empty-icon{width:22px;height:22px}
+.agenda-empty-clean strong{display:block;font-size:13px;line-height:1.3}
+.agenda-empty-clean small{display:block;max-width:270px;margin-top:6px;color:#7e8b83;font-size:9px;line-height:1.45}
+
+.scenario-meta-box{border-color:#315b3d!important;background:linear-gradient(145deg,#102417,#0c130f)!important}
+.scenario-meta-box>small{display:flex!important;align-items:center;justify-content:space-between;gap:8px}
+.scenario-meta-type{
+  display:inline-flex!important;align-items:center;width:auto!important;margin:0!important;padding:3px 6px;border-radius:999px;
+  background:#183521;color:#90e8a8!important;font-size:6.5px!important;letter-spacing:.55px!important;white-space:nowrap
+}
+.scenario-meta-rival{display:block;margin-top:6px;color:#748178;font-size:8px;font-weight:750}
+.scenario-quick strong{font-size:12px;line-height:1.42}
+.scenario-toggle{margin-top:9px}
+@media(max-width:390px){
+  .agenda-empty-clean{min-height:132px;padding:20px 16px}
+  .scenario-meta-box>small{align-items:flex-start}
+  .scenario-meta-type{font-size:6px!important}
+}
+
+
+/* =========================================================
+   V4.7.6 — Agenda vazia igual ao estado vazio de Eventos
+   ========================================================= */
+#agendaContainer.agenda-empty-events{
+  margin-top:0!important;
+  display:grid;
+  gap:13px;
+}
+#agendaContainer.agenda-empty-events>.event-empty{
+  width:100%;
+  box-sizing:border-box;
+}
+
+/* =========================================================
+   V4.7.7 — SAFE AREA iOS / PWA instalado
+   Evita que menu, marca e sino fiquem sob a barra de status.
+   Em navegadores sem safe-area, env() vale 0 e o layout não muda.
+   ========================================================= */
+.topbar{
+  height:calc(76px + env(safe-area-inset-top, 0px));
+  padding-top:calc(10px + env(safe-area-inset-top, 0px));
+}
+
+/* O menu lateral também precisa respeitar o recorte/status bar
+   quando o app é aberto pela Tela de Início do iPhone. */
+.drawer-head{
+  height:calc(78px + env(safe-area-inset-top, 0px));
+  padding-top:calc(12px + env(safe-area-inset-top, 0px));
+}
+
+/* =========================================================
+   V4.8.0 — STATUS DE ATUALIZAÇÃO + FASES FINAIS
+   ========================================================= */
+.data-freshness{
+  min-height:26px;display:flex;align-items:center;justify-content:center;gap:7px;
+  padding:5px 12px;border-bottom:1px solid rgba(255,255,255,.035);
+  background:#080d0a;color:#748178;font-size:8px;font-weight:800;letter-spacing:.15px
+}
+.data-freshness-dot{width:6px;height:6px;border-radius:50%;background:#718078;flex:0 0 auto}
+.data-freshness.ok{color:#88b796}.data-freshness.ok .data-freshness-dot{background:var(--green);box-shadow:0 0 10px rgba(35,209,96,.35)}
+.data-freshness.checking .data-freshness-dot{background:#d4b35b;animation:freshPulse 1.1s ease-in-out infinite}
+.data-freshness.warning{color:#d2a46c}.data-freshness.warning .data-freshness-dot{background:#d7954d}
+.data-freshness button{border:0;background:transparent;color:#8ee6a7;font-size:7px;font-weight:950;letter-spacing:.6px;padding:2px 4px;cursor:pointer}
+@keyframes freshPulse{50%{opacity:.35;transform:scale(.8)}}
+
+.classification-knockout{margin:22px 0 8px;padding-top:2px}
+.classification-knockout-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:0 3px 10px}
+.classification-knockout-head>div small{display:block;color:var(--green);font-size:7px;font-weight:950;letter-spacing:1.1px}
+.classification-knockout-head>div strong{display:block;margin-top:2px;font-size:15px}
+.classification-knockout-head>span{color:#738078;font-size:8px;text-align:right}
+.knockout-stage{margin-bottom:14px}
+.knockout-stage h4{margin:0 3px 7px;color:#a6b1aa;font-size:9px;font-weight:950;letter-spacing:.7px;text-transform:uppercase}
+.knockout-match{background:#101512;border:1px solid #273029;border-radius:15px;padding:11px 12px;margin-bottom:7px}
+.knockout-match.is-cct{border-color:#347d49;background:#112017;box-shadow:inset 3px 0 0 var(--green)}
+.knockout-teams{display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr);align-items:center;gap:8px}
+.knockout-teams strong{font-size:10px;line-height:1.2;overflow-wrap:anywhere}
+.knockout-teams strong:last-child{text-align:right}
+.knockout-teams span{text-align:center;color:#e9f3ec;font-size:13px;font-weight:950;white-space:nowrap}
+.knockout-meta{display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:7px;border-top:1px solid #232c26;color:#738078;font-size:7.5px}
+.knockout-meta span:nth-child(2){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.knockout-meta em{margin-left:auto;color:#82d89a;font-style:normal;font-weight:900;font-size:7px}
+.scenario-meta-metric{display:block;margin-top:4px;color:#92a198;font-size:8px;font-weight:850;line-height:1.35}
+
+@media(max-width:390px){
+  .data-freshness{font-size:7.5px;padding-inline:8px}
+  .knockout-teams{grid-template-columns:minmax(0,1fr) 64px minmax(0,1fr)}
+  .knockout-teams strong{font-size:9px}.knockout-teams span{font-size:12px}
+}
+
+/* V4.8.1 — Simulador local de cenários do vôlei */
+.scenario-simulator{margin-top:9px;border-top:1px solid #203128;padding-top:8px}
+.scenario-sim-toggle{width:100%;border:0;background:transparent;color:#8ce6a5;display:flex;align-items:center;justify-content:space-between;padding:7px 3px;font-size:9px;font-weight:900;letter-spacing:.12em;text-align:left}
+.scenario-sim-toggle span{display:flex;align-items:center;gap:6px}.scenario-sim-toggle .ui-icon{width:14px;height:14px}.scenario-sim-toggle b{font-size:15px}
+.scenario-sim-panel{margin-top:6px;padding:11px;border:1px solid #315b3d;border-radius:15px;background:linear-gradient(145deg,#0e1d13,#0b100d)}
+.scenario-sim-panel[hidden]{display:none!important}.scenario-sim-head{display:grid;gap:2px;margin-bottom:10px}.scenario-sim-head small,.scenario-sim-conditions>small{color:#72d995;font-size:7px;font-weight:950;letter-spacing:.16em}.scenario-sim-head strong{font-size:11px}.scenario-sim-head span{font-size:8px;color:#7e8c83}
+.scenario-sim-field{display:grid;gap:5px}.scenario-sim-field>span{font-size:8px;color:#9aa79f;font-weight:850}.scenario-sim-field select{width:100%;appearance:auto;border:1px solid #2f4f39;background:#0b100d;color:#f2f6f3;border-radius:11px;padding:10px;font-size:11px;font-weight:800;outline:none}
+.scenario-sim-field select:focus{border-color:#60d887}.scenario-sim-result{margin-top:10px}.scenario-sim-result>p{margin:0;color:#7e8b83;font-size:9px;line-height:1.45}.scenario-sim-loading{padding:12px;text-align:center;color:#8ce6a5;font-size:9px;font-weight:850}
+.scenario-sim-alert{padding:10px 11px;border-radius:12px;border:1px solid #2a4733;background:#101612}.scenario-sim-alert small{display:block;color:#78da97;font-size:7px;font-weight:950;letter-spacing:.14em}.scenario-sim-alert strong{display:block;margin-top:4px;font-size:11px}.scenario-sim-alert p{margin:5px 0 0!important;font-size:9px!important;line-height:1.4!important;color:#a4b0a8!important}.scenario-sim-alert.success{border-color:#2e7546;background:#102318}.scenario-sim-alert.warning{border-color:#665b2c;background:#1e1b0f}.scenario-sim-alert.danger{border-color:#713d3d;background:#211111}.scenario-sim-alert.neutral{border-color:#3d566d;background:#101923}
+.scenario-sim-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:7px}.scenario-sim-metrics>div{padding:8px 5px;border-radius:10px;background:#0a0f0c;border:1px solid #26332b;text-align:center}.scenario-sim-metrics small{display:block;color:#718078;font-size:6px;font-weight:900;letter-spacing:.08em}.scenario-sim-metrics strong{display:block;margin-top:3px;font-size:9.5px;color:#eef4ef}
+.scenario-sim-conditions{margin-top:8px;padding:9px 10px;border-radius:11px;background:#0a0f0c;border:1px solid #243029}.scenario-sim-conditions ul{margin:6px 0 0;padding-left:15px}.scenario-sim-conditions li{margin:4px 0;color:#aab5ae;font-size:8.5px;line-height:1.4}.scenario-sim-runtime{margin-top:7px;color:#627068;font-size:7px;text-align:right}.scenario-sim-note{display:block!important;margin-top:8px;color:#66736b!important;font-size:7px!important;letter-spacing:0!important;line-height:1.35}
+@media(max-width:390px){.scenario-sim-panel{padding:10px}.scenario-sim-metrics{gap:4px}.scenario-sim-metrics>div{padding:7px 3px}.scenario-sim-conditions li{font-size:8px}}
+
+/* V4.8.2 — simulador multimodalidade */
+.scenario-sim-extra{margin-top:8px}
+.scenario-sim-score{margin-top:8px;display:grid;gap:6px}
+.scenario-sim-score>span{font-size:8px;color:#9aa79f;font-weight:850}
+.scenario-sim-score>span small{font-weight:600;color:#718078}
+.scenario-sim-score>div{display:grid;grid-template-columns:1fr auto 1fr;gap:7px;align-items:end}
+.scenario-sim-score label{display:grid;gap:4px;font-size:7px;color:#7f8d84;font-weight:900;letter-spacing:.08em}
+.scenario-sim-score input{width:100%;min-width:0;border:1px solid #2f4f39;background:#0b100d;color:#f2f6f3;border-radius:10px;padding:9px;font-size:11px;font-weight:850;outline:none;text-align:center}
+.scenario-sim-score input:focus{border-color:#60d887}
+.scenario-sim-score b{padding-bottom:9px;color:#718078}
+.data-freshness.warning button{border:1px solid rgba(140,230,165,.25);border-radius:999px;padding:3px 7px}
