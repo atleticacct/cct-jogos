@@ -951,6 +951,105 @@ function formatarAtualizacaoCenarioGeral(v){
   return raw;
 }
 
+function cctGeralQuebrarCondicoes(texto){
+  const raw=String(texto||'').replace(/\r/g,'\n').trim();
+  if(!raw) return [];
+  return raw
+    .split(/\n+|\s*\|\s*|\s*;\s*/)
+    .map(x=>x.replace(/^[-•·]+\s*/,'').trim())
+    .filter(Boolean);
+}
+
+function cctGeralNormEquipe(v){
+  return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+}
+
+function cctGeralCondicoesTitulo(linhas,cct,ctx={}){
+  const statusNorm=String(ctx.status||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  if(statusNorm.includes('CAMPEAO GERAL GARANTIDO')){
+    return ['O título geral já está matematicamente garantido; nenhum resultado externo é necessário.'];
+  }
+  if(statusNorm.includes('MATEMATICAMENTE IMPOSSIVEL')){
+    return ['Com os limites atualmente validados, não existe combinação matemática que coloque a CCT em 1º lugar geral.'];
+  }
+
+  const pts=numeroCenarioGeral(ctx.pts)??0;
+  const ptsMin=numeroCenarioGeral(ctx.ptsMin);
+  const ptsMax=numeroCenarioGeral(ctx.ptsMax);
+  const cctNome=cctGeralNormEquipe(cct?.EQUIPE||'CCT');
+  const rivais=linhas
+    .filter(r=>cctGeralNormEquipe(r.EQUIPE)!==cctNome)
+    .map(r=>({
+      equipe:String(r.EQUIPE||'').trim(),
+      atual:numeroCenarioGeral(r.PONTOS)??0,
+      min:numeroCenarioGeral(r.PONTOS_MINIMOS),
+      max:numeroCenarioGeral(r.PONTOS_MAXIMOS)
+    }))
+    .filter(r=>r.equipe);
+
+  const cond=[];
+  const rivaisComTeto=rivais.filter(r=>r.max!==null).sort((a,b)=>b.max-a.max);
+  const maiorTetoRival=rivaisComTeto.length?rivaisComTeto[0].max:null;
+  const baseReferencia=Math.max(pts,ptsMin??pts);
+
+  if(ptsMax!==null && maiorTetoRival!==null){
+    if(ptsMax>maiorTetoRival){
+      const alvo=maiorTetoRival+1;
+      const falta=Math.max(0,alvo-baseReferencia);
+      cond.push(
+        falta>0
+          ? `Para garantir o título sem depender de ninguém, a CCT precisa chegar a pelo menos ${alvo} pts — ${falta} acima da sua base mínima/confirmada atual.`
+          : `A faixa atual já permite à CCT ultrapassar sozinha o maior teto rival; o alvo de garantia é ${alvo} pts.`
+      );
+    }else{
+      const limiteRival=ptsMax-1;
+      cond.push(`Se a CCT alcançar seu teto atual de ${ptsMax} pts, todos os rivais precisam terminar com no máximo ${limiteRival} pts.`);
+      rivaisComTeto
+        .filter(r=>r.max>=ptsMax)
+        .slice(0,4)
+        .forEach(r=>{
+          const precisaCeder=Math.max(1,r.max-limiteRival);
+          cond.push(`${r.equipe}: precisa deixar pelo menos ${precisaCeder} pt${precisaCeder===1?'':'s'} pelo caminho em relação ao teto atual de ${r.max}.`);
+        });
+    }
+  }
+
+  const extras=[
+    ...cctGeralQuebrarCondicoes(ctx.precisa),
+    ...cctGeralQuebrarCondicoes(ctx.caminho)
+  ];
+  extras.forEach(x=>{
+    const norm=x.toUpperCase();
+    const generico=norm.includes('PARA GERAR METAS EXATAS') || norm.includes('PREENCHA PONTOS_MAXIMOS');
+    if(!generico && !cond.some(c=>c.toUpperCase()===norm)) cond.push(x);
+  });
+
+  if(!cond.length && ptsMax!==null){
+    cond.push(`A CCT pode chegar a ${ptsMax} pts; o título depende de terminar acima da pontuação final dos principais rivais.`);
+  }
+  if(!cond.length){
+    cond.push('A CCT precisa terminar a competição com mais pontos que todas as demais atléticas; o corte exato será atualizado conforme as pontuações forem confirmadas.');
+  }
+
+  return cond.slice(0,7);
+}
+
+function cctGeralRivaisCriticos(linhas,cct,ptsMax,adversariosTexto){
+  const cctNome=cctGeralNormEquipe(cct?.EQUIPE||'CCT');
+  const limite=numeroCenarioGeral(ptsMax);
+  const rivais=linhas
+    .filter(r=>cctGeralNormEquipe(r.EQUIPE)!==cctNome)
+    .map(r=>({equipe:String(r.EQUIPE||'').trim(),min:numeroCenarioGeral(r.PONTOS_MINIMOS),max:numeroCenarioGeral(r.PONTOS_MAXIMOS)}))
+    .filter(r=>r.equipe && r.max!==null)
+    .sort((a,b)=>b.max-a.max)
+    .filter(r=>limite===null || r.max>=limite)
+    .slice(0,5);
+  if(rivais.length){
+    return rivais.map(r=>`${r.equipe} (${r.min!==null?`${r.min}–`:''}${r.max} pts)`).join(' • ');
+  }
+  return String(adversariosTexto||'').trim();
+}
+
 function cenarioGeralHtml(){
   const linhas=apiData.classificacao_geral
     .filter(x=>x.ID_COMPETICAO===jogosUI.competicao)
@@ -999,6 +1098,8 @@ function cenarioGeralHtml(){
     .replace(/Principal ameaca atual:/gi,'Maior teto projetado no momento:');
   const precisa=String(cct.O_QUE_PRECISA_TITULO||cct.O_QUE_PRECISA||'').trim();
   const abertas=String(cct.MODALIDADES_ABERTAS||'').trim();
+  const condicoesTitulo=cctGeralCondicoesTitulo(linhas,cct,{pts,ptsMin,ptsMax,status,precisa,caminho});
+  const rivaisCriticos=cctGeralRivaisCriticos(linhas,cct,ptsMax,adversarios);
 
   const atualizacoes=[cct.ATUALIZADO_CENARIO,cct.ATUALIZADO_EM]
     .map(v=>String(v||'').trim()).filter(Boolean);
@@ -1057,12 +1158,13 @@ function cenarioGeralHtml(){
           <small>CENÁRIO ATUAL</small>
           <p>${escapeHtml(cenario||cenarioFallback)}</p>
         </div>
-        <div class="general-needed ${cenarioIncompleto?'is-incomplete':''}">
-          <small>${cenarioIncompleto?'CENÁRIO AINDA INCOMPLETO':'O QUE A CCT PRECISA PARA O TÍTULO'}</small>
-          <strong>${escapeHtml(cenarioIncompleto?textoIncompleto:(precisa||precisaFallback))}</strong>
+        <div class="general-needed general-title-goal">
+          <small>PARA A CCT SER CAMPEÃ</small>
+          <ul class="general-title-conditions">${condicoesTitulo.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul>
         </div>
-        ${(!cenarioIncompleto && caminho)?`<div class="general-path"><small>CAMINHO POR MODALIDADE</small><p>${escapeHtml(caminho)}</p></div>`:''}
-        ${adversarios?`<div class="general-rivals"><small>ADVERSÁRIOS CRÍTICOS</small><p>${escapeHtml(adversarios)}</p></div>`:''}
+        ${cenarioIncompleto?`<div class="general-needed is-incomplete"><small>O QUE AINDA FALTA CONFIRMAR</small><strong>${escapeHtml(textoIncompleto)}</strong></div>`:''}
+        ${caminho?`<div class="general-path"><small>CAMINHO POR MODALIDADE</small><p>${escapeHtml(caminho)}</p></div>`:''}
+        ${rivaisCriticos?`<div class="general-rivals"><small>RIVAIS QUE MAIS IMPACTAM O TÍTULO</small><p>${escapeHtml(rivaisCriticos)}</p></div>`:''}
         ${abertas?`<div><small>MODALIDADES COM PONTUAÇÃO A DEFINIR</small><p>${escapeHtml(abertas)}</p></div>`:''}
         ${atualizado?`<div class="general-updated"><small>ATUALIZAÇÃO</small><p>${escapeHtml(atualizado)}</p></div>`:''}
       </div>
@@ -1852,11 +1954,9 @@ function bindSimuladoresMataMata(container){
 }
 function simuladorOutrasModalidadesHtml(c){
   const tipo=simOutroTipo(c.ID_MODALIDADE); if(!tipo)return'';
+  // V4.8.7: somente jogo ainda aberto da FASE DE GRUPOS pode ser simulado.
   const jogo=simOutroProximoJogoCct(c.ID_MODALIDADE,c.PROXIMO_JOGO);
-  if(!jogo){
-    const proximo=simProximoJogoCctQualquerFase(c.ID_MODALIDADE,c.PROXIMO_JOGO);
-    return proximo?simuladorMataMataHtml(c,proximo):simSemJogoHtml(c);
-  }
+  if(!jogo) return '';
   const opts=SIM_OUTROS_RESULTADOS[tipo]||[];
   return `<div class="scenario-simulator" data-sim-outro data-sim-tipo="${tipo}" data-sim-modalidade="${escapeHtml(c.ID_MODALIDADE||'')}" data-sim-jogo="${escapeHtml(jogo.ID_JOGO||'')}">
     <button class="scenario-sim-toggle" type="button" data-sim-toggle aria-expanded="false"><span>${uiIcon('target','inline-icon')} SIMULAR CENÁRIO</span><b>›</b></button>
@@ -1908,21 +2008,21 @@ function bindSimuladoresOutros(container){
   });
 }
 function simuladorModalidadeHtml(c){
-  // Modalidade eliminada e sem jogo futuro não precisa exibir um segundo aviso de
-  // campanha encerrada. A V4.8.6 usa esse espaço para classificação final/geral.
+  /* V4.8.7 — o simulador existe SOMENTE na fase de grupos.
+     Mata-mata não exibe simulação: o resultado é eliminatório e o card mostra
+     apenas a classificação já conquistada + próximo jogo real da CCT. */
   if(cctStatusEliminado_(c)) return '';
-  if(simVoleiEhModalidade(c.ID_MODALIDADE)){
-    const grupo=simVoleiProximoJogoCct(c.ID_MODALIDADE,c.PROXIMO_JOGO);
-    if(grupo) return simuladorVoleiHtml(c);
-    const proximo=simProximoJogoCctQualquerFase(c.ID_MODALIDADE,c.PROXIMO_JOGO);
-    return proximo?simuladorMataMataHtml(c,proximo):simSemJogoHtml(c);
-  }
-  return simuladorOutrasModalidadesHtml(c);
+
+  const jogoGrupo=simVoleiProximoJogoCct(c.ID_MODALIDADE,c.PROXIMO_JOGO);
+  if(!jogoGrupo) return '';
+
+  if(simVoleiEhModalidade(c.ID_MODALIDADE)) return simuladorVoleiHtml(c);
+  if(simOutroTipo(c.ID_MODALIDADE)) return simuladorOutrasModalidadesHtml(c);
+  return '';
 }
 function bindSimuladoresModalidades(container){
   bindSimuladoresVolei(container);
   bindSimuladoresOutros(container);
-  bindSimuladoresMataMata(container);
 }
 
 

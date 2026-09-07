@@ -1194,3 +1194,30 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
   .scenario-eliminated-final strong{font-size:11px}
   .scenario-eliminated-final span{font-size:7px}
 }
+
+
+/* =========================================================
+   V4.8.8 — OBJETIVO DO TÍTULO GERAL
+   ========================================================= */
+.general-title-goal{
+  border-color:#2f8e4a!important;
+  background:linear-gradient(135deg,#102b1a,#0d120f)!important;
+}
+.general-title-conditions{
+  display:grid;
+  gap:7px;
+  margin:7px 0 0;
+  padding-left:18px;
+  color:#d9e7dd;
+}
+.general-title-conditions li{
+  padding-left:2px;
+  font-size:11px;
+  font-weight:720;
+  line-height:1.45;
+}
+.general-title-conditions li::marker{color:#72dc91}
+@media(max-width:390px){
+  .general-title-conditions{gap:6px;padding-left:16px}
+  .general-title-conditions li{font-size:10px;line-height:1.42}
+}
