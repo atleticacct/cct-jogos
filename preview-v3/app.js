@@ -1735,7 +1735,8 @@ function simOutroCalcular(idModalidade,idJogo,resultadoId,margemRaw,placarCctRaw
   const {mapa,cct}=simOutroAplicarPontosProjetados(linhas,jogo,resultado); const pts=simVoleiNum(cct.__pontos);
   const tamanho=linhas.length; const poss=Math.max(0,(tamanho-1)*3); const pct=poss?pts/poss:0;
   let saldo=simOutroSaldoLinha(cctLinha), pro=simOutroProLinha(cctLinha), contra=simOutroContraLinha(cctLinha), scoreCompleto=false;
-  let margem=Number(margemRaw||1); if(!Number.isFinite(margem)||margem<1)margem=1;
+  let margem=resultado.id==='E'?0:Number(margemRaw||1);
+  if(!Number.isFinite(margem)||(resultado.id!=='E'&&margem<1)) margem=resultado.id==='E'?0:1;
   if(tipo==='FUT'||tipo==='HAN'){
     if(resultado.id==='V')saldo+=margem; else if(resultado.id==='D')saldo-=margem;
   }else if(tipo==='BAS'){
@@ -1782,10 +1783,12 @@ function simProximoJogoCctQualquerFase(idModalidade,idPreferido=''){
 }
 function simMataMataFaseLabel(fase){
   const f=simVoleiNorm(fase);
-  if(f.includes('FINAL')&&!f.includes('SEMI')) return 'FINAL';
-  if(f.includes('SEMI')) return 'SEMIFINAL';
+  // V4.8.4: testar fases específicas antes de "FINAL".
+  // "QUARTAS DE FINAL" contém a palavra FINAL e antes era classificada incorretamente como FINAL.
   if(f.includes('QUARTA')) return 'QUARTAS DE FINAL';
+  if(f.includes('SEMI')) return 'SEMIFINAL';
   if(f.includes('3')||f.includes('TERCEIRO')) return 'DISPUTA DE 3º';
+  if(f==='FINAL'||f.includes('FINAL')) return 'FINAL';
   return String(fase||'MATA-MATA').toUpperCase();
 }
 function simuladorMataMataHtml(c,jogo){
@@ -1838,7 +1841,7 @@ function simuladorOutrasModalidadesHtml(c){
     <div class="scenario-sim-panel" data-sim-panel hidden>
       <div class="scenario-sim-head"><small>PRÓXIMO JOGO</small><strong>${escapeHtml((jogo.EQUIPE_A||'A DEFINIR')+' × '+(jogo.EQUIPE_B||'A DEFINIR'))}</strong><span>${escapeHtml([jogo.DATA,jogo.HORA].filter(Boolean).join(' • '))}</span></div>
       <label class="scenario-sim-field"><span>Se a CCT...</span><select data-sim-outcome><option value="">Escolha um resultado</option>${opts.map(o=>`<option value="${o.id}">${escapeHtml(o.label)}</option>`).join('')}</select></label>
-      ${tipo==='FUT'||tipo==='HAN'?`<label class="scenario-sim-field scenario-sim-extra" data-sim-margin-wrap hidden><span>Diferença projetada</span><select data-sim-margin><option value="1">1 gol</option><option value="2">2 gols</option><option value="3">3 gols</option><option value="4">4 gols</option><option value="5">5 ou mais</option></select></label>`:''}
+      ${tipo==='FUT'||tipo==='HAN'?`<label class="scenario-sim-field scenario-sim-extra" data-sim-margin-wrap hidden><span>Diferença projetada</span><select data-sim-margin><option value="0">0 gols</option><option value="1">1 gol</option><option value="2">2 gols</option><option value="3">3 gols</option><option value="4">4 gols</option><option value="5">5 ou mais</option></select></label>`:''}
       ${tipo==='BAS'?`<div class="scenario-sim-score" data-sim-score-wrap hidden><span>Placar projetado <small>(opcional; melhora a análise de average)</small></span><div><label>CCT <input type="number" min="0" inputmode="numeric" data-sim-score-cct placeholder="72"></label><b>×</b><label>Rival <input type="number" min="0" inputmode="numeric" data-sim-score-rival placeholder="65"></label></div></div>`:''}
       <div class="scenario-sim-result" data-sim-result><p>Escolha um resultado para projetar a situação da CCT.</p></div>
       <small class="scenario-sim-note">Simulação local • não altera a planilha nem a classificação oficial.</small>
@@ -1861,7 +1864,20 @@ function bindSimuladoresOutros(container){
     const btn=root.querySelector('[data-sim-toggle]'),panel=root.querySelector('[data-sim-panel]'),sel=root.querySelector('[data-sim-outcome]'),marginWrap=root.querySelector('[data-sim-margin-wrap]'),scoreWrap=root.querySelector('[data-sim-score-wrap]');
     btn?.addEventListener('click',()=>{const abrir=panel.hidden;panel.hidden=!abrir;btn.setAttribute('aria-expanded',String(abrir));btn.querySelector('b').textContent=abrir?'⌄':'›';});
     sel?.addEventListener('change',()=>{
-      if(marginWrap) marginWrap.hidden=!['V','D'].includes(sel.value);
+      if(marginWrap){
+        const margin=marginWrap.querySelector('[data-sim-margin]');
+        if(!sel.value){
+          marginWrap.hidden=true;
+          if(margin){margin.disabled=false;margin.value='1';}
+        }else if(sel.value==='E'){
+          // Empate sempre tem diferença de gols igual a zero.
+          marginWrap.hidden=false;
+          if(margin){margin.value='0';margin.disabled=true;}
+        }else{
+          marginWrap.hidden=false;
+          if(margin){margin.disabled=false;if(margin.value==='0')margin.value='1';}
+        }
+      }
       if(scoreWrap) scoreWrap.hidden=!sel.value;
       const out=root.querySelector('[data-sim-result]');if(!sel.value){if(out)out.innerHTML='<p>Escolha um resultado para projetar a situação da CCT.</p>';return;} simOutroRodar(root);
     });
