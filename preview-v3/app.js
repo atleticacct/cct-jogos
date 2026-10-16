@@ -2949,7 +2949,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=494',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=495',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -2958,7 +2958,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV494';
+        const chave='cctSwReloadV495';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
@@ -3823,10 +3823,11 @@ function escalaJiudescDataLabel(data){
   return `${dia} • ${dataCurta}`;
 }
 function escalaJiudescStatus(e){
-  const confirmado=isSim(e.CONFIRMADO) && normalizarTexto(e.STATUS_ESCALA)!=='A DEFINIR';
-  return confirmado
-    ? {classe:'confirmed',label:'CONFIRMADO'}
-    : {classe:'pending',label:'A DEFINIR'};
+  const status=normalizarTexto(e.STATUS_ESCALA);
+  const confirmado=isSim(e.CONFIRMADO) && status!=='A DEFINIR';
+  if(confirmado) return {classe:'confirmed',label:'CONFIRMADO'};
+  if(status.includes('PRE-SELECIONADO')) return {classe:'pending',label:'PRÉ-SELECIONADO'};
+  return {classe:'pending',label:'A DEFINIR'};
 }
 function escalaJiudescFaseVisivel(e){
   const fase=String(e.FASE||'').trim();
@@ -3897,7 +3898,7 @@ function escalaJiudescBoardHtml(escalas){
     <div class="jiu-scale-summary">
       <div><strong>${escalas.length}</strong><span>frentes futuras</span></div>
       <div><strong>${confirmadas}</strong><span>confirmadas</span></div>
-      <div class="${pendentes?'has-pending':''}"><strong>${pendentes}</strong><span>a definir</span></div>
+      <div class="${pendentes?'has-pending':''}"><strong>${pendentes}</strong><span>não confirmadas</span></div>
     </div>
 
     <div class="jiu-scale-days">
