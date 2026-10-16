@@ -414,6 +414,34 @@ function nomeLadoJogo(jogo,lado){
   return participante || equipe || 'A DEFINIR';
 }
 
+const CENTRO_LOGOS={
+  CAV:'assets/centros/cav.jpg',
+  CCT:'assets/centros/cct.png',
+  CEART:'assets/centros/ceart.jpg',
+  CEAVI:'assets/centros/ceavi.jpg',
+  CEFID:'assets/centros/cefid.jpg',
+  CEO:'assets/centros/ceo.jpg',
+  CEPLAN:'assets/centros/ceplan.jpg',
+  CERES:'assets/centros/ceres.jpg',
+  CESFI:'assets/centros/cesfi.jpg',
+  ESAG:'assets/centros/esag.png',
+  FAED:'assets/centros/faed.jpg'
+};
+const CENTROS_JIUDESC=new Set([...Object.keys(CENTRO_LOGOS),'CEAD','CESMO']);
+function centroCodigo(v){
+  const raw=String(v||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const semNumero=raw.replace(/\d+$/,'');
+  return CENTROS_JIUDESC.has(semNumero)?semNumero:'';
+}
+function centroMarcaHtml(v,classe='centre-logo'){
+  const codigo=centroCodigo(v);
+  if(!codigo) return '';
+  const src=CENTRO_LOGOS[codigo];
+  return src
+    ? `<img class="${classe}" src="${src}" alt="Logo ${escapeHtml(codigo)}" loading="lazy" />`
+    : `<span class="${classe} centre-logo-fallback" aria-label="${escapeHtml(codigo)}">${escapeHtml(codigo)}</span>`;
+}
+
 function isFinalizado(jogo){
   return String(jogo.STATUS||'').trim().toUpperCase()==='FINALIZADO';
 }
@@ -500,7 +528,7 @@ function matchCard(jogo,{home=false}={}){
       </div>
       <div class="teams">
         <div class="team ${cctA?'cct-team':''}">
-          ${cctA?'<img src="assets/logo-jogos-cct.png" alt="CCT" />':''}
+          ${centroMarcaHtml(jogo.EQUIPE_A,'team-centre-logo')}
           <strong>${escapeHtml(nomeA)}</strong>
         </div>
         <div class="score">
@@ -508,7 +536,7 @@ function matchCard(jogo,{home=false}={}){
           <small>${escapeHtml(status)}</small>
         </div>
         <div class="team opponent ${cctB?'cct-team':''}">
-          ${cctB?'<img src="assets/logo-jogos-cct.png" alt="CCT" />':''}
+          ${centroMarcaHtml(jogo.EQUIPE_B,'team-centre-logo')}
           <strong>${escapeHtml(nomeB)}</strong>
         </div>
       </div>
@@ -689,7 +717,7 @@ function classificacaoGrupoHtml(grupo,linhas){
     return `<div class="standing-mobile-row ${destaque?'cct-standing':''}">
       <span class="standing-mobile-pos">${escapeHtml(r.POSICAO||'—')}</span>
       <div class="standing-mobile-team">
-        <strong>${escapeHtml(classificacaoLinhaNome(r))}</strong>
+        <strong class="standing-team-label">${centroMarcaHtml(r.CENTRO||r.EQUIPE,'standing-centre-logo')}<span>${escapeHtml(classificacaoLinhaNome(r))}</span></strong>
         <small>J ${escapeHtml(r.JOGOS||'0')} · V ${escapeHtml(r.VITORIAS||'0')} · E ${escapeHtml(r.EMPATES||'0')} · D ${escapeHtml(r.DERROTAS||'0')} · Saldo ${escapeHtml(saldoTxt)}</small>
       </div>
       <div class="standing-mobile-points"><b>${escapeHtml(r.PONTOS||'0')}</b><small>PTS</small></div>
@@ -712,7 +740,7 @@ function classificacaoGrupoHtml(grupo,linhas){
           const destaque=String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM' || String(r.CENTRO||r.EQUIPE||'').toUpperCase()==='CCT';
           return `<div class="${destaque?'qual cct-standing':''}">
             <span>${escapeHtml(r.POSICAO||'—')}</span>
-            <b>${escapeHtml(classificacaoLinhaNome(r))}</b>
+            <b class="standing-team-label">${centroMarcaHtml(r.CENTRO||r.EQUIPE,'standing-centre-logo')}<span>${escapeHtml(classificacaoLinhaNome(r))}</span></b>
             <span>${escapeHtml(r.JOGOS||'0')}</span>
             <span>${escapeHtml(r.VITORIAS||'0')}</span>
             <span>${escapeHtml(r.EMPATES||'0')}</span>
@@ -802,7 +830,7 @@ function classificacaoGeralHtml(){
           return `<button type="button" class="general-ranking-row-v45 ${cct?'cct-general':''}" data-general-team="${escapeHtml(r.EQUIPE||'')}">
             <span class="general-rank-pos">${escapeHtml(pos)}</span>
             <span class="general-rank-main">
-              <strong>${escapeHtml(r.EQUIPE||'')}</strong>
+              <strong class="general-rank-team">${centroMarcaHtml(r.EQUIPE,'general-centre-logo')}<span>${escapeHtml(r.EQUIPE||'')}</span></strong>
               <small>${medalhas||'Toque para ver modalidade por modalidade'}</small>
             </span>
             <span class="general-rank-score">
@@ -2967,7 +2995,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=499',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=4100',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -2976,7 +3004,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV499';
+        const chave='cctSwReloadV4100';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
