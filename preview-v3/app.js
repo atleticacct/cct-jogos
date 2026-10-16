@@ -2727,7 +2727,15 @@ async function requisitarApiCCT(){
 
 async function atualizarDadosAPIRede({silencioso=false,forcar=false}={}){
   const agora=Date.now();
-  if(apiAtualizacaoPromise) return apiAtualizacaoPromise;
+
+  // Se o login/logout acontecer enquanto uma leitura pública ainda está em voo,
+  // uma atualização forçada precisa esperar e rodar novamente com o novo escopo.
+  // Sem isso, a restauração rápida da sessão Firebase pode herdar apenas o GET público.
+  if(apiAtualizacaoPromise){
+    if(!forcar) return apiAtualizacaoPromise;
+    try{ await apiAtualizacaoPromise; }catch(e){}
+  }
+
   if(!forcar && silencioso && agora-ultimaTentativaApi<API_RETRY_GUARD_MS) return null;
   ultimaTentativaApi=agora;
   apiFreshness.verificando=true;
