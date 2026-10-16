@@ -7,7 +7,7 @@ function uiIcon(name,extraClass=''){
 }
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbwKdhs9Qfkcbnv1fub8p6QFRJ-NWDN-dRZiYj3byaK0_OdTXP3PKksSEuLO27I1hjRkDA/exec';
-const API_CACHE_KEY = 'cctApiCacheV1';
+const API_CACHE_KEY = 'cctApiCacheV2';
 const API_CACHE_FRESH_MS = 2 * 60 * 1000; // 2 minutos
 const API_CACHE_MAX_MS = 7 * 24 * 60 * 60 * 1000; // fallback por até 7 dias
 const API_RETRY_GUARD_MS = 20 * 1000;
@@ -17,6 +17,7 @@ let cctEvents = []; // declarado cedo: o cache pode renderizar Eventos imediatam
 
 
 const PROFILE_KEY = 'cctProfileV2';
+const COMPETITION_KEY = 'cctCompetitionV1';
 const MODALIDADE_IDS = {
   'Futsal Feminino':'FUT-F',
   'Futsal Masculino':'FUT-M',
@@ -56,7 +57,11 @@ let apiData = {
   locais: [],
   pessoas: [],
   eventos: [],
-  destaques: []
+  destaques: [],
+  agenda_cct_jiudesc: [],
+  escala_responsaveis_jiudesc: [],
+  conflitos_cct_jiudesc: [],
+  autorizacao: null
 };
 
 // V4.8.0 — indicador global de atualização dos dados.
@@ -122,18 +127,18 @@ function renderizarStatusAtualizacaoCct(){
   const quando=formatarHorarioAtualizacaoCct(apiFreshness.ultimaAlteracao);
   if(apiFreshness.verificando){
     box.classList.add('checking');
-    text.textContent=quando ? `ATUALIZANDO • últimos dados ${quando}` : 'ATUALIZANDO…';
+    text.textContent=quando ? `CONFERINDO ATUALIZAÇÕES • dados ${quando}` : 'CONFERINDO ATUALIZAÇÕES…';
     btn.hidden=true;
     return;
   }
   if(apiFreshness.redeConfirmada && !apiFreshness.erroRede){
     box.classList.add('ok');
-    text.textContent=quando ? `ATUALIZADO • última alteração ${quando}` : 'ATUALIZADO • agora';
+    text.textContent=quando ? `DADOS ATUALIZADOS • planilha ${quando}` : 'DADOS ATUALIZADOS • agora';
     btn.hidden=true;
     return;
   }
   box.classList.add('warning');
-  text.textContent=quando ? `NÃO ATUALIZADO • dados até ${quando}` : 'NÃO ATUALIZADO';
+  text.textContent=quando ? `SEM CONFIRMAÇÃO • dados até ${quando}` : 'SEM CONFIRMAÇÃO DE ATUALIZAÇÃO';
   btn.textContent='ATUALIZAR AGORA';
   btn.hidden=false;
 }
@@ -170,10 +175,16 @@ function authLogado(){ return !!cctAuthState.user; }
 
 function resolverPermissoesAuth(){
   const email=emailNormalizado(cctAuthState.user?.email);
-  const pessoa=email ? (apiData.pessoas||[]).find(p=>pessoaAtivaAuth(p) && emailNormalizado(campoPessoa(p,'EMAIL','E_MAIL','E-MAIL'))===email) : null;
-  cctAuthState.pessoa=pessoa||null;
-  cctAuthState.socio=!!(pessoa && pessoaSocioAprovada(pessoa));
-  cctAuthState.membro=!!(pessoa && pessoaMembroAprovada(pessoa));
+  const autorizacao=apiData.autorizacao||null;
+  const mesmaConta=!!(
+    email &&
+    autorizacao &&
+    emailNormalizado(autorizacao.email)===email
+  );
+
+  cctAuthState.pessoa=mesmaConta ? (autorizacao.pessoa||null) : null;
+  cctAuthState.socio=!!(mesmaConta && autorizacao.socio);
+  cctAuthState.membro=!!(mesmaConta && autorizacao.membro);
   atualizarInterfaceAuth();
 }
 
@@ -191,6 +202,7 @@ function atualizarInterfaceAuth(){
   const badges=document.querySelector('#profileAccessBadges');
   if(badges) badges.innerHTML=statusAcessoHtml();
   atualizarAcessoAreaMembros();
+  try{ if(typeof aplicarIdentidadePerfil==='function') aplicarIdentidadePerfil(); }catch(e){}
   try{ if(typeof renderizarAgenda==='function' && document.querySelector('[data-screen="agenda"]')?.classList.contains('active')) renderizarAgenda(); }catch(e){}
 }
 
@@ -262,7 +274,15 @@ function inicializarAutenticacaoCCT(){
     firebase.auth().onAuthStateChanged(user=>{
       cctAuthState.user=user||null;
       cctAuthState.ready=true;
+      apiData.autorizacao=null;
       resolverPermissoesAuth();
+
+      // A API pública não expõe PESSOAS internas.
+      // Depois do login, buscamos uma resposta autenticada com o Firebase ID token.
+      // No logout, voltamos imediatamente ao escopo público.
+      if(typeof atualizarDadosAPIRede==='function'){
+        atualizarDadosAPIRede({silencioso:true,forcar:true});
+      }
     });
   }catch(e){
     console.error('Firebase CCT:',e);
@@ -272,8 +292,16 @@ function inicializarAutenticacaoCCT(){
   }
 }
 
+function competicaoPreferidaLocal(){
+  try{ return localStorage.getItem(COMPETITION_KEY)||'JIUDESC-2026'; }
+  catch(e){ return 'JIUDESC-2026'; }
+}
+function salvarCompeticaoPreferida(id){
+  try{ localStorage.setItem(COMPETITION_KEY,String(id||'')); }catch(e){}
+}
+
 let jogosUI = {
-  competicao: 'INTERLAJE-2026',
+  competicao: competicaoPreferidaLocal(),
   tipo: 'todos',
   dataFiltro: 'todos',
   modalidadeFiltro: '',
@@ -318,6 +346,38 @@ function competitionName(id){
   const c=apiData.competicoes.find(x=>x.ID_COMPETICAO===id);
   if(c) return `${c.NOME || id}${c.ANO ? ' '+c.ANO : ''}`;
   return id==='INTERLAJE-2026' ? 'Interlaje 2026' : id;
+}
+
+// V4.9.1 — um dado público só pode aparecer quando o próprio registro
+// e a competição correspondente estiverem publicados no painel.
+function registroPublicado(x){
+  return !!x && (!('PUBLICADO' in x) || isSim(x.PUBLICADO));
+}
+function competicaoPublicada(id){
+  const c=apiData.competicoes.find(x=>x.ID_COMPETICAO===id);
+  return registroPublicado(c);
+}
+function jogoPublico(jogo){
+  return registroPublicado(jogo) && competicaoPublicada(jogo?.ID_COMPETICAO);
+}
+
+// V4.9.2 — prévia interna de competições ainda não publicadas.
+// Somente membro autenticado pode enxergar uma competição não publicada.
+// O escopo público continua exigindo PUBLICADO = SIM na competição e no jogo.
+function competicaoEmPreviaInterna(id){
+  const c=apiData.competicoes.find(x=>x.ID_COMPETICAO===id);
+  return !!(authMembroAprovado() && c && !registroPublicado(c));
+}
+function competicaoVisivelNoEscopo(c){
+  return !!c && (registroPublicado(c) || competicaoEmPreviaInterna(c.ID_COMPETICAO));
+}
+function jogoVisivelNoEscopo(jogo){
+  if(jogoPublico(jogo)) return true;
+  return !!(jogo && competicaoEmPreviaInterna(jogo.ID_COMPETICAO));
+}
+function competitionNameUI(id){
+  const nome=competitionName(id);
+  return competicaoEmPreviaInterna(id) ? `${nome} • PRÉVIA INTERNA` : nome;
 }
 
 function modalidadeNome(id){
@@ -443,7 +503,7 @@ function matchCard(jogo,{home=false}={}){
         </div>
       </div>
       <div class="match-foot">
-        <span>${uiIcon('map-pin','inline-icon')} ${escapeHtml(jogo.LOCAL||'Local a definir')}</span>
+        ${jogo.LOCAL?`<span>${uiIcon('map-pin','inline-icon')} ${escapeHtml(jogo.LOCAL)}</span>`:''}
         <span>${escapeHtml(jogo.DATA||'')}</span>
       </div>
       ${cenario ? `<button class="scenario-link" type="button" data-open-scenario-modality="${escapeHtml(jogo.ID_MODALIDADE)}">${uiIcon('target','inline-icon')} Situação da classificação <b>›</b></button>` : ''}
@@ -461,7 +521,7 @@ function jogoCombinaModalidadeBase(jogo,prefixo){
 function jogosDoTipo(){
   const sports=profileSportIds();
   return apiData.jogos
-    .filter(j=>j.ID_COMPETICAO===jogosUI.competicao)
+    .filter(j=>jogoVisivelNoEscopo(j) && j.ID_COMPETICAO===jogosUI.competicao)
     .filter(j=>{
       if(jogosUI.tipo==='representacoes') return jogoEhRepresentacaoCCT(j);
       if(jogosUI.tipo==='meus') return jogoTemCCT(j) && sports.includes(j.ID_MODALIDADE);
@@ -510,7 +570,7 @@ function renderizarFiltrosModalidades(){
 }
 
 function atualizarContadoresTiposJogos(){
-  const todos=apiData.jogos.filter(j=>j.ID_COMPETICAO===jogosUI.competicao);
+  const todos=apiData.jogos.filter(j=>jogoVisivelNoEscopo(j) && j.ID_COMPETICAO===jogosUI.competicao);
   const sports=profileSportIds();
   const meus=todos.filter(j=>jogoTemCCT(j) && sports.includes(j.ID_MODALIDADE));
   const reps=todos.filter(j=>jogoEhRepresentacaoCCT(j));
@@ -561,7 +621,7 @@ function renderizarProximoJogoHome(){
   const now=new Date();
   const sports=selectedSportIds();
   let candidatos=apiData.jogos
-    .filter(j=>jogoTemCCT(j) && !isFinalizado(j))
+    .filter(j=>jogoPublico(j) && jogoTemCCT(j) && !isFinalizado(j))
     .map(j=>({j,d:parseBrDate(j.DATA,j.HORA)}))
     .filter(x=>x.d && x.d.getTime()>=now.getTime())
     .sort((a,b)=>a.d-b.d);
@@ -648,14 +708,34 @@ function classificacaoGrupoHtml(grupo,linhas){
 }
 
 function parseDetalhamentoGeral(r){
+  let itens=[];
   const raw=String(r?.DETALHAMENTO_JSON||'').trim();
   if(raw){
     try{
-      const itens=JSON.parse(raw);
-      if(Array.isArray(itens)) return itens;
+      const parsed=JSON.parse(raw);
+      if(Array.isArray(parsed)) itens=parsed;
     }catch(e){}
   }
-  return [];
+
+  // V4.8.6: o Apps Script pode confirmar automaticamente a pontuação das equipes
+  // eliminadas na fase de grupos. O overlay mantém o detalhamento do app coerente
+  // sem exigir alteração no motor geral antigo.
+  const rawAuto=String(r?.DETALHE_ELIMINADOS_AUTO_V486||'').trim();
+  if(rawAuto){
+    try{
+      const auto=JSON.parse(rawAuto);
+      if(Array.isArray(auto)){
+        auto.forEach(a=>{
+          const id=String(a?.id||'').trim().toUpperCase();
+          if(!id)return;
+          const idx=itens.findIndex(i=>String(i?.id||'').trim().toUpperCase()===id);
+          if(idx>=0) itens[idx]={...itens[idx],...a};
+          else itens.push(a);
+        });
+      }
+    }catch(e){}
+  }
+  return itens;
 }
 
 function classificacaoGeralHtml(){
@@ -666,6 +746,14 @@ function classificacaoGeralHtml(){
 
   const maiorConfirmado=Math.max(0,...linhas.map(r=>numeroCenarioGeral(r.PONTOS)??0));
   const haConfirmados=maiorConfirmado>0;
+
+  if(jogosUI.competicao==='JIUDESC-2026' && !haConfirmados){
+    return `
+      <div class="games-empty">
+        <strong>Classificação geral ainda não iniciada.</strong>
+        <span>Os ${linhas.length} centros já estão cadastrados. A ordem e a pontuação aparecerão automaticamente após os primeiros resultados oficiais.</span>
+      </div>`;
+  }
 
   return `
     <section class="general-ranking general-ranking-v45">
@@ -843,7 +931,7 @@ function classificacaoFasesFinaisHtml(){
     const cct=jogoTemCCT(j);
     return `<div class="knockout-match ${cct?'is-cct':''}">
       <div class="knockout-teams"><strong>${escapeHtml(j.EQUIPE_A||'A DEFINIR')}</strong><span>${escapeHtml(centro)}</span><strong>${escapeHtml(j.EQUIPE_B||'A DEFINIR')}</strong></div>
-      <div class="knockout-meta"><span>${escapeHtml(j.DATA||'Data a definir')}</span><span>${escapeHtml(j.LOCAL||'Local a definir')}</span><em>${escapeHtml(finalizado?'FINALIZADO':(j.STATUS||'AGENDADO'))}</em></div>
+      <div class="knockout-meta"><span>${escapeHtml(j.DATA||'Data a definir')}</span>${j.LOCAL?`<span>${escapeHtml(j.LOCAL)}</span>`:''}<em>${escapeHtml(finalizado?'FINALIZADO':(j.STATUS||'AGENDADO'))}</em></div>
     </div>`;
   };
 
@@ -877,7 +965,9 @@ function renderizarClassificacao(){
   renderizarSeletorClassificacao();
 
   if(!jogosUI.classificacaoModalidade){
-    container.innerHTML='<div class="games-empty">Esta competição ainda não possui classificação por modalidade publicada.</div>';
+    container.innerHTML=(jogosUI.competicao==='JIUDESC-2026' || competicaoEmPreviaInterna(jogosUI.competicao))
+      ? '<div class="games-empty"><strong>Classificação por modalidade ainda não iniciada.</strong><span>Ela será formada automaticamente conforme os primeiros resultados oficiais do JIUDESC forem lançados.</span></div>'
+      : '<div class="games-empty">Esta competição ainda não possui classificação por modalidade publicada.</div>';
     return;
   }
 
@@ -931,6 +1021,105 @@ function formatarAtualizacaoCenarioGeral(v){
   return raw;
 }
 
+function cctGeralQuebrarCondicoes(texto){
+  const raw=String(texto||'').replace(/\r/g,'\n').trim();
+  if(!raw) return [];
+  return raw
+    .split(/\n+|\s*\|\s*|\s*;\s*/)
+    .map(x=>x.replace(/^[-•·]+\s*/,'').trim())
+    .filter(Boolean);
+}
+
+function cctGeralNormEquipe(v){
+  return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+}
+
+function cctGeralCondicoesTitulo(linhas,cct,ctx={}){
+  const statusNorm=String(ctx.status||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  if(statusNorm.includes('CAMPEAO GERAL GARANTIDO')){
+    return ['O título geral já está matematicamente garantido; nenhum resultado externo é necessário.'];
+  }
+  if(statusNorm.includes('MATEMATICAMENTE IMPOSSIVEL')){
+    return ['Com os limites atualmente validados, não existe combinação matemática que coloque a CCT em 1º lugar geral.'];
+  }
+
+  const pts=numeroCenarioGeral(ctx.pts)??0;
+  const ptsMin=numeroCenarioGeral(ctx.ptsMin);
+  const ptsMax=numeroCenarioGeral(ctx.ptsMax);
+  const cctNome=cctGeralNormEquipe(cct?.EQUIPE||'CCT');
+  const rivais=linhas
+    .filter(r=>cctGeralNormEquipe(r.EQUIPE)!==cctNome)
+    .map(r=>({
+      equipe:String(r.EQUIPE||'').trim(),
+      atual:numeroCenarioGeral(r.PONTOS)??0,
+      min:numeroCenarioGeral(r.PONTOS_MINIMOS),
+      max:numeroCenarioGeral(r.PONTOS_MAXIMOS)
+    }))
+    .filter(r=>r.equipe);
+
+  const cond=[];
+  const rivaisComTeto=rivais.filter(r=>r.max!==null).sort((a,b)=>b.max-a.max);
+  const maiorTetoRival=rivaisComTeto.length?rivaisComTeto[0].max:null;
+  const baseReferencia=Math.max(pts,ptsMin??pts);
+
+  if(ptsMax!==null && maiorTetoRival!==null){
+    if(ptsMax>maiorTetoRival){
+      const alvo=maiorTetoRival+1;
+      const falta=Math.max(0,alvo-baseReferencia);
+      cond.push(
+        falta>0
+          ? `Para garantir o título sem depender de ninguém, a CCT precisa chegar a pelo menos ${alvo} pts — ${falta} acima da sua base mínima/confirmada atual.`
+          : `A faixa atual já permite à CCT ultrapassar sozinha o maior teto rival; o alvo de garantia é ${alvo} pts.`
+      );
+    }else{
+      const limiteRival=ptsMax-1;
+      cond.push(`Se a CCT alcançar seu teto atual de ${ptsMax} pts, todos os rivais precisam terminar com no máximo ${limiteRival} pts.`);
+      rivaisComTeto
+        .filter(r=>r.max>=ptsMax)
+        .slice(0,4)
+        .forEach(r=>{
+          const precisaCeder=Math.max(1,r.max-limiteRival);
+          cond.push(`${r.equipe}: precisa deixar pelo menos ${precisaCeder} pt${precisaCeder===1?'':'s'} pelo caminho em relação ao teto atual de ${r.max}.`);
+        });
+    }
+  }
+
+  const extras=[
+    ...cctGeralQuebrarCondicoes(ctx.precisa),
+    ...cctGeralQuebrarCondicoes(ctx.caminho)
+  ];
+  extras.forEach(x=>{
+    const norm=x.toUpperCase();
+    const generico=norm.includes('PARA GERAR METAS EXATAS') || norm.includes('PREENCHA PONTOS_MAXIMOS');
+    if(!generico && !cond.some(c=>c.toUpperCase()===norm)) cond.push(x);
+  });
+
+  if(!cond.length && ptsMax!==null){
+    cond.push(`A CCT pode chegar a ${ptsMax} pts; o título depende de terminar acima da pontuação final dos principais rivais.`);
+  }
+  if(!cond.length){
+    cond.push('A CCT precisa terminar a competição com mais pontos que todas as demais atléticas; o corte exato será atualizado conforme as pontuações forem confirmadas.');
+  }
+
+  return cond.slice(0,7);
+}
+
+function cctGeralRivaisCriticos(linhas,cct,ptsMax,adversariosTexto){
+  const cctNome=cctGeralNormEquipe(cct?.EQUIPE||'CCT');
+  const limite=numeroCenarioGeral(ptsMax);
+  const rivais=linhas
+    .filter(r=>cctGeralNormEquipe(r.EQUIPE)!==cctNome)
+    .map(r=>({equipe:String(r.EQUIPE||'').trim(),min:numeroCenarioGeral(r.PONTOS_MINIMOS),max:numeroCenarioGeral(r.PONTOS_MAXIMOS)}))
+    .filter(r=>r.equipe && r.max!==null)
+    .sort((a,b)=>b.max-a.max)
+    .filter(r=>limite===null || r.max>=limite)
+    .slice(0,5);
+  if(rivais.length){
+    return rivais.map(r=>`${r.equipe} (${r.min!==null?`${r.min}–`:''}${r.max} pts)`).join(' • ');
+  }
+  return String(adversariosTexto||'').trim();
+}
+
 function cenarioGeralHtml(){
   const linhas=apiData.classificacao_geral
     .filter(x=>x.ID_COMPETICAO===jogosUI.competicao)
@@ -979,11 +1168,50 @@ function cenarioGeralHtml(){
     .replace(/Principal ameaca atual:/gi,'Maior teto projetado no momento:');
   const precisa=String(cct.O_QUE_PRECISA_TITULO||cct.O_QUE_PRECISA||'').trim();
   const abertas=String(cct.MODALIDADES_ABERTAS||'').trim();
+  const condicoesTitulo=cctGeralCondicoesTitulo(linhas,cct,{pts,ptsMin,ptsMax,status,precisa,caminho});
+  const rivaisCriticos=cctGeralRivaisCriticos(linhas,cct,ptsMax,adversarios);
 
   const atualizacoes=[cct.ATUALIZADO_CENARIO,cct.ATUALIZADO_EM]
     .map(v=>String(v||'').trim()).filter(Boolean);
   const atualizadoRaw=atualizacoes.find(v=>/\d{1,2}:\d{2}/.test(v)) || atualizacoes[0] || '';
   const atualizado=formatarAtualizacaoCenarioGeral(atualizadoRaw);
+
+  const jiudescSemResultados=(
+    jogosUI.competicao==='JIUDESC-2026' &&
+    !haPontuacaoConfirmada &&
+    (ptsMin===null || ptsMin===0) &&
+    (ptsMax===null || ptsMax===0)
+  );
+  if(jiudescSemResultados){
+    return `
+      <section class="general-scenario-card">
+        <div class="general-scenario-hero">
+          <div>
+            <span class="chip">GERAL DA COMPETIÇÃO</span>
+            <small>JIUDESC 2026</small>
+            <h3>AGUARDANDO PRIMEIROS RESULTADOS</h3>
+          </div>
+          <div class="general-position is-pending">
+            <strong>—</strong>
+            <span>posição ainda não definida</span>
+          </div>
+        </div>
+        <div class="general-scenario-metrics">
+          <div><small>CONFIRMADOS</small><strong>0</strong><span>CCT</span></div>
+          <div><small>CLASSIFICAÇÃO</small><strong>—</strong><span>aguardando resultados</span></div>
+        </div>
+        <div class="general-scenario-body">
+          <div>
+            <small>CENÁRIO ATUAL</small>
+            <p>O motor do JIUDESC está preparado, mas ainda não há resultados oficiais suficientes para calcular classificação, faixas de pontuação ou condições reais de título.</p>
+          </div>
+          <div class="general-needed is-incomplete">
+            <small>PRÓXIMA ATUALIZAÇÃO</small>
+            <strong>Assim que os primeiros resultados forem lançados, os cenários serão recalculados automaticamente.</strong>
+          </div>
+        </div>
+      </section>`;
+  }
 
   const textoPendencia=`${precisa} ${caminho}`.toUpperCase();
   const cenarioIncompleto=(
@@ -1037,12 +1265,13 @@ function cenarioGeralHtml(){
           <small>CENÁRIO ATUAL</small>
           <p>${escapeHtml(cenario||cenarioFallback)}</p>
         </div>
-        <div class="general-needed ${cenarioIncompleto?'is-incomplete':''}">
-          <small>${cenarioIncompleto?'CENÁRIO AINDA INCOMPLETO':'O QUE A CCT PRECISA PARA O TÍTULO'}</small>
-          <strong>${escapeHtml(cenarioIncompleto?textoIncompleto:(precisa||precisaFallback))}</strong>
+        <div class="general-needed general-title-goal">
+          <small>PARA A CCT SER CAMPEÃ</small>
+          <ul class="general-title-conditions">${condicoesTitulo.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul>
         </div>
-        ${(!cenarioIncompleto && caminho)?`<div class="general-path"><small>CAMINHO POR MODALIDADE</small><p>${escapeHtml(caminho)}</p></div>`:''}
-        ${adversarios?`<div class="general-rivals"><small>ADVERSÁRIOS CRÍTICOS</small><p>${escapeHtml(adversarios)}</p></div>`:''}
+        ${cenarioIncompleto?`<div class="general-needed is-incomplete"><small>O QUE AINDA FALTA CONFIRMAR</small><strong>${escapeHtml(textoIncompleto)}</strong></div>`:''}
+        ${caminho?`<div class="general-path"><small>CAMINHO POR MODALIDADE</small><p>${escapeHtml(caminho)}</p></div>`:''}
+        ${rivaisCriticos?`<div class="general-rivals"><small>RIVAIS QUE MAIS IMPACTAM O TÍTULO</small><p>${escapeHtml(rivaisCriticos)}</p></div>`:''}
         ${abertas?`<div><small>MODALIDADES COM PONTUAÇÃO A DEFINIR</small><p>${escapeHtml(abertas)}</p></div>`:''}
         ${atualizado?`<div class="general-updated"><small>ATUALIZAÇÃO</small><p>${escapeHtml(atualizado)}</p></div>`:''}
       </div>
@@ -1113,7 +1342,14 @@ function simVoleiEhGrupo(j){
 }
 function simVoleiFinalizado(j){
   const s=simVoleiNorm(j?.STATUS);
-  return s==='FINALIZADO'||s==='FINAL'||s==='ENCERRADO';
+  if(s==='FINALIZADO'||s==='FINAL'||s==='ENCERRADO'||s==='CONCLUIDO') return true;
+  // V4.9.0: alguns jogos já possuem placar lançado, mas continuam com STATUS
+  // operacional como CONFIRMADO/AGENDADO. Para cenário/classificação, placar
+  // preenchido significa resultado já resolvido e não deve voltar como "próximo jogo".
+  const a=j?.PLACAR_A, b=j?.PLACAR_B;
+  const temA=a!==null&&a!==undefined&&String(a).trim()!==''&&Number.isFinite(Number(String(a).replace(',','.')));
+  const temB=b!==null&&b!==undefined&&String(b).trim()!==''&&Number.isFinite(Number(String(b).replace(',','.')));
+  return temA&&temB;
 }
 function simVoleiGameKey(j,idx=0){
   return String(j?.ID_JOGO||`${j?.ID_MODALIDADE||''}|${j?.GRUPO||''}|${j?.EQUIPE_A||''}|${j?.EQUIPE_B||''}|${j?.DATA||''}|${j?.HORA||''}|${idx}`);
@@ -1133,11 +1369,29 @@ function simVoleiProximoJogoCct(idModalidade,idPreferido=''){
     });
   return candidatos[0]?.j||null;
 }
-function simVoleiResultadoCctParaAB(j,resultado){
+function simVoleiResultadoCctParaAB(j,resultado,placarSets=null){
   const cctA=simVoleiNorm(j.EQUIPE_A)==='CCT';
+  const pontosCct=placarSets?.ok?placarSets.pontosCct:null;
+  const pontosRival=placarSets?.ok?placarSets.pontosRival:null;
   return cctA
-    ? {id:resultado.id,a:resultado.cctSets,b:resultado.rivalSets}
-    : {id:resultado.id,a:resultado.rivalSets,b:resultado.cctSets};
+    ? {id:resultado.id,a:resultado.cctSets,b:resultado.rivalSets,pontosA:pontosCct,pontosB:pontosRival}
+    : {id:resultado.id,a:resultado.rivalSets,b:resultado.cctSets,pontosA:pontosRival,pontosB:pontosCct};
+}
+function simVoleiValidarPlacarSets(resultado,cctVals=[],rivalVals=[]){
+  const totalSets=(resultado?.cctSets||0)+(resultado?.rivalSets||0);
+  if(!totalSets) return {ok:false,erro:'Resultado em sets inválido.'};
+  const cct=cctVals.slice(0,totalSets).map(v=>String(v??'').trim());
+  const rival=rivalVals.slice(0,totalSets).map(v=>String(v??'').trim());
+  if(cct.some(v=>v==='')||rival.some(v=>v==='')) return {ok:false,incompleto:true};
+  const cctN=cct.map(Number), rivalN=rival.map(Number);
+  if([...cctN,...rivalN].some(v=>!Number.isFinite(v)||v<0||!Number.isInteger(v))) return {ok:false,erro:'Informe pontuações inteiras e não negativas em todos os sets.'};
+  if(cctN.some((v,i)=>v===rivalN[i])) return {ok:false,erro:'Um set de vôlei não pode terminar empatado.'};
+  const cctWins=cctN.filter((v,i)=>v>rivalN[i]).length;
+  const rivalWins=totalSets-cctWins;
+  if(cctWins!==resultado.cctSets||rivalWins!==resultado.rivalSets){
+    return {ok:false,erro:`O placar informado precisa terminar ${resultado.cctSets}x${resultado.rivalSets} em sets para a CCT.`};
+  }
+  return {ok:true,pontosCct:cctN.reduce((a,b)=>a+b,0),pontosRival:rivalN.reduce((a,b)=>a+b,0),totalSets,cct:cctN,rival:rivalN};
 }
 function simVoleiCloneStats(mapa){
   const out=new Map();
@@ -1156,6 +1410,7 @@ function simVoleiStatsLinha(r){
     setsPerdidos:simVoleiNum(r.SETS_PERDIDOS),
     pontosPro:simVoleiNum(r.PRO),
     pontosContra:simVoleiNum(r.CONTRA),
+    pontosCompletos:true,
     amarelos:simVoleiNum(r.CARTOES_AMARELOS),
     vermelhos:simVoleiNum(r.CARTOES_VERMELHOS)
   };
@@ -1167,6 +1422,12 @@ function simVoleiAplicarResultado(stats,j,out){
   a.jogos++; b.jogos++;
   a.setsVencidos+=out.a; a.setsPerdidos+=out.b;
   b.setsVencidos+=out.b; b.setsPerdidos+=out.a;
+  if(Number.isFinite(out.pontosA)&&Number.isFinite(out.pontosB)){
+    a.pontosPro+=out.pontosA; a.pontosContra+=out.pontosB;
+    b.pontosPro+=out.pontosB; b.pontosContra+=out.pontosA;
+  }else{
+    a.pontosCompletos=false; b.pontosCompletos=false;
+  }
   if(out.a===2&&out.b===0){a.pontos+=3;a.vitorias++;b.derrotas++;}
   else if(out.a===2&&out.b===1){a.pontos+=2;b.pontos+=1;a.vitorias++;b.derrotas++;}
   else if(out.a===1&&out.b===2){a.pontos+=1;b.pontos+=2;b.vitorias++;a.derrotas++;}
@@ -1210,16 +1471,35 @@ function simVoleiRankearGrupo(stats,jogos,outcomes){
       if(vencedor){
         bloco.sort((a,b)=>simVoleiNorm(a.equipe)===simVoleiNorm(vencedor)?-1:1);
       }else{
-        bloco.sort((a,b)=>b.setsVencidos-a.setsVencidos || a.setsPerdidos-b.setsPerdidos || simVoleiNorm(a.equipe).localeCompare(simVoleiNorm(b.equipe)));
+        bloco.sort((a,b)=>{
+          if(b.setsVencidos!==a.setsVencidos) return b.setsVencidos-a.setsVencidos;
+          if(a.setsPerdidos!==b.setsPerdidos) return a.setsPerdidos-b.setsPerdidos;
+          if(a.pontosCompletos&&b.pontosCompletos){
+            if(b.pontosPro!==a.pontosPro) return b.pontosPro-a.pontosPro;
+            if(a.pontosContra!==b.pontosContra) return a.pontosContra-b.pontosContra;
+          }
+          return simVoleiNorm(a.equipe).localeCompare(simVoleiNorm(b.equipe));
+        });
       }
     }else if(bloco.length>1){
-      bloco.sort((a,b)=>b.setsVencidos-a.setsVencidos || a.setsPerdidos-b.setsPerdidos || simVoleiNorm(a.equipe).localeCompare(simVoleiNorm(b.equipe)));
+      bloco.sort((a,b)=>{
+        if(b.setsVencidos!==a.setsVencidos) return b.setsVencidos-a.setsVencidos;
+        if(a.setsPerdidos!==b.setsPerdidos) return a.setsPerdidos-b.setsPerdidos;
+        if(a.pontosCompletos&&b.pontosCompletos){
+          if(b.pontosPro!==a.pontosPro) return b.pontosPro-a.pontosPro;
+          if(a.pontosContra!==b.pontosContra) return a.pontosContra-b.pontosContra;
+        }
+        return simVoleiNorm(a.equipe).localeCompare(simVoleiNorm(b.equipe));
+      });
     }
     for(let z=0;z<bloco.length-1;z++){
       const a=bloco[z],b=bloco[z+1];
-      if(a.pontos===b.pontos && simVoleiEqAverage(a.setAverage,b.setAverage) && a.setsVencidos===b.setsVencidos && a.setsPerdidos===b.setsPerdidos){
-        const vencedor=bloco.length===2?simVoleiResultadoConfronto(a.equipe,b.equipe,jogos,outcomes):'';
-        if(!vencedor){pendentes.add(simVoleiNorm(a.equipe));pendentes.add(simVoleiNorm(b.equipe));}
+      const empateBase=a.pontos===b.pontos && simVoleiEqAverage(a.setAverage,b.setAverage) && a.setsVencidos===b.setsVencidos && a.setsPerdidos===b.setsPerdidos;
+      if(!empateBase) continue;
+      const vencedor=bloco.length===2?simVoleiResultadoConfronto(a.equipe,b.equipe,jogos,outcomes):'';
+      if(vencedor) continue;
+      if(!a.pontosCompletos || !b.pontosCompletos || (a.pontosPro===b.pontosPro && a.pontosContra===b.pontosContra)){
+        pendentes.add(simVoleiNorm(a.equipe));pendentes.add(simVoleiNorm(b.equipe));
       }
     }
     final.push(...bloco); i=k;
@@ -1234,15 +1514,19 @@ function simVoleiCampanhaArt8(stat,tamanhoGrupo){
     percentual:possiveis>0?stat.pontos/possiveis:0,
     saldo:stat.setsVencidos-stat.setsPerdidos,
     setsVencidos:stat.setsVencidos, setsPerdidos:stat.setsPerdidos,
-    pontosPro:stat.pontosPro
+    pontosPro:stat.pontosPro, pontosContra:stat.pontosContra,
+    pontosCompletos:stat.pontosCompletos!==false
   };
 }
 function simVoleiCompararArt8(a,b){
   if(Math.abs(a.percentual-b.percentual)>1e-12) return a.percentual>b.percentual?1:-1;
   if(a.saldo!==b.saldo) return a.saldo>b.saldo?1:-1;
   if(a.setsVencidos!==b.setsVencidos) return a.setsVencidos>b.setsVencidos?1:-1;
-  // O próximo critério pode depender dos pontos dos sets, que não são informados
-  // quando o usuário escolhe apenas 2x0/2x1/1x2/0x2. Nesse ponto, não inventamos.
+  if(a.pontosCompletos&&b.pontosCompletos){
+    if(a.pontosPro!==b.pontosPro) return a.pontosPro>b.pontosPro?1:-1;
+    if(a.pontosContra!==b.pontosContra) return a.pontosContra<b.pontosContra?1:-1;
+  }
+  // Sem os pontos exatos dos sets, não inventamos o próximo desempate.
   return 0;
 }
 function simVoleiDadosGrupos(idModalidade){
@@ -1298,7 +1582,7 @@ function simVoleiUnicosSegundos(g,cenarios){
     const segundo=c.ranking[1]; if(!segundo) return;
     const pend=c.pendentes.has(simVoleiNorm(segundo.equipe));
     const camp=simVoleiCampanhaArt8(segundo,g.tamanho);
-    const key=[simVoleiNorm(camp.equipe),camp.pontos,camp.pontosPossiveis,camp.saldo,camp.setsVencidos,pend?'P':''].join('|');
+    const key=[simVoleiNorm(camp.equipe),camp.pontos,camp.pontosPossiveis,camp.saldo,camp.setsVencidos,camp.pontosCompletos?camp.pontosPro:'?',pend?'P':''].join('|');
     if(!mapa.has(key)) mapa.set(key,{...camp,pendente:pend});
   });
   return [...mapa.values()];
@@ -1329,13 +1613,13 @@ function simVoleiResultadoLabelJogo(j,outId){
   return `${j.EQUIPE_B} vence ${out.b}x${out.a}`;
 }
 function simVoleiCondicoesExternas(cctCamp,gruposDados,simulacoes,fixedGroup){
-  const avisos=[];
+  const condicoes=[];
   for(const [nome,g] of gruposDados.entries()){
     if(nome===fixedGroup) continue;
     const pack=simulacoes.get(nome); if(!pack?.cenarios?.length) continue;
     const abertos=g.jogos.filter(w=>!simVoleiFinalizado(w.j));
     for(const w of abertos){
-      const porOutcome={};
+      const perigos=[];
       SIM_VOLEI_RESULTADOS_AB.forEach(out=>{
         const filtrados=pack.cenarios.filter(c=>c.outcomes.get(w.key)?.id===out.id);
         if(!filtrados.length) return;
@@ -1344,23 +1628,36 @@ function simVoleiCondicoesExternas(cctCamp,gruposDados,simulacoes,fixedGroup){
           if(!segundo||c.pendentes.has(simVoleiNorm(segundo.equipe))) return 0;
           return simVoleiCompararArt8(simVoleiCampanhaArt8(segundo,g.tamanho),cctCamp);
         });
-        porOutcome[out.id]={pode:comps.some(v=>v>=0),sempre:comps.every(v=>v>0)};
+        if(comps.some(v=>v>=0)) perigos.push({out,forte:comps.every(v=>v>0)});
       });
-      ['A20','A21','B21','B20'].forEach(id=>{
-        const x=porOutcome[id]; if(!x?.pode) return;
-        avisos.push({forte:x.sempre,grupo:nome,texto:`${simVoleiResultadoLabelJogo(w.j,id)} ${x.sempre?'coloca':'pode colocar'} o 2º do Grupo ${nome} à frente da CCT.`});
-      });
+      if(!perigos.length) continue;
+      const a=String(w.j.EQUIPE_A||'Equipe A'), b=String(w.j.EQUIPE_B||'Equipe B');
+      const ids=new Set(perigos.map(x=>x.out.id));
+      let texto='';
+      if(ids.has('A20')&&ids.has('A21')&&!ids.has('B21')&&!ids.has('B20')){
+        texto=`No jogo ${a} × ${b}, ${a} precisa perder; qualquer vitória de ${a} ameaça a vaga da CCT.`;
+      }else if(ids.has('B20')&&ids.has('B21')&&!ids.has('A20')&&!ids.has('A21')){
+        texto=`No jogo ${a} × ${b}, ${b} precisa perder; qualquer vitória de ${b} ameaça a vaga da CCT.`;
+      }else if(ids.size===1){
+        const only=perigos[0].out;
+        const label=simVoleiResultadoLabelJogo(w.j,only.id);
+        texto=`No jogo ${a} × ${b}, não pode acontecer: ${label}.`;
+      }else{
+        const labels=perigos.slice(0,3).map(x=>simVoleiResultadoLabelJogo(w.j,x.out.id));
+        texto=`No jogo ${a} × ${b}, a CCT precisa evitar: ${labels.join(' ou ')}${perigos.length>3?' e outras combinações de risco':''}.`;
+      }
+      condicoes.push({forte:perigos.some(x=>x.forte),grupo:nome,texto});
     }
   }
   const unicos=[]; const seen=new Set();
-  avisos.sort((a,b)=>Number(b.forte)-Number(a.forte));
-  for(const a of avisos){
+  condicoes.sort((a,b)=>Number(b.forte)-Number(a.forte));
+  for(const a of condicoes){
     if(seen.has(a.texto)) continue; seen.add(a.texto); unicos.push(a);
     if(unicos.length>=4) break;
   }
   return unicos;
 }
-function simVoleiCalcular(idModalidade,idJogo,resultadoId){
+function simVoleiCalcular(idModalidade,idJogo,resultadoId,placarSets=null){
   const grupos=simVoleiDadosGrupos(idModalidade);
   const jogo=(idJogo?apiData.jogos.find(j=>String(j.ID_JOGO||'')===String(idJogo)):null) || simVoleiProximoJogoCct(idModalidade,idJogo);
   const escolha=SIM_VOLEI_RESULTADOS_CCT.find(x=>x.id===resultadoId);
@@ -1369,7 +1666,9 @@ function simVoleiCalcular(idModalidade,idJogo,resultadoId){
   const gCct=grupos.get(grupoCct);
   if(!gCct) return {erro:'Grupo da CCT não encontrado na classificação atual.'};
   const key=simVoleiGameKey(jogo,apiData.jogos.indexOf(jogo));
-  const fixedOut=simVoleiResultadoCctParaAB(jogo,escolha);
+  const placarValidado=placarSets?simVoleiValidarPlacarSets(escolha,placarSets.cct||[],placarSets.rival||[]):null;
+  if(placarValidado?.erro) return {erro:placarValidado.erro};
+  const fixedOut=simVoleiResultadoCctParaAB(jogo,escolha,placarValidado?.ok?placarValidado:null);
 
   const simulacoes=new Map(); let excesso=false;
   for(const [nome,g] of grupos.entries()){
@@ -1402,6 +1701,7 @@ function simVoleiCalcular(idModalidade,idJogo,resultadoId){
   const allTrue=avaliacoes.length&&avaliacoes.every(a=>a.qualifica===true);
   const allFalse=avaliacoes.length&&avaliacoes.every(a=>a.qualifica===false);
   const anyTie=avaliacoes.some(a=>a.tipo==='EMPATE_TECNICO');
+  const placarCompleto=!!placarValidado?.ok;
   const posicoes=[...new Set(avaliacoes.map(a=>a.posicao).filter(Boolean))].sort();
   const cctAbertosDepois=gCct.jogos.filter(w=>!simVoleiFinalizado(w.j)&&w.key!==key&&jogoTemCCT(w.j));
 
@@ -1430,7 +1730,7 @@ function simVoleiCalcular(idModalidade,idJogo,resultadoId){
     const cctFinals=avaliacoes.filter(a=>a.posicao===2&&a.camp);
     if(cctFinals.length){
       const base=cctFinals[0].camp;
-      simVoleiCondicoesExternas(base,grupos,simulacoes,grupoCct).forEach(a=>bullets.push(a.forte?`Atenção: ${a.texto}`:a.texto));
+      simVoleiCondicoesExternas(base,grupos,simulacoes,grupoCct).forEach(a=>bullets.push(a.texto));
     }
   }
   let condicoesTitulo='PARA CLASSIFICAR';
@@ -1447,21 +1747,13 @@ function simVoleiCalcular(idModalidade,idJogo,resultadoId){
     else bullets.push('O app continuará recalculando as combinações conforme os placares oficiais forem publicados.');
   }
 
-  // V4.8.2: transforma alertas em instruções mais objetivas para o usuário.
-  if(!allTrue){
-    bullets=bullets.map(x=>{
-      const t=String(x||'');
-      if(t.startsWith('Atenção: ')) return 'Cenário a evitar: '+t.slice(9);
-      return t;
-    });
-  }
-
   return {
     status,classe,texto,condicoesTitulo,bullets:bullets.slice(0,5),
     pontos:campanhaAgora.pontos,pontosPossiveis:campanhaAgora.pontosPossiveis,
     percentual:campanhaAgora.percentual,saldo:campanhaAgora.saldo,
     setsVencidos:cctAgora.setsVencidos,setsPerdidos:cctAgora.setsPerdidos,
     combinacoes:cctCenarios.length + [...simulacoes.entries()].filter(([n])=>n!==grupoCct).reduce((s,[,p])=>s+p.cenarios.length,0),
+    precisaPlacarSets:anyTie&&!placarCompleto,placarCompleto,placarValidado,
     jogo,escolha
   };
 }
@@ -1475,17 +1767,23 @@ function simuladorVoleiHtml(c){
     </button>
     <div class="scenario-sim-panel" data-sim-panel hidden>
       <div class="scenario-sim-head"><small>PRÓXIMO JOGO</small><strong>${escapeHtml((jogo.EQUIPE_A||'A DEFINIR')+' × '+(jogo.EQUIPE_B||'A DEFINIR'))}</strong><span>${escapeHtml([jogo.DATA,jogo.HORA].filter(Boolean).join(' • '))}</span></div>
-      <label class="scenario-sim-field"><span>Se a CCT...</span><select data-sim-select>
+      <label class="scenario-sim-field"><span>1. Resultado em sets</span><select data-sim-select>
         <option value="">Escolha um resultado</option>
         ${SIM_VOLEI_RESULTADOS_CCT.map(o=>`<option value="${o.id}">${escapeHtml(o.label)}</option>`).join('')}
       </select></label>
-      <div class="scenario-sim-result" data-sim-result><p>Escolha o placar em sets para projetar a situação da CCT.</p></div>
+      <div class="scenario-sim-vol-score" data-sim-vol-score-wrap hidden>
+        <div class="scenario-sim-refine-title"><span>2. PLACAR DOS SETS</span><small>O número de linhas acompanha o resultado escolhido: 2 sets no 2x0/0x2 e 3 sets no 2x1/1x2.</small></div>
+        <div data-sim-vol-score-rows></div>
+        <button type="button" class="scenario-sim-refine-btn" data-sim-vol-refine>RECALCULAR COM PLACAR DOS SETS</button>
+      </div>
+      <div class="scenario-sim-result" data-sim-result><p>Escolha o resultado em sets. Depois, se quiser, informe o placar de cada set para refinar os desempates.</p></div>
       <small class="scenario-sim-note">Simulação local • não altera a planilha nem a classificação oficial.</small>
     </div>
   </div>`;
 }
 function simVoleiResultadoHtml(r,ms){
   if(r.erro) return `<div class="scenario-sim-alert danger"><strong>NÃO FOI POSSÍVEL SIMULAR</strong><p>${escapeHtml(r.erro)}</p></div>`;
+  const refine=r.precisaPlacarSets?`<div class="scenario-sim-refine-callout"><strong>DESEMPATE PODE EXIGIR O PLACAR DOS SETS</strong><span>Use a etapa 2 acima para informar os pontos de cada set e refinar a projeção.</span></div>`:'';
   return `<div class="scenario-sim-alert ${escapeHtml(r.classe)}">
       <small>PROJEÇÃO</small><strong>${escapeHtml(r.status)}</strong><p>${escapeHtml(r.texto)}</p>
     </div>
@@ -1495,28 +1793,52 @@ function simVoleiResultadoHtml(r,ms){
       <div><small>SALDO SETS</small><strong>${escapeHtml(simVoleiFormatSaldo(r.saldo))}</strong></div>
     </div>
     <div class="scenario-sim-conditions"><small>${escapeHtml(r.condicoesTitulo||'PARA CLASSIFICAR')}</small><ul>${r.bullets.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div>
+    ${refine}
     <div class="scenario-sim-runtime">${escapeHtml(String(r.combinacoes))} cenários locais analisados • ${escapeHtml(String(Math.max(1,Math.round(ms))))} ms</div>`;
 }
+function simVoleiMontarLinhasPlacar(root,resultado){
+  const wrap=root?.querySelector('[data-sim-vol-score-rows]');
+  if(!wrap) return;
+  const total=Math.max(0,(resultado?.cctSets||0)+(resultado?.rivalSets||0));
+  wrap.innerHTML=Array.from({length:total},(_,idx)=>{
+    const n=idx+1;
+    return `<div class="scenario-sim-set-row" data-sim-set-row="${n}"><small>SET ${n}</small><label>CCT <input type="number" min="0" inputmode="numeric" data-sim-vol-cct-score="${n}" placeholder="25"></label><b>×</b><label>Rival <input type="number" min="0" inputmode="numeric" data-sim-vol-rival-score="${n}" placeholder="20"></label></div>`;
+  }).join('');
+}
+function simVoleiLerPlacarSets(root,resultado){
+  const total=(resultado?.cctSets||0)+(resultado?.rivalSets||0);
+  const cct=[],rival=[];
+  for(let i=1;i<=total;i++){
+    cct.push(root.querySelector(`[data-sim-vol-cct-score="${i}"]`)?.value??'');
+    rival.push(root.querySelector(`[data-sim-vol-rival-score="${i}"]`)?.value??'');
+  }
+  return {cct,rival};
+}
+function simVoleiRodar(root,{usarPlacar=false}={}){
+  const out=root?.querySelector('[data-sim-result]'),sel=root?.querySelector('[data-sim-select]');
+  if(!root||!out||!sel?.value) return null;
+  const escolha=SIM_VOLEI_RESULTADOS_CCT.find(x=>x.id===sel.value);
+  out.innerHTML='<div class="scenario-sim-loading">Calculando cenário…</div>';
+  const placares=usarPlacar?simVoleiLerPlacarSets(root,escolha):null;
+  const t0=performance.now();
+  const r=simVoleiCalcular(root.dataset.simModalidade,root.dataset.simJogo,sel.value,placares);
+  const ms=performance.now()-t0;
+  out.innerHTML=simVoleiResultadoHtml(r,ms);
+  return r;
+}
 function bindSimuladoresVolei(container){
-  container.querySelectorAll('[data-sim-toggle]').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const root=btn.closest('[data-sim-volei]'); const panel=root?.querySelector('[data-sim-panel]'); if(!panel) return;
-      const abrir=panel.hidden; panel.hidden=!abrir; btn.setAttribute('aria-expanded',String(abrir));
-      btn.querySelector('b').textContent=abrir?'⌄':'›';
+  container.querySelectorAll('[data-sim-volei]').forEach(root=>{
+    const btn=root.querySelector('[data-sim-toggle]'),panel=root.querySelector('[data-sim-panel]'),sel=root.querySelector('[data-sim-select]'),scoreWrap=root.querySelector('[data-sim-vol-score-wrap]');
+    btn?.addEventListener('click',()=>{const abrir=panel.hidden;panel.hidden=!abrir;btn.setAttribute('aria-expanded',String(abrir));btn.querySelector('b').textContent=abrir?'⌄':'›';});
+    sel?.addEventListener('change',()=>{
+      const out=root.querySelector('[data-sim-result]');
+      if(!sel.value){if(scoreWrap)scoreWrap.hidden=true;if(out)out.innerHTML='<p>Escolha o resultado em sets. Depois, se quiser, informe o placar de cada set para refinar os desempates.</p>';return;}
+      const escolha=SIM_VOLEI_RESULTADOS_CCT.find(x=>x.id===sel.value);
+      simVoleiMontarLinhasPlacar(root,escolha);
+      if(scoreWrap) scoreWrap.hidden=false;
+      requestAnimationFrame(()=>simVoleiRodar(root,{usarPlacar:false}));
     });
-  });
-  container.querySelectorAll('[data-sim-select]').forEach(sel=>{
-    sel.addEventListener('change',()=>{
-      const root=sel.closest('[data-sim-volei]'); const out=root?.querySelector('[data-sim-result]'); if(!root||!out) return;
-      if(!sel.value){out.innerHTML='<p>Escolha o placar em sets para projetar a situação da CCT.</p>';return;}
-      out.innerHTML='<div class="scenario-sim-loading">Calculando cenário…</div>';
-      requestAnimationFrame(()=>{
-        const t0=performance.now();
-        const r=simVoleiCalcular(root.dataset.simModalidade,root.dataset.simJogo,sel.value);
-        const ms=performance.now()-t0;
-        out.innerHTML=simVoleiResultadoHtml(r,ms);
-      });
-    });
+    root.querySelector('[data-sim-vol-refine]')?.addEventListener('click',()=>requestAnimationFrame(()=>simVoleiRodar(root,{usarPlacar:true})));
   });
 }
 
@@ -1653,7 +1975,8 @@ function simOutroCalcular(idModalidade,idJogo,resultadoId,margemRaw,placarCctRaw
   const {mapa,cct}=simOutroAplicarPontosProjetados(linhas,jogo,resultado); const pts=simVoleiNum(cct.__pontos);
   const tamanho=linhas.length; const poss=Math.max(0,(tamanho-1)*3); const pct=poss?pts/poss:0;
   let saldo=simOutroSaldoLinha(cctLinha), pro=simOutroProLinha(cctLinha), contra=simOutroContraLinha(cctLinha), scoreCompleto=false;
-  let margem=Number(margemRaw||1); if(!Number.isFinite(margem)||margem<1)margem=1;
+  let margem=resultado.id==='E'?0:Number(margemRaw||1);
+  if(!Number.isFinite(margem)||(resultado.id!=='E'&&margem<1)) margem=resultado.id==='E'?0:1;
   if(tipo==='FUT'||tipo==='HAN'){
     if(resultado.id==='V')saldo+=margem; else if(resultado.id==='D')saldo-=margem;
   }else if(tipo==='BAS'){
@@ -1690,16 +2013,75 @@ function simOutroCalcular(idModalidade,idJogo,resultadoId,margemRaw,placarCctRaw
   if(tipo==='BAS') metrics.push({k:'SALDO',v:scoreCompleto?simOutroSaldo(saldo):'—'}); else metrics.push({k:'SALDO',v:simOutroSaldo(saldo)});
   return {status,classe,texto,titulo,bullets:bullets.slice(0,5),metrics,tipo,restCct,resultado,descricao:simOutroDescricaoMargem(tipo,resultado.id,margem),scoreCompleto};
 }
+function simProximoJogoCctQualquerFase(idModalidade,idPreferido=''){
+  // V4.8.6: um ID vindo do cenário só é aceito como preferido se o confronto
+  // realmente envolver a CCT. Evita mostrar jogo de outra chave como "próximo jogo".
+  const preferido=idPreferido?apiData.jogos.find(j=>j.ID_COMPETICAO===jogosUI.competicao&&j.ID_MODALIDADE===idModalidade&&String(j.ID_JOGO||'')===String(idPreferido)&&jogoTemCCT(j)&&!simVoleiFinalizado(j)):null;
+  if(preferido) return preferido;
+  return apiData.jogos
+    .filter(j=>j.ID_COMPETICAO===jogosUI.competicao&&j.ID_MODALIDADE===idModalidade&&jogoTemCCT(j)&&!simVoleiFinalizado(j))
+    .map((j,i)=>({j,i,d:parseBrDate(j.DATA,j.HORA)}))
+    .sort((a,b)=>{const ta=a.d?.getTime(),tb=b.d?.getTime();if(Number.isFinite(ta)&&Number.isFinite(tb))return ta-tb;if(Number.isFinite(ta))return-1;if(Number.isFinite(tb))return 1;return a.i-b.i;})[0]?.j||null;
+}
+function simMataMataFaseLabel(fase){
+  const f=simVoleiNorm(fase);
+  // V4.8.4: testar fases específicas antes de "FINAL".
+  // "QUARTAS DE FINAL" contém a palavra FINAL e antes era classificada incorretamente como FINAL.
+  if(f.includes('QUARTA')) return 'QUARTAS DE FINAL';
+  if(f.includes('SEMI')) return 'SEMIFINAL';
+  if(f.includes('3')||f.includes('TERCEIRO')) return 'DISPUTA DE 3º';
+  if(f==='FINAL'||f.includes('FINAL')) return 'FINAL';
+  return String(fase||'MATA-MATA').toUpperCase();
+}
+function simuladorMataMataHtml(c,jogo){
+  if(!jogo)return'';
+  const tipo=simOutroTipo(c.ID_MODALIDADE)|| (simVoleiEhModalidade(c.ID_MODALIDADE)?'VOL':'');
+  if(!tipo)return'';
+  const fase=simMataMataFaseLabel(jogo.FASE);
+  const opts=tipo==='VOL'?SIM_VOLEI_RESULTADOS_CCT:[{id:'V',label:'CCT vence'},{id:'D',label:'CCT perde'}];
+  return `<div class="scenario-simulator" data-sim-mata data-sim-fase="${escapeHtml(fase)}">
+    <button class="scenario-sim-toggle" type="button" data-sim-toggle aria-expanded="false"><span>${uiIcon('target','inline-icon')} SIMULAR MATA-MATA</span><b>›</b></button>
+    <div class="scenario-sim-panel" data-sim-panel hidden>
+      <div class="scenario-sim-head"><small>${escapeHtml(fase)}</small><strong>${escapeHtml((jogo.EQUIPE_A||'A DEFINIR')+' × '+(jogo.EQUIPE_B||'A DEFINIR'))}</strong><span>${escapeHtml([jogo.DATA,jogo.HORA].filter(Boolean).join(' • '))}</span></div>
+      <label class="scenario-sim-field"><span>Se a CCT...</span><select data-sim-mata-select><option value="">Escolha um resultado</option>${opts.map(o=>`<option value="${o.id}">${escapeHtml(o.label)}</option>`).join('')}</select></label>
+      <div class="scenario-sim-result" data-sim-result><p>Escolha o resultado para ver a consequência direta no mata-mata.</p></div>
+      <small class="scenario-sim-note">Simulação local • não altera a classificação oficial.</small>
+    </div></div>`;
+}
+function simSemJogoHtml(c){
+  const st=simVoleiNorm(c.STATUS);
+  if(st.includes('ELIMIN')) return `<div class="scenario-sim-unavailable">Campanha encerrada • não há jogo futuro para simular.</div>`;
+  if(st.includes('CLASSIFIC')) return `<div class="scenario-sim-unavailable">Classificação garantida • aguardando o próximo confronto do chaveamento.</div>`;
+  return '';
+}
+function bindSimuladoresMataMata(container){
+  container.querySelectorAll('[data-sim-mata]').forEach(root=>{
+    const btn=root.querySelector('[data-sim-toggle]'),panel=root.querySelector('[data-sim-panel]'),sel=root.querySelector('[data-sim-mata-select]'),out=root.querySelector('[data-sim-result]');
+    btn?.addEventListener('click',()=>{const abrir=panel.hidden;panel.hidden=!abrir;btn.setAttribute('aria-expanded',String(abrir));btn.querySelector('b').textContent=abrir?'⌄':'›';});
+    sel?.addEventListener('change',()=>{
+      if(!sel.value){out.innerHTML='<p>Escolha o resultado para ver a consequência direta no mata-mata.</p>';return;}
+      const ganhou=sel.value==='V'||sel.value==='V20'||sel.value==='V21';
+      const fase=root.dataset.simFase||'MATA-MATA';
+      let status=ganhou?'AVANÇA DE FASE':'ELIMINADA',classe=ganhou?'success':'danger',texto='';
+      if(fase==='FINAL'){status=ganhou?'CAMPEÃ':'VICE-CAMPEÃ';texto=ganhou?'Com esse resultado, a CCT conquista o título da modalidade.':'Com esse resultado, a CCT termina como vice-campeã.';}
+      else if(fase==='DISPUTA DE 3º'){status=ganhou?'3º LUGAR':'4º LUGAR';texto=ganhou?'Com esse resultado, a CCT conquista o 3º lugar.':'Com esse resultado, a CCT termina em 4º lugar.';}
+      else texto=ganhou?`Com esse resultado, a CCT vence as ${fase.toLowerCase()} e segue no mata-mata.`:`Com esse resultado, a campanha da CCT termina nas ${fase.toLowerCase()}.`;
+      out.innerHTML=`<div class="scenario-sim-alert ${classe}"><small>PROJEÇÃO</small><strong>${status}</strong><p>${escapeHtml(texto)}</p></div>`;
+    });
+  });
+}
 function simuladorOutrasModalidadesHtml(c){
   const tipo=simOutroTipo(c.ID_MODALIDADE); if(!tipo)return'';
-  const jogo=simOutroProximoJogoCct(c.ID_MODALIDADE,c.PROXIMO_JOGO); if(!jogo)return'';
+  // V4.8.7: somente jogo ainda aberto da FASE DE GRUPOS pode ser simulado.
+  const jogo=simOutroProximoJogoCct(c.ID_MODALIDADE,c.PROXIMO_JOGO);
+  if(!jogo) return '';
   const opts=SIM_OUTROS_RESULTADOS[tipo]||[];
   return `<div class="scenario-simulator" data-sim-outro data-sim-tipo="${tipo}" data-sim-modalidade="${escapeHtml(c.ID_MODALIDADE||'')}" data-sim-jogo="${escapeHtml(jogo.ID_JOGO||'')}">
     <button class="scenario-sim-toggle" type="button" data-sim-toggle aria-expanded="false"><span>${uiIcon('target','inline-icon')} SIMULAR CENÁRIO</span><b>›</b></button>
     <div class="scenario-sim-panel" data-sim-panel hidden>
       <div class="scenario-sim-head"><small>PRÓXIMO JOGO</small><strong>${escapeHtml((jogo.EQUIPE_A||'A DEFINIR')+' × '+(jogo.EQUIPE_B||'A DEFINIR'))}</strong><span>${escapeHtml([jogo.DATA,jogo.HORA].filter(Boolean).join(' • '))}</span></div>
       <label class="scenario-sim-field"><span>Se a CCT...</span><select data-sim-outcome><option value="">Escolha um resultado</option>${opts.map(o=>`<option value="${o.id}">${escapeHtml(o.label)}</option>`).join('')}</select></label>
-      ${tipo==='FUT'||tipo==='HAN'?`<label class="scenario-sim-field scenario-sim-extra" data-sim-margin-wrap hidden><span>Diferença projetada</span><select data-sim-margin><option value="1">1 gol</option><option value="2">2 gols</option><option value="3">3 gols</option><option value="4">4 gols</option><option value="5">5 ou mais</option></select></label>`:''}
+      ${tipo==='FUT'||tipo==='HAN'?`<label class="scenario-sim-field scenario-sim-extra" data-sim-margin-wrap hidden><span>Diferença projetada</span><select data-sim-margin><option value="0">0 gols</option><option value="1">1 gol</option><option value="2">2 gols</option><option value="3">3 gols</option><option value="4">4 gols</option><option value="5">5 ou mais</option></select></label>`:''}
       ${tipo==='BAS'?`<div class="scenario-sim-score" data-sim-score-wrap hidden><span>Placar projetado <small>(opcional; melhora a análise de average)</small></span><div><label>CCT <input type="number" min="0" inputmode="numeric" data-sim-score-cct placeholder="72"></label><b>×</b><label>Rival <input type="number" min="0" inputmode="numeric" data-sim-score-rival placeholder="65"></label></div></div>`:''}
       <div class="scenario-sim-result" data-sim-result><p>Escolha um resultado para projetar a situação da CCT.</p></div>
       <small class="scenario-sim-note">Simulação local • não altera a planilha nem a classificação oficial.</small>
@@ -1722,7 +2104,20 @@ function bindSimuladoresOutros(container){
     const btn=root.querySelector('[data-sim-toggle]'),panel=root.querySelector('[data-sim-panel]'),sel=root.querySelector('[data-sim-outcome]'),marginWrap=root.querySelector('[data-sim-margin-wrap]'),scoreWrap=root.querySelector('[data-sim-score-wrap]');
     btn?.addEventListener('click',()=>{const abrir=panel.hidden;panel.hidden=!abrir;btn.setAttribute('aria-expanded',String(abrir));btn.querySelector('b').textContent=abrir?'⌄':'›';});
     sel?.addEventListener('change',()=>{
-      if(marginWrap) marginWrap.hidden=!['V','D'].includes(sel.value);
+      if(marginWrap){
+        const margin=marginWrap.querySelector('[data-sim-margin]');
+        if(!sel.value){
+          marginWrap.hidden=true;
+          if(margin){margin.disabled=false;margin.value='1';}
+        }else if(sel.value==='E'){
+          // Empate sempre tem diferença de gols igual a zero.
+          marginWrap.hidden=false;
+          if(margin){margin.value='0';margin.disabled=true;}
+        }else{
+          marginWrap.hidden=false;
+          if(margin){margin.disabled=false;if(margin.value==='0')margin.value='1';}
+        }
+      }
       if(scoreWrap) scoreWrap.hidden=!sel.value;
       const out=root.querySelector('[data-sim-result]');if(!sel.value){if(out)out.innerHTML='<p>Escolha um resultado para projetar a situação da CCT.</p>';return;} simOutroRodar(root);
     });
@@ -1731,14 +2126,267 @@ function bindSimuladoresOutros(container){
   });
 }
 function simuladorModalidadeHtml(c){
-  if(simVoleiEhModalidade(c.ID_MODALIDADE))return simuladorVoleiHtml(c);
-  return simuladorOutrasModalidadesHtml(c);
+  /* V4.8.7 — o simulador existe SOMENTE na fase de grupos.
+     Mata-mata não exibe simulação: o resultado é eliminatório e o card mostra
+     apenas a classificação já conquistada + próximo jogo real da CCT. */
+  if(cctStatusEliminado_(c)) return '';
+
+  const jogoGrupo=simVoleiProximoJogoCct(c.ID_MODALIDADE,c.PROXIMO_JOGO);
+  if(!jogoGrupo) return '';
+
+  if(simVoleiEhModalidade(c.ID_MODALIDADE)) return simuladorVoleiHtml(c);
+  if(simOutroTipo(c.ID_MODALIDADE)) return simuladorOutrasModalidadesHtml(c);
+  return '';
 }
 function bindSimuladoresModalidades(container){
   bindSimuladoresVolei(container);
   bindSimuladoresOutros(container);
 }
 
+
+/* =========================================================
+   V4.8.6 — Classificados / eliminados + colocação final da fase de grupos
+   - Substitui AGORA + META TÉCNICA quando a vaga já está garantida.
+   - Ordena líderes e melhores segundos pela comparação atual entre grupos.
+   - Mantém tudo local no app, sem nova chamada à planilha/API.
+   ========================================================= */
+function cctStatusClassificado_(c){
+  return simVoleiNorm(c?.STATUS).includes('CLASSIFIC');
+}
+function cctStatusEliminado_(c){
+  return simVoleiNorm(c?.STATUS).includes('ELIMIN');
+}
+function cctLinhasGruposModalidade_(idModalidade){
+  return apiData.classificacao.filter(r=>
+    r.ID_COMPETICAO===jogosUI.competicao &&
+    r.ID_MODALIDADE===idModalidade &&
+    String(r.GRUPO||'').trim()
+  );
+}
+function cctGruposClassificacao_(idModalidade){
+  const grupos=new Map();
+  cctLinhasGruposModalidade_(idModalidade).forEach(r=>{
+    const g=String(r.GRUPO||'').trim().toUpperCase();
+    if(!grupos.has(g)) grupos.set(g,[]);
+    grupos.get(g).push(r);
+  });
+  grupos.forEach(arr=>arr.sort((a,b)=>{
+    const pa=simVoleiNum(a.POSICAO,999),pb=simVoleiNum(b.POSICAO,999);
+    if(pa!==pb) return pa-pb;
+    const pta=simVoleiNum(a.PONTOS),ptb=simVoleiNum(b.PONTOS);
+    return ptb-pta;
+  }));
+  return grupos;
+}
+function cctVagasMataMata_(idModalidade,grupos){
+  const jogos=apiData.jogos.filter(j=>j.ID_COMPETICAO===jogosUI.competicao&&j.ID_MODALIDADE===idModalidade);
+  const niveis=[
+    {teste:f=>f.includes('OITAVA'),fallback:16},
+    {teste:f=>f.includes('QUARTA'),fallback:8},
+    {teste:f=>f.includes('SEMI'),fallback:4},
+    {teste:f=>f==='FINAL'||f.includes(' FINAL'),fallback:2}
+  ];
+  for(const n of niveis){
+    const encontrados=jogos.filter(j=>n.teste(simVoleiNorm(j.FASE)));
+    if(encontrados.length) return Math.max(grupos.size,encontrados.length*2);
+  }
+  // Interlaje atual: quartas com 8 vagas. Mantemos um fallback conservador
+  // apenas quando a tabela de mata-mata ainda não estiver publicada.
+  return Math.max(grupos.size,Math.min(8,grupos.size+Math.max(0,8-grupos.size)));
+}
+function cctCampanhaClassificado_(r,tamanhoGrupo,idModalidade){
+  const pontos=simVoleiNum(r?.PONTOS);
+  const possiveis=Math.max(0,(tamanhoGrupo-1)*3);
+  const percentual=possiveis?pontos/possiveis:0;
+  const ehVolei=simVoleiEhModalidade(idModalidade);
+  const setsV=simVoleiNum(r?.SETS_VENCIDOS);
+  const setsP=simVoleiNum(r?.SETS_PERDIDOS);
+  const saldo=ehVolei?(setsV-setsP):simVoleiNum(r?.SALDO);
+  return {
+    equipe:String(r?.EQUIPE||''),grupo:String(r?.GRUPO||''),pontos,pontosPossiveis:possiveis,percentual,saldo,
+    pro:simVoleiNum(r?.PRO),contra:simVoleiNum(r?.CONTRA),
+    setsV,setsP,setAverage:simVoleiNum(r?.SET_AVERAGE,-1),average:simVoleiNum(r?.AVERAGE_GERAL,-1),
+    linha:r
+  };
+}
+function cctCompararClassificados_(a,b,idModalidade){
+  if(Math.abs(a.percentual-b.percentual)>1e-12) return b.percentual-a.percentual;
+  if(a.saldo!==b.saldo) return b.saldo-a.saldo;
+  const tipo=simOutroTipo(idModalidade);
+  if(simVoleiEhModalidade(idModalidade)){
+    if(a.setsV!==b.setsV) return b.setsV-a.setsV;
+    if(a.pro!==b.pro) return b.pro-a.pro;
+    if(a.contra!==b.contra) return a.contra-b.contra;
+  }else if(tipo==='BAS'){
+    if(a.average!==b.average && a.average>=0 && b.average>=0) return b.average-a.average;
+    if(a.pro!==b.pro) return b.pro-a.pro;
+    if(a.contra!==b.contra) return a.contra-b.contra;
+  }else{
+    if(a.pro!==b.pro) return b.pro-a.pro;
+    if(a.contra!==b.contra) return a.contra-b.contra;
+  }
+  return String(a.equipe).localeCompare(String(b.equipe),'pt-BR');
+}
+function cctClassificadosAgora_(idModalidade){
+  const grupos=cctGruposClassificacao_(idModalidade);
+  if(!grupos.size) return null;
+  const lideres=[],segundos=[];
+  for(const [g,arr] of grupos){
+    if(arr[0]) lideres.push(cctCampanhaClassificado_(arr[0],arr.length,idModalidade));
+    if(arr[1]) segundos.push(cctCampanhaClassificado_(arr[1],arr.length,idModalidade));
+  }
+  lideres.sort((a,b)=>cctCompararClassificados_(a,b,idModalidade));
+  segundos.sort((a,b)=>cctCompararClassificados_(a,b,idModalidade));
+  const vagas=cctVagasMataMata_(idModalidade,grupos);
+  const qtdSegundos=Math.max(0,vagas-lideres.length);
+  const qualificados=[
+    ...lideres.map((x,i)=>({...x,tipo:'LIDER',ordemCategoria:i+1,rotulo:`${i+1}º melhor 1º`})),
+    ...segundos.slice(0,qtdSegundos).map((x,i)=>({...x,tipo:'SEGUNDO',ordemCategoria:i+1,rotulo:`${i+1}º melhor 2º`}))
+  ];
+  return {qualificados,vagas,lideres:lideres.length,segundos:qtdSegundos};
+}
+function cctPctClassificados_(v){
+  return `${(Number(v||0)*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})}%`;
+}
+function cctSaldoClassificados_(v){
+  const n=Number(v||0);return `${n>0?'+':''}${n}`;
+}
+function classificadosAgoraHtml(c,{titulo='CLASSIFICADOS AGORA',nota='Ordem atual considerando os resultados registrados até o momento.'}={}){
+  const dados=cctClassificadosAgora_(c.ID_MODALIDADE);
+  if(!dados?.qualificados?.length) return '';
+  const linhas=dados.qualificados.map(x=>{
+    const cct=simVoleiNorm(x.equipe)==='CCT';
+    return `<div class="scenario-qualified-row${cct?' is-cct':''}">
+      <span class="scenario-qualified-rank">${escapeHtml(x.rotulo)}</span>
+      <strong class="scenario-qualified-team">${escapeHtml(x.equipe)}</strong>
+      <span>${escapeHtml(`${x.pontos}/${x.pontosPossiveis}`)}</span>
+      <span>${escapeHtml(cctPctClassificados_(x.percentual))}</span>
+      <span>${escapeHtml(`saldo ${cctSaldoClassificados_(x.saldo)}`)}</span>
+    </div>`;
+  }).join('');
+  const resumo=dados.segundos>0?`${dados.lideres} líderes + ${dados.segundos} melhores 2º`:`${dados.lideres} líderes`;
+  return `<div class="scenario-qualified-box">
+    <div class="scenario-qualified-title"><small>${escapeHtml(titulo)}</small><span>${escapeHtml(resumo)} • pontos / aproveitamento / saldo</span></div>
+    <div class="scenario-qualified-list">${linhas}</div>
+    ${nota?`<small class="scenario-qualified-note">${escapeHtml(nota)}</small>`:''}
+  </div>`;
+}
+
+function cctLinhaCctModalidade_(idModalidade){
+  return cctLinhasGruposModalidade_(idModalidade).find(r=>simVoleiNorm(r.EQUIPE)==='CCT')||null;
+}
+function cctPosicaoFinalNumero_(v){
+  if(v===null||v===undefined||String(v).trim()==='')return null;
+  const n=Number(String(v).replace(',','.'));return Number.isFinite(n)&&n>0?n:null;
+}
+function cctPontosGeralNumero_(v){
+  if(v===null||v===undefined||String(v).trim()==='')return null;
+  const n=Number(String(v).replace(',','.'));return Number.isFinite(n)?n:null;
+}
+function cctResumoEliminadoHtml_(c){
+  const linha=cctLinhaCctModalidade_(c.ID_MODALIDADE);
+  const pos=cctPosicaoFinalNumero_(linha?.POSICAO_FINAL_ATUAL);
+  const pts=cctPontosGeralNumero_(linha?.PONTOS_GERAL_CONFIRMADOS);
+  const statusFinal=simVoleiNorm(linha?.STATUS_FINAL_MODALIDADE);
+
+  let principal='Posição final aguardando o encerramento/validação da fase de grupos.';
+  let secundario='A CCT está eliminada, mas a colocação final ainda não foi confirmada.';
+  if(pos!==null){
+    principal=`${pos}º LUGAR`;
+    secundario=pts!==null?`${pts} ${pts===1?'ponto confirmado':'pontos confirmados'} para a Classificação Geral.`:'Colocação final definida.';
+  }else if(statusFinal.includes('AGUARDANDO_DESEMPATE')){
+    principal='DESEMPATE PENDENTE';
+    secundario='A posição final depende de um critério de desempate ainda não disponível automaticamente.';
+  }
+
+  return `<div class="scenario-eliminated-final${pos!==null?' is-defined':''}">
+    <div><small>CLASSIFICAÇÃO FINAL DA CCT</small><strong>${escapeHtml(principal)}</strong><span>${escapeHtml(secundario)}</span></div>
+    ${pts!==null?`<b>${escapeHtml(String(pts))}<small>PTS GERAL</small></b>`:''}
+  </div>`;
+}
+function cctEliminadoClassificacaoHtml_(c){
+  const ranking=classificadosAgoraHtml(c,{
+    titulo:'CLASSIFICADOS DA MODALIDADE',
+    nota:'Equipes que avançaram ao mata-mata após a fase de grupos.'
+  });
+  return `<div class="scenario-quick scenario-quick-eliminated">
+    ${ranking}
+    ${cctResumoEliminadoHtml_(c)}
+  </div>`;
+}
+function cctProximoJogoClassificadoHtml_(c){
+  const j=simProximoJogoCctQualquerFase(c.ID_MODALIDADE,c.PROXIMO_JOGO);
+  if(!j) return '';
+  const fase=simMataMataFaseLabel(j.FASE);
+  return `<div class="scenario-quick-next"><small>PRÓXIMO JOGO${fase?` • ${escapeHtml(fase)}`:''}</small><span>${escapeHtml(j.DATA||'')} • ${escapeHtml(j.HORA||'')}<small>${escapeHtml((j.EQUIPE_A||'A DEFINIR')+' × '+(j.EQUIPE_B||'A DEFINIR'))}</small></span></div>`;
+}
+
+
+/* =========================================================
+   V4.9.0 — Panorama das modalidades em disputa
+   Mostra TODOS os times da modalidade com:
+   pontos, aproveitamento atual, faixa mínima/máxima final e
+   os principais critérios de desempate da modalidade.
+   ========================================================= */
+function cctStatusEmDisputa_(c){
+  const s=simVoleiNorm(c?.STATUS);
+  return !cctStatusClassificado_(c) && !cctStatusEliminado_(c) && (s.includes('DISPUT')||s.includes('AGUARD')||s.includes('ABERTO')||s.includes('ANALISE')||s.includes('ANÁLISE'));
+}
+function cctPanoramaNum_(v,fb=0){
+  if(v===null||v===undefined||String(v).trim()==='') return fb;
+  const n=Number(String(v).replace(',','.'));return Number.isFinite(n)?n:fb;
+}
+function cctPanoramaPct_(v){return `${(Math.max(0,v)*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})}%`;}
+function cctPanoramaSaldo_(v){const n=cctPanoramaNum_(v,0);return `${n>0?'+':''}${n}`;}
+function cctPanoramaDesempate_(r,idModalidade){
+  const t=simOutroTipo(idModalidade);
+  if(simVoleiEhModalidade(idModalidade)){
+    const sv=cctPanoramaNum_(r.SETS_VENCIDOS,0),sp=cctPanoramaNum_(r.SETS_PERDIDOS,0);
+    const av=r.SET_AVERAGE!==null&&r.SET_AVERAGE!==undefined&&String(r.SET_AVERAGE).trim()!==''?cctPanoramaNum_(r.SET_AVERAGE,0):null;
+    return `sets ${sv}-${sp}${av!==null?` • avg ${av.toLocaleString('pt-BR',{maximumFractionDigits:2})}`:''}`;
+  }
+  if(t==='BAS'){
+    const av=r.AVERAGE_GERAL!==null&&r.AVERAGE_GERAL!==undefined&&String(r.AVERAGE_GERAL).trim()!==''?cctPanoramaNum_(r.AVERAGE_GERAL,0):null;
+    return `${av!==null?`avg ${av.toLocaleString('pt-BR',{maximumFractionDigits:2})} • `:''}saldo ${cctPanoramaSaldo_(r.SALDO)}`;
+  }
+  if(t==='HAN') return `saldo ${cctPanoramaSaldo_(r.SALDO)} • sofridos ${cctPanoramaNum_(r.CONTRA,0)}`;
+  return `saldo ${cctPanoramaSaldo_(r.SALDO)} • pró ${cctPanoramaNum_(r.PRO,0)}`;
+}
+function cctPanoramaModalidade_(idModalidade){
+  const linhas=cctLinhasGruposModalidade_(idModalidade);
+  const grupos=new Map();
+  linhas.forEach(r=>{const g=String(r.GRUPO||'').trim().toUpperCase();if(!g)return;if(!grupos.has(g))grupos.set(g,[]);grupos.get(g).push(r);});
+  const saida=[];
+  [...grupos.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).forEach(([grupo,rows])=>{
+    const tamanho=rows.length, jogosTotais=Math.max(0,tamanho-1), pontosTotais=jogosTotais*3;
+    const equipes=rows.slice().sort((a,b)=>cctPanoramaNum_(a.POSICAO,999)-cctPanoramaNum_(b.POSICAO,999)).map(r=>{
+      const pontos=cctPanoramaNum_(r.PONTOS,0),jogos=cctPanoramaNum_(r.JOGOS,0),restantes=Math.max(0,jogosTotais-jogos);
+      const atualDen=jogos*3;
+      const atual=atualDen>0?pontos/atualDen:0;
+      const minimo=pontosTotais>0?pontos/pontosTotais:0;
+      const maxPontos=Math.min(pontosTotais,pontos+restantes*3);
+      const maximo=pontosTotais>0?maxPontos/pontosTotais:0;
+      return {grupo,r,pontos,jogos,atual,minimo,maximo,desempate:cctPanoramaDesempate_(r,idModalidade)};
+    });
+    saida.push({grupo,equipes});
+  });
+  return saida;
+}
+function cctPanoramaEmDisputaHtml_(c){
+  const grupos=cctPanoramaModalidade_(c.ID_MODALIDADE);if(!grupos.length)return'';
+  const corpo=grupos.map(g=>`<div class="scenario-live-group"><small>GRUPO ${escapeHtml(g.grupo)}</small><div class="scenario-live-list">${g.equipes.map(x=>{
+    const isCct=simVoleiNorm(x.r.EQUIPE)==='CCT';
+    const faixa=Math.abs(x.minimo-x.maximo)<1e-12?cctPanoramaPct_(x.minimo):`${cctPanoramaPct_(x.minimo)}–${cctPanoramaPct_(x.maximo)}`;
+    return `<div class="scenario-live-row${isCct?' is-cct':''}"><strong>${escapeHtml(x.r.EQUIPE||'Equipe')}</strong><span>${escapeHtml(`${x.pontos} pts`)}</span><span>${escapeHtml(`atual ${cctPanoramaPct_(x.atual)}`)}</span><span>${escapeHtml(`final ${faixa}`)}</span><span>${escapeHtml(x.desempate)}</span></div>`;
+  }).join('')}</div></div>`).join('');
+  return `<div class="scenario-live-box"><div class="scenario-live-title"><small>PANORAMA DA MODALIDADE</small><span>pts • aproveitamento atual • faixa final • desempate</span></div>${corpo}<small class="scenario-live-note">A faixa final considera o mínimo já garantido e o máximo matemático possível nos jogos restantes da fase de grupos.</small></div>`;
+}
+function cctCenarioEmDisputaHtml_(c){
+  const atual=String(c.CENARIO_ATUAL||'').trim();
+  const precisa=String(c.O_QUE_PRECISA||c.META_TECNICA||'').trim();
+  if(!atual&&!precisa)return'';
+  return `<div class="scenario-live-analysis"><small>CENÁRIO DA CCT</small>${atual?`<strong>${escapeHtml(atual)}</strong>`:''}${precisa&&simVoleiNorm(precisa)!==simVoleiNorm(atual)?`<span>${escapeHtml(precisa)}</span>`:''}</div>`;
+}
 
 function renderizarCenarios(){
   const container=$('#cenariosContainer');
@@ -1764,6 +2412,11 @@ function renderizarCenarios(){
     .filter(c=>c.ID_COMPETICAO===jogosUI.competicao)
     .sort((a,b)=>modalidadeNome(a.ID_MODALIDADE).localeCompare(modalidadeNome(b.ID_MODALIDADE),'pt-BR'));
 
+  if(!linhas.length && competicaoEmPreviaInterna(jogosUI.competicao)){
+    container.innerHTML='<div class="games-empty"><strong>Cenários por modalidade ainda não disponíveis.</strong><span>Eles aparecerão conforme os resultados oficiais forem registrados e a classificação de cada modalidade começar a ser formada.</span></div>';
+    return;
+  }
+
   container.innerHTML=linhas.length ? linhas.map(c=>{
     const atual=resumoCenarioAtual(c);
     const precisa=resumoCenarioPrecisa(c);
@@ -1777,16 +2430,18 @@ function renderizarCenarios(){
         </div>
         <span class="target">${uiIcon('target','scenario-card-target-icon')}</span>
       </div>
-      <div class="scenario-quick">
-        <div><small>AGORA</small><strong>${escapeHtml(atual)}</strong></div>
-        <div class="scenario-meta-box">
-          <small>META TÉCNICA ${tipoMetaCenario(c)?`<span class="scenario-meta-type">${escapeHtml(tipoMetaCenario(c))}</span>`:''}</small>
-          <strong>${escapeHtml(precisa)}</strong>
-          ${c.RIVAL_REFERENCIA?`<span class="scenario-meta-rival">Referência: ${escapeHtml(c.RIVAL_REFERENCIA)}</span>`:''}
-          ${c.METRICA_REFERENCIA?`<span class="scenario-meta-metric">${escapeHtml(c.METRICA_REFERENCIA)}</span>`:''}
-        </div>
-        ${c.PROXIMO_JOGO?`<div class="scenario-quick-next"><small>PRÓXIMO JOGO</small>${proximoJogoCenarioHtml(c.PROXIMO_JOGO)}</div>`:''}
-      </div>
+      ${cctStatusClassificado_(c)
+        ? `<div class="scenario-quick scenario-quick-classified">
+            ${classificadosAgoraHtml(c)}
+            ${cctProximoJogoClassificadoHtml_(c)}
+          </div>`
+        : cctStatusEliminado_(c)
+          ? cctEliminadoClassificacaoHtml_(c)
+          : `<div class="scenario-quick scenario-quick-live">
+              ${cctPanoramaEmDisputaHtml_(c)}
+              ${cctCenarioEmDisputaHtml_(c)}
+              ${c.PROXIMO_JOGO?`<div class="scenario-quick-next"><small>PRÓXIMO JOGO</small>${proximoJogoCenarioHtml(c.PROXIMO_JOGO)}</div>`:''}
+            </div>`}
       ${simuladorModalidadeHtml(c)}
       ${temDetalhes?`<button class="scenario-toggle" type="button" data-scenario-toggle aria-expanded="false">VER CONTEXTO <b>⌄</b></button>
       <div class="scenario-detail-body scenario-collapsible" data-scenario-details hidden>
@@ -1832,6 +2487,11 @@ function renderizarDestaques(){
     .filter(d=>!Object.prototype.hasOwnProperty.call(d,'PUBLICADO') || isSim(d.PUBLICADO))
     .sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
 
+  if(!linhas.length && competicaoEmPreviaInterna(jogosUI.competicao)){
+    container.innerHTML='<div class="games-empty"><strong>Nenhum destaque ainda.</strong><span>Medalhas, títulos, recordes e conquistas do JIUDESC aparecerão após os resultados oficiais.</span></div>';
+    return;
+  }
+
   container.innerHTML=linhas.length ? linhas.map(d=>{
     const foto=normalizeImageUrl(d.FOTO_URL||'');
     const nome=String(d.NOME||'').trim();
@@ -1851,7 +2511,7 @@ function renderizarDestaques(){
         </div>
         ${foto?`<img class="highlight-photo" src="${escapeHtml(foto)}" alt="${escapeHtml(nome||d.TITULO||'Destaque CCT')}" />`:''}
       </article>`;
-  }).join('') : '<div class="games-empty">Nenhum destaque publicado para esta competição ainda.</div>';
+  }).join('') : (jogosUI.competicao==='JIUDESC-2026' ? '<div class="games-empty"><strong>Nenhum destaque ainda.</strong><span>Medalhas, títulos, recordes e conquistas aparecerão após os resultados oficiais.</span></div>' : '<div class="games-empty">Nenhum destaque publicado para esta competição ainda.</div>');
 }
 
 function renderizarAbaCompeticao(){
@@ -1867,7 +2527,10 @@ function renderizarAbaCompeticao(){
   });
   $$('#competitionTabs [data-comp-tab]').forEach(btn=>btn.classList.toggle('selected',btn.dataset.compTab===jogosUI.aba));
   const titulo=$('#competicaoTitulo');
-  if(titulo) titulo.textContent=mapas[jogosUI.aba]?.[1]||'Jogos';
+  if(titulo){
+    const base=mapas[jogosUI.aba]?.[1]||'Jogos';
+    titulo.textContent=competicaoEmPreviaInterna(jogosUI.competicao) ? `${base} • Prévia interna` : base;
+  }
 
   if(jogosUI.aba==='jogos') renderizarJogos();
   if(jogosUI.aba==='classificacao') renderizarClassificacao();
@@ -1960,16 +2623,17 @@ function bindCompeticaoUI(){
 }
 
 function abrirSeletorCompeticao(){
-  const publicadas=apiData.competicoes.filter(c=>!('PUBLICADO' in c) || String(c.PUBLICADO).toUpperCase()==='SIM');
-  const comps=publicadas.length?publicadas:[{ID_COMPETICAO:jogosUI.competicao,NOME:competitionName(jogosUI.competicao)}];
+  const visiveis=apiData.competicoes.filter(competicaoVisivelNoEscopo);
+  const comps=visiveis.length?visiveis:[{ID_COMPETICAO:jogosUI.competicao,NOME:competitionName(jogosUI.competicao)}];
   const body=$('#modalContent');
   if(!body) return;
 
-  body.innerHTML=`<span class="chip">COMPETIÇÕES</span><h2>Escolha o campeonato</h2><div class="competition-list">${comps.map(c=>`<button class="competition-option ${c.ID_COMPETICAO===jogosUI.competicao?'active':''}" data-competition-id="${escapeHtml(c.ID_COMPETICAO)}"><span>${escapeHtml(c.NOME||c.ID_COMPETICAO)}<small>${escapeHtml(c.ANO||'')}</small></span><b>›</b></button>`).join('')}</div>`;
+  body.innerHTML=`<span class="chip">COMPETIÇÕES</span><h2>Escolha o campeonato</h2><div class="competition-list">${comps.map(c=>`<button class="competition-option ${c.ID_COMPETICAO===jogosUI.competicao?'active':''}" data-competition-id="${escapeHtml(c.ID_COMPETICAO)}"><span>${escapeHtml(c.NOME||c.ID_COMPETICAO)}<small>${escapeHtml([c.ANO,competicaoEmPreviaInterna(c.ID_COMPETICAO)?'PRÉVIA INTERNA':''].filter(Boolean).join(' • '))}</small></span><b>›</b></button>`).join('')}</div>`;
   $('#modal')?.classList.add('open');
 
   $$('[data-competition-id]').forEach(btn=>btn.addEventListener('click',()=>{
     jogosUI.competicao=btn.dataset.competitionId;
+    salvarCompeticaoPreferida(jogosUI.competicao);
     jogosUI.dataFiltro='todos';
     jogosUI.modalidadeFiltro='';
     jogosUI.classificacaoModalidade='';
@@ -1978,7 +2642,7 @@ function abrirSeletorCompeticao(){
     const filtroModalidade=$('#modalidadeFiltro');
     if(filtroModalidade) filtroModalidade.value='';
     const nome=$('#competicaoNome');
-    if(nome) nome.textContent=competitionName(jogosUI.competicao);
+    if(nome) nome.textContent=competitionNameUI(jogosUI.competicao);
     $('#modal')?.classList.remove('open');
     renderizarFiltrosModalidades();
     renderizarSeletorClassificacao();
@@ -1992,7 +2656,7 @@ function aplicarDadosAPI(dados,{fonte='rede'}={}){
 
   apiFreshness.fonte=fonte;
   apiFreshness.ultimaAlteracao=ultimaAlteracaoDadosCct(dados);
-  if(fonte==='rede'){
+  if(String(fonte).startsWith('rede')){
     apiFreshness.redeConfirmada=true;
     apiFreshness.erroRede=false;
     apiFreshness.verificando=false;
@@ -2010,16 +2674,24 @@ function aplicarDadosAPI(dados,{fonte='rede'}={}){
   apiData.conteudos=dados.conteudos||[];
   apiData.locais=dados.locais||[];
   apiData.pessoas=dados.pessoas||[];
-  resolverPermissoesAuth();
   apiData.eventos=dados.eventos||[];
   apiData.destaques=dados.destaques||[];
+  apiData.agenda_cct_jiudesc=dados.agenda_cct_jiudesc||[];
+  apiData.escala_responsaveis_jiudesc=dados.escala_responsaveis_jiudesc||[];
+  apiData.conflitos_cct_jiudesc=dados.conflitos_cct_jiudesc||[];
+  apiData.autorizacao=dados.autorizacao||null;
+  resolverPermissoesAuth();
 
-  if(!apiData.competicoes.some(c=>c.ID_COMPETICAO===jogosUI.competicao) && apiData.competicoes[0]){
-    jogosUI.competicao=apiData.competicoes[0].ID_COMPETICAO;
+  const competicoesVisiveis=apiData.competicoes
+    .filter(competicaoVisivelNoEscopo)
+    .sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
+  if(!competicoesVisiveis.some(c=>c.ID_COMPETICAO===jogosUI.competicao)){
+    jogosUI.competicao=competicoesVisiveis[0]?.ID_COMPETICAO || 'INTERLAJE-2026';
+    salvarCompeticaoPreferida(jogosUI.competicao);
   }
 
   const nome=$('#competicaoNome');
-  if(nome) nome.textContent=competitionName(jogosUI.competicao);
+  if(nome) nome.textContent=competitionNameUI(jogosUI.competicao);
 
   renderizarFiltrosModalidades();
   renderizarSeletorClassificacao();
@@ -2052,10 +2724,12 @@ function lerCacheAPI(){
 
 function salvarCacheAPI(dados){
   try{
+    const dadosPublicos={...dados};
+    delete dadosPublicos.autorizacao;
     localStorage.setItem(API_CACHE_KEY,JSON.stringify({
-      versao:1,
+      versao:2,
       salvoEm:Date.now(),
-      dados
+      dados:dadosPublicos
     }));
   }catch(e){
     console.warn('Não foi possível salvar o cache CCT:',e);
@@ -2075,10 +2749,97 @@ function mostrarErroAPI(){
   if(des) des.innerHTML='<div class="games-empty">Não foi possível atualizar os destaques agora.</div>';
 }
 
-async function atualizarDadosAPIRede({silencioso=false}={}){
+async function requisitarApiPublicaCCT(){
+  const resposta=await fetch(API_URL,{cache:'no-store'});
+  if(!resposta.ok) throw new Error('HTTP '+resposta.status);
+  const dados=await resposta.json();
+  if(dados?.sucesso===false) throw new Error(dados.erro||'API');
+  return {dados,autenticada:false};
+}
+
+async function respostaJsonApiCCT(resposta){
+  if(!resposta.ok) throw new Error('HTTP '+resposta.status);
+  const texto=await resposta.text();
+  try{
+    return JSON.parse(texto);
+  }catch(e){
+    // O Apps Script ocasionalmente pode devolver uma página HTML transitória.
+    // Tratamos isso como falha recuperável, sem confundir o usuário com escopo público.
+    throw new Error('API_NAO_JSON');
+  }
+}
+
+async function postApiAutenticadaCCT(token){
+  const resposta=await fetch(API_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+    body:new URLSearchParams({token}).toString(),
+    cache:'no-store'
+  });
+  return respostaJsonApiCCT(resposta);
+}
+
+async function requisitarApiAutenticadaCCT(){
+  const user=cctAuthState.user;
+  if(!user?.getIdToken) return requisitarApiPublicaCCT();
+
+  let token=await user.getIdToken(false);
+  let ultimoErro=null;
+
+  // V4.9.2.2: uma resposta HTML transitória do Apps Script não deve derrubar
+  // imediatamente o usuário para o escopo público. Fazemos uma única nova
+  // tentativa, com token renovado, antes de aplicar a falha fechada.
+  for(let tentativa=0;tentativa<2;tentativa++){
+    try{
+      let dados=await postApiAutenticadaCCT(token);
+
+      if(dados?.sucesso===false && dados?.erro==='AUTENTICACAO_INVALIDA' && tentativa===0){
+        token=await user.getIdToken(true);
+        continue;
+      }
+
+      if(dados?.sucesso===false) throw new Error(dados.erro||'API');
+      return {dados,autenticada:true};
+    }catch(erro){
+      ultimoErro=erro;
+      if(tentativa===0){
+        await new Promise(resolve=>setTimeout(resolve,350));
+        token=await user.getIdToken(true);
+        continue;
+      }
+    }
+  }
+
+  throw ultimoErro||new Error('API autenticada indisponível');
+}
+
+async function requisitarApiCCT(){
+  if(cctAuthState.ready && authLogado()){
+    try{
+      return await requisitarApiAutenticadaCCT();
+    }catch(erro){
+      // Falha fechada: sem validação de token não mantemos dados internos.
+      console.warn('API autenticada indisponível; usando escopo público.',erro);
+      apiData.autorizacao=null;
+      resolverPermissoesAuth();
+      return requisitarApiPublicaCCT();
+    }
+  }
+  return requisitarApiPublicaCCT();
+}
+
+async function atualizarDadosAPIRede({silencioso=false,forcar=false}={}){
   const agora=Date.now();
-  if(apiAtualizacaoPromise) return apiAtualizacaoPromise;
-  if(silencioso && agora-ultimaTentativaApi<API_RETRY_GUARD_MS) return null;
+
+  // Se o login/logout acontecer enquanto uma leitura pública ainda está em voo,
+  // uma atualização forçada precisa esperar e rodar novamente com o novo escopo.
+  // Sem isso, a restauração rápida da sessão Firebase pode herdar apenas o GET público.
+  if(apiAtualizacaoPromise){
+    if(!forcar) return apiAtualizacaoPromise;
+    try{ await apiAtualizacaoPromise; }catch(e){}
+  }
+
+  if(!forcar && silencioso && agora-ultimaTentativaApi<API_RETRY_GUARD_MS) return null;
   ultimaTentativaApi=agora;
   apiFreshness.verificando=true;
   apiFreshness.erroRede=false;
@@ -2086,12 +2847,13 @@ async function atualizarDadosAPIRede({silencioso=false}={}){
 
   apiAtualizacaoPromise=(async()=>{
     try{
-      const resposta=await fetch(API_URL,{cache:'no-store'});
-      if(!resposta.ok) throw new Error('HTTP '+resposta.status);
-      const dados=await resposta.json();
-      if(dados?.sucesso===false) throw new Error(dados.erro||'API');
-      salvarCacheAPI(dados);
-      aplicarDadosAPI(dados,{fonte:'rede'});
+      const {dados,autenticada}=await requisitarApiCCT();
+
+      // Respostas autenticadas podem conter dados internos.
+      // Nunca persistimos isso no localStorage.
+      if(!autenticada) salvarCacheAPI(dados);
+
+      aplicarDadosAPI(dados,{fonte:autenticada?'rede autenticada':'rede'});
       return dados;
     }catch(erro){
       console.error('Erro ao atualizar API CCT:',erro);
@@ -2187,7 +2949,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=475',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=496',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -2196,7 +2958,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV475';
+        const chave='cctSwReloadV496';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
@@ -2256,7 +3018,13 @@ function aplicarIdentidadePerfil(){
   const avatar=$('#profileAvatarImage');
   const avatarWrap=avatar?.closest('.profile-avatar-wrap');
   if(name) name.textContent=(p.name||'Seu nome').trim()||'Seu nome';
-  if(badge) badge.textContent=roleLabel(p.role);
+  if(badge){
+    badge.textContent=authMembroAprovado()
+      ? 'MEMBRO DA ATLÉTICA'
+      : authSocioAprovado()
+        ? 'SÓCIO(A) CCT'
+        : roleLabel(p.role);
+  }
   if(avatar){
     const foto=String(p.avatar||'').trim();
     if(foto){
@@ -2278,9 +3046,17 @@ function renderizarModalidadesPerfil(){
   const p=perfilAtual();
   const antigos=new Set((p.sports||[]).map(x=>MODALIDADE_IDS[x]||x));
   const selecionados=new Set((p.sportIds||[]).length?p.sportIds:antigos);
-  const mods=(apiData.modalidades||[])
-    .filter(m=>!('PUBLICADO' in m)||isSim(m.PUBLICADO))
+  const modsOrdenadas=(apiData.modalidades||[])
+    .filter(registroPublicado)
+    .filter(m=>!m.ID_COMPETICAO || competicaoPublicada(m.ID_COMPETICAO))
     .sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||String(a.NOME||'').localeCompare(String(b.NOME||''),'pt-BR'));
+  const idsVistos=new Set();
+  const mods=modsOrdenadas.filter(m=>{
+    const id=String(m.ID_MODALIDADE||'').trim();
+    if(!id || idsVistos.has(id)) return false;
+    idsVistos.add(id);
+    return true;
+  });
   if(!mods.length){grid.innerHTML='<div class="games-empty">Nenhuma modalidade publicada.</div>'; atualizarResumoPerfil(); return;}
   grid.innerHTML=mods.map(m=>{
     const id=m.ID_MODALIDADE||''; const nome=m.NOME||modalidadeBase(id).nome||id; const naipe=m.NAIPE||'';
@@ -2531,6 +3307,7 @@ function ehMembros(x){ return visibilidade(x?.VISIBILIDADE)==='MEMBROS'; }
 function ehPublico(x){ return !ehMembros(x); } // compatível com registros antigos sem VISIBILIDADE
 function somentePublicos(arr){ return (arr||[]).filter(ehPublico); }
 function somenteMembros(arr){ return (arr||[]).filter(ehMembros); }
+function somentePublicadosPublicos(arr){ return somentePublicos(arr).filter(registroPublicado); }
 function categoriaTem(valor, termos=[]){
   const c=String(valor||'').trim().toUpperCase();
   return termos.some(t=>c.includes(String(t).toUpperCase()));
@@ -2576,6 +3353,9 @@ function inicioDoDiaAtual(){
   const d=new Date(); return new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
 }
 
+function normalizarTexto(v){
+  return String(v||'').trim().toUpperCase();
+}
 function normalizarNomeAgenda(v){
   return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
 }
@@ -2639,7 +3419,7 @@ function programacaoPersonalizada(){
 
   // Atleta e membro: treinos/compromissos públicos ligados às modalidades escolhidas.
   if(role==='atleta' || role==='membro'){
-    somentePublicos(apiData.agenda).forEach(a=>{
+    somentePublicadosPublicos(apiData.agenda).forEach(a=>{
       const mod=String(a.ID_MODALIDADE||'').trim();
       if(mod && sportsSet.has(mod) && dataVal(a.DATA,a.HORA_INICIO)>=inicio){
         itens.push({...a,_ORIGEM:'ESPORTE',_ID_UNICO:`AGENDA:${a.ID_AGENDA||[a.DATA,a.HORA_INICIO,a.TITULO,mod].join('|')}`});
@@ -2650,14 +3430,13 @@ function programacaoPersonalizada(){
   // Atleta, torcedor e membro: jogos das modalidades escolhidas.
   if(sports.length){
     apiData.jogos
-      .filter(j=>jogoTemCCT(j) && sportsSet.has(j.ID_MODALIDADE) && !isFinalizado(j))
+      .filter(j=>jogoPublico(j) && jogoTemCCT(j) && sportsSet.has(j.ID_MODALIDADE) && !isFinalizado(j))
       .filter(j=>(parseBrDate(j.DATA,j.HORA)?.getTime()||0)>=inicio)
       .forEach(j=>itens.push(jogoComoAgenda(j,authMembroAprovado()&&jogoEhRepresentacaoCCT(j))));
   }
 
   // Eventos públicos entram para todos os tipos de perfil.
-  somentePublicos(apiData.eventos)
-    .filter(e=>!('PUBLICADO' in e)||isSim(e.PUBLICADO))
+  somentePublicadosPublicos(apiData.eventos)
     .filter(e=>dataVal(e.DATA,e.HORA||'00:00')>=inicio)
     .forEach(e=>itens.push(eventoComoAgenda(e)));
 
@@ -2668,7 +3447,12 @@ function programacaoPersonalizada(){
       .filter(a=>agendaInternaPertenceAoPerfil(a,p))
       .forEach(a=>itens.push({...a,_ORIGEM:'INTERNA',_ID_UNICO:`INTERNA:${a.ID_AGENDA||[a.DATA,a.HORA_INICIO,a.TITULO].join('|')}`}));
 
-    // Representações CCT futuras também entram na programação do membro.
+    // Operação JIUDESC interna entra na programação do membro.
+    (apiData.agenda_cct_jiudesc||[])
+      .filter(a=>dataVal(a.DATA,a.HORA)>=inicio)
+      .forEach(a=>itens.push(agendaCctJiudescComoAgenda(a)));
+
+    // Representações legadas continuam compatíveis.
     apiData.jogos
       .filter(j=>jogoEhRepresentacaoCCT(j) && !isFinalizado(j))
       .filter(j=>(parseBrDate(j.DATA,j.HORA)?.getTime()||0)>=inicio)
@@ -2739,7 +3523,7 @@ function renderizarAgenda(){
   }
 
   if(contexto) contexto.innerHTML='';
-  const linhas=somentePublicos(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
+  const linhas=somentePublicadosPublicos(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
   const temAgenda=linhas.length>0;
 
   // Quando a agenda geral estiver vazia, ela usa exatamente o mesmo padrão visual de Eventos:
@@ -2771,7 +3555,7 @@ $$('[data-go="agenda"]').forEach(b=>b.addEventListener('click',()=>{
 
 function avisosAtivos(escopo='publico'){
   const now=Date.now();
-  const base=escopo==='membros'?somenteMembros(apiData.avisos):somentePublicos(apiData.avisos);
+  const base=escopo==='membros'?somenteMembros(apiData.avisos):somentePublicadosPublicos(apiData.avisos);
   return base.filter(a=>{
     const ini=a.DATA_INICIO?dataVal(a.DATA_INICIO,a.HORA_INICIO||'00:00'):0;
     const fim=a.DATA_FIM?dataVal(a.DATA_FIM,a.HORA_FIM||'23:59'):Number.MAX_SAFE_INTEGER;
@@ -2784,7 +3568,7 @@ function renderizarAvisos(){
 }
 function abrirAvisos(){ const av=avisosAtivos(); mc.innerHTML=`<span class="chip ${av.some(x=>isSim(x.URGENTE))?'live':''}">${av.length} ${av.length===1?'AVISO':'AVISOS'}</span><h2>${uiIcon('bell','heading-icon')} Avisos</h2><div class="modal-list">${av.length?av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso CCT')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join(''):'<div><strong>Nenhum aviso ativo</strong><small>Quando houver novidades elas aparecerão aqui.</small></div>'}</div>`; modal.classList.add('open'); }
 function conteudosFiltrados(categoria='',escopo='publico'){
-  let itens=escopo==='membros'?somenteMembros(apiData.conteudos):somentePublicos(apiData.conteudos);
+  let itens=escopo==='membros'?somenteMembros(apiData.conteudos):somentePublicadosPublicos(apiData.conteudos);
   const chave=String(categoria||'').toUpperCase();
   if(chave){
     const mapas={
@@ -2858,13 +3642,13 @@ function abrirConteudos(categoria='',titulo='Conteúdos',escopo='publico'){
   mc.innerHTML=`<span class="chip">${escopo==='membros'?'MEMBROS':'CCT'}</span><h2>${escapeHtml(titulo)}</h2><div class="modal-list dynamic-content-list">${conteudosHtml(categoria,escopo)}</div>`; modal.classList.add('open'); closeDrawer();
 }
 function abrirLocais(escopo='publico'){
-  const itens=(escopo==='membros'?somenteMembros(apiData.locais):somentePublicos(apiData.locais)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
+  const itens=(escopo==='membros'?somenteMembros(apiData.locais):somentePublicadosPublicos(apiData.locais)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
   const interno=escopo==='membros';
   mc.innerHTML=`<div class="hub-head"><span class="chip">${interno?'MEMBROS':'LOCAIS CCT'}</span><div class="hub-title"><span>${uiIcon('map-pin')}</span><div><h2>${interno?'Locais internos':'Onde a CCT acontece'}</h2><p>${interno?'Pontos de encontro, apoio e organização da diretoria.':'Ginásios, quadras, eventos e pontos importantes para você chegar sem dúvida.'}</p></div></div></div><div class="places-hub-list">${itens.length?itens.map(x=>{const img=normalizeImageUrl(x.IMAGEM_URL);const link=linkSeguro(x.LINK_MAPS);const meta=[x.TIPO,x.ENDERECO].filter(Boolean).join(' • ');return `<article class="place-hub-card">${img?`<img src="${escapeHtml(img)}" alt="">`:`<span class="place-icon">${uiIcon('map-pin')}</span>`}<div><small>${escapeHtml(x.TIPO|| (interno?'INTERNO':'LOCAL CCT'))}</small><strong>${escapeHtml(x.NOME||'Local')}</strong>${meta?`<p>${escapeHtml(meta)}</p>`:''}${x.OBSERVACAO?`<em>${escapeHtml(x.OBSERVACAO)}</em>`:''}${link?`<a href="${escapeHtml(link)}" target="_blank" rel="noopener">ABRIR NO MAPA ›</a>`:''}</div></article>`}).join(''):hubEmpty('map-pin',interno?'Nenhum local interno cadastrado':'Nenhum local publicado',interno?'Os pontos de organização da equipe aparecerão aqui.':'Os locais de jogos e eventos serão publicados aqui.')}</div>`;
   modal.classList.add('open'); closeDrawer();
 }
 function abrirContatos(escopo='publico'){
-  const base=escopo==='membros'?somenteMembros(apiData.pessoas):somentePublicos(apiData.pessoas);
+  const base=escopo==='membros'?somenteMembros(apiData.pessoas):somentePublicadosPublicos(apiData.pessoas);
   const itens=base.filter(x=>String(x.ATIVO||'SIM').toUpperCase()!=='NÃO');
   const interno=escopo==='membros';
   mc.innerHTML=`<div class="hub-head"><span class="chip">${interno?'MEMBROS':'CONTATOS CCT'}</span><div class="hub-title"><span>${uiIcon('mail')}</span><div><h2>${interno?'Equipe interna':'Fale com a CCT'}</h2><p>${interno?'Diretoria, responsáveis e contatos de organização.':'Encontre rapidamente a pessoa certa para esportes, eventos, parcerias ou atendimento geral.'}</p></div></div></div><div class="contacts-hub-list">${itens.length?itens.map(p=>{const foto=normalizeImageUrl(p.FOTO_URL);const whats=linkSeguro(p.LINK_WHATSAPP);const cargo=[p.CARGO,p.TIPO].filter(Boolean).join(' • ');return `<article class="contact-hub-card">${foto?`<img src="${escapeHtml(foto)}" alt="">`:`<span class="contact-hub-avatar">${escapeHtml((p.NOME||'C').charAt(0))}</span>`}<div><small>${escapeHtml(p.TIPO||'CCT')}</small><strong>${escapeHtml(p.NOME||'Contato CCT')}</strong>${cargo?`<p>${escapeHtml(cargo)}</p>`:''}<div class="contact-actions">${whats?`<a href="${escapeHtml(whats)}" target="_blank" rel="noopener">WHATSAPP ›</a>`:''}${p.EMAIL?`<a href="mailto:${escapeHtml(p.EMAIL)}">E-MAIL ›</a>`:''}</div></div></article>`}).join(''):hubEmpty('mail','Nenhum contato publicado','Os canais oficiais da CCT aparecerão aqui.')}</div>`;
@@ -2881,10 +3665,10 @@ function renderizarHeroHome(){
   if(title)title.textContent=competitionName(comp.ID_COMPETICAO);
   if(text)text.textContent='Acompanhe jogos, classificação, destaques e tudo da CCT.';
   if(badge)badge.textContent=isSim(comp.DESTAQUE)?'EM DESTAQUE':(comp.STATUS||'COMPETIÇÃO');
-  if(btn)btn.onclick=()=>{jogosUI.competicao=comp.ID_COMPETICAO; jogosUI.aba='jogos'; go('jogos'); const nome=$('#competicaoNome');if(nome)nome.textContent=competitionName(comp.ID_COMPETICAO);renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();};
+  if(btn)btn.onclick=()=>{jogosUI.competicao=comp.ID_COMPETICAO; salvarCompeticaoPreferida(jogosUI.competicao); jogosUI.aba='jogos'; go('jogos'); const nome=$('#competicaoNome');if(nome)nome.textContent=competitionName(comp.ID_COMPETICAO);renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();};
 }
 function mediaItensPublicos(){
-  return somentePublicos(apiData.conteudos).filter(x=>categoriaTem(x.CATEGORIA,['MID','FOTO','VIDEO','GALERIA'])).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
+  return somentePublicadosPublicos(apiData.conteudos).filter(x=>categoriaTem(x.CATEGORIA,['MID','FOTO','VIDEO','GALERIA'])).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
 }
 function mediaTipoMeta(x){
   const c=String(x.CATEGORIA||'').toUpperCase(); if(c.includes('VIDEO'))return ['▶','ASSISTA AGORA']; if(c.includes('FOTO')||c.includes('GALERIA'))return ['▧','CONFIRA AS FOTOS']; return ['▧','VER CONTEÚDO'];
@@ -2898,7 +3682,7 @@ function renderizarMidiaHome(){
   c.innerHTML=itens.map(x=>{const [ico,cta]=mediaTipoMeta(x);const img=normalizeImageUrl(x.IMAGEM_URL)||'assets/volei-praia-1.jpg';const link=linkSeguro(x.LINK);return `<article class="home-media-card ${link?'is-clickable':''}" style="--media:url('${img.replace(/'/g,"%27")}')" ${link?`data-media-link="${escapeHtml(link)}"`:''}><span>${ico}</span><div><strong>${escapeHtml(x.TITULO||'Mídia CCT')}</strong>${link?`<small>${escapeHtml(x.TEXTO_BOTAO||cta)}</small>`:`<small>${escapeHtml(x.DESCRICAO||'Conteúdo da CCT')}</small>`}</div></article>`;}).join('');
   c.querySelectorAll('[data-media-link]').forEach(el=>el.addEventListener('click',()=>window.open(el.dataset.mediaLink,'_blank','noopener')));
 }
-function renderizarCompeticoesHome(){ const c=$('#homeCompetitionsContainer'); if(!c)return; const comps=apiData.competicoes.filter(x=>!('PUBLICADO'in x)||isSim(x.PUBLICADO)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)); c.innerHTML=comps.length?comps.map(x=>`<article class="visual-card competition-home-card" style="--bg:url('${normalizeImageUrl(x.IMAGEM_URL)||'assets/levantamento-1.jpg'}')" data-home-competition="${escapeHtml(x.ID_COMPETICAO)}"><div><span class="chip ${isSim(x.DESTAQUE)?'live':''}">${escapeHtml(x.STATUS||'COMPETIÇÃO')}</span><h4>${escapeHtml(x.NOME||x.ID_COMPETICAO)}</h4><p>${escapeHtml(x.ANO||'')}</p></div></article>`).join(''):'<div class="games-empty">Nenhuma competição publicada.</div>'; c.querySelectorAll('[data-home-competition]').forEach(el=>el.addEventListener('click',()=>{jogosUI.competicao=el.dataset.homeCompetition; go('jogos'); renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();})); }
+function renderizarCompeticoesHome(){ const c=$('#homeCompetitionsContainer'); if(!c)return; const comps=apiData.competicoes.filter(x=>!('PUBLICADO'in x)||isSim(x.PUBLICADO)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)); c.innerHTML=comps.length?comps.map(x=>`<article class="visual-card competition-home-card" style="--bg:url('${normalizeImageUrl(x.IMAGEM_URL)||'assets/levantamento-1.jpg'}')" data-home-competition="${escapeHtml(x.ID_COMPETICAO)}"><div><span class="chip ${isSim(x.DESTAQUE)?'live':''}">${escapeHtml(x.STATUS||'COMPETIÇÃO')}</span><h4>${escapeHtml(x.NOME||x.ID_COMPETICAO)}</h4><p>${escapeHtml(x.ANO||'')}</p></div></article>`).join(''):'<div class="games-empty">Nenhuma competição publicada.</div>'; c.querySelectorAll('[data-home-competition]').forEach(el=>el.addEventListener('click',()=>{jogosUI.competicao=el.dataset.homeCompetition; salvarCompeticaoPreferida(jogosUI.competicao); go('jogos'); renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();})); }
 
 
 function renderizarAtalhosUteisHome(){
@@ -2907,8 +3691,8 @@ function renderizarAtalhosUteisHome(){
   if(!section||!container) return;
 
   const faltandoConteudoHome=[
-    !somentePublicos(apiData.agenda).length,
-    !(apiData.eventos||[]).length,
+    !somentePublicadosPublicos(apiData.agenda).length,
+    !somentePublicadosPublicos(apiData.eventos).length,
     !mediaItensPublicos().length
   ].some(Boolean);
 
@@ -2918,7 +3702,7 @@ function renderizarAtalhosUteisHome(){
   if(conteudosFiltrados('DOCUMENT','publico').length) atalhos.push({id:'docs',icone:'file',titulo:'Documentos',texto:'Regulamentos e arquivos oficiais'});
   if(conteudosFiltrados('FORM','publico').length) atalhos.push({id:'forms',icone:'form',titulo:'Pedidos e Formulários',texto:'Acesse pedidos e formulários ativos'});
   if(parceirosPublicos().length) atalhos.push({id:'partners',icone:'handshake',titulo:'Parceiros',texto:'Conheça quem fortalece a CCT'});
-  const locais=somentePublicos(apiData.locais).filter(x=>!('PUBLICADO' in x)||isSim(x.PUBLICADO));
+  const locais=somentePublicadosPublicos(apiData.locais);
   if(locais.length) atalhos.push({id:'places',icone:'map-pin',titulo:'Locais',texto:'Veja sedes e locais das competições'});
 
   if(!atalhos.length){ section.hidden=true; container.innerHTML=''; return; }
@@ -2934,48 +3718,250 @@ function renderizarAtalhosUteisHome(){
   }));
 }
 
+function agendaCctJiudescComoAgenda(a){
+  const adversario=String(a.ADVERSARIO||'').trim();
+  const fase=String(a.FASE||'').trim();
+  const titulo=[a.MODALIDADE||modalidadeNome(a.ID_MODALIDADE),adversario?('× '+adversario):''].filter(Boolean).join(' ');
+  const descricao=[
+    fase,
+    a.GRUPO?('Grupo '+a.GRUPO):'',
+    a.STATUS_AGENDA,
+    a.RESPONSAVEL_CCT?('Responsável: '+a.RESPONSAVEL_CCT):'',
+    a.RISCO_ATLETA && normalizarTexto(a.RISCO_ATLETA)!=='NÃO'?('Risco: '+a.RISCO_ATLETA):'',
+    a.OBSERVACAO
+  ].filter(Boolean).join(' • ');
+  return {
+    DATA:a.DATA,
+    HORA_INICIO:a.HORA,
+    TIPO:'OPERAÇÃO JIUDESC',
+    TITULO:titulo||'Compromisso CCT',
+    ID_MODALIDADE:a.ID_MODALIDADE||'',
+    LOCAL:a.LOCAL||'',
+    DESCRICAO:descricao,
+    _ORIGEM:'INTERNA',
+    _ID_UNICO:'JIUDESC:'+(a.ID_JOGO_EVENTO||[a.DATA,a.HORA,a.ID_MODALIDADE].join('|'))
+  };
+}
+function escalaJiudescFutura(){
+  const agora=Date.now();
+  return (apiData.escala_responsaveis_jiudesc||[])
+    .filter(e=>{
+      const d=parseBrDate(e.DATA,e.HORA);
+      return d && d.getTime()>=agora;
+    })
+    .sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
+}
+function conflitosJiudescPendentes(){
+  const encerrados=['RESOLVIDO','CONCLUÍDO','CONCLUIDO','CANCELADO'];
+  return (apiData.conflitos_cct_jiudesc||[])
+    // Simultaneidade entre modalidades/quadras distintas é cobertura operacional,
+    // não conflito. Mantemos esses registros na planilha para auditoria.
+    .filter(c=>normalizarTexto(c.TIPO)!=='AGENDA_SIMULTANEA')
+    .filter(c=>normalizarTexto(c.STATUS)!=='COBERTURA PARALELA')
+    .filter(c=>!encerrados.includes(normalizarTexto(c.STATUS)))
+    .sort((a,b)=>{
+      const peso=x=>normalizarTexto(x.NIVEL)==='MUITO ALTO'?4:normalizarTexto(x.NIVEL)==='ALTO'?3:normalizarTexto(x.NIVEL)==='MÉDIO'?2:1;
+      const p=peso(b)-peso(a); if(p) return p;
+      return dataVal(a.DATA,a.HORA_A)-dataVal(b.DATA,b.HORA_A);
+    });
+}
+function conflitoJiudescHtml(c){
+  const nivel=normalizarTexto(c.NIVEL);
+  const classe=nivel==='MUITO ALTO'?'danger':nivel==='ALTO'?'warning':'';
+  const titulo=c.ATLETA?c.ATLETA:(c.TIPO==='AGENDA_SIMULTANEA'?'Agenda simultânea':'Conflito operacional');
+  return `<div class="content-item member-conflict ${classe}"><div><strong>${escapeHtml(titulo)}</strong><small>${escapeHtml([c.DATA,c.HORA_A,c.NIVEL].filter(Boolean).join(' • '))}</small><p>${escapeHtml([c.EVENTO_A,c.EVENTO_B].filter(Boolean).join(' → '))}</p>${c.ACAO_RECOMENDADA?`<small>${escapeHtml(c.ACAO_RECOMENDADA)}</small>`:''}</div></div>`;
+}
+function escalaJiudescComoAgenda(e){
+  const resp=[e.RESPONSAVEL_PRINCIPAL,e.RESPONSAVEL_APOIO].filter(Boolean).join(' + ');
+  return {
+    DATA:e.DATA,
+    HORA_INICIO:e.HORA,
+    TIPO:'ESCALA JIUDESC',
+    TITULO:e.MODALIDADE||modalidadeNome(e.ID_MODALIDADE)||'Compromisso CCT',
+    ID_MODALIDADE:e.ID_MODALIDADE||'',
+    LOCAL:e.LOCAL||'',
+    DESCRICAO:[
+      e.FASE,
+      'Prioridade: '+(e.PRIORIDADE||'NORMAL'),
+      resp?('Responsável: '+resp):'Responsável a definir',
+      e.STATUS_ESCALA,
+      e.OBSERVACAO
+    ].filter(Boolean).join(' • '),
+    _ORIGEM:'INTERNA',
+    _ID_UNICO:'ESCALA:'+(e.ID_EVENTO||[e.DATA,e.HORA,e.ID_MODALIDADE].join('|'))
+  };
+}
+
 function abrirAgendaMembros(filtro=''){
   if(!authMembroAprovado()){ atualizarAcessoAreaMembros(); go('membros'); return; }
-  let itens=somenteMembros(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
-  if(filtro==='salinha') itens=itens.filter(a=>categoriaTem([a.TIPO,a.TITULO,a.LOCAL].join(' '),['SALINHA','ATEND']));
-  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${filtro==='salinha'?`${uiIcon('store','heading-icon')} Escala da salinha`:`${uiIcon('calendar','heading-icon')} Agenda interna`}</h2><div class="member-agenda-modal">${itens.length?agendaAgrupadaHtml(itens):'<div class="games-empty">Nenhum compromisso interno publicado.</div>'}</div>`;
+  let itens=somenteMembros(apiData.agenda);
+  if(filtro==='salinha'){
+    itens=itens.filter(a=>categoriaTem([a.TIPO,a.TITULO,a.LOCAL].join(' '),['SALINHA','ATEND']));
+  }else{
+    itens=[
+      ...itens,
+      ...(apiData.agenda_cct_jiudesc||[]).map(agendaCctJiudescComoAgenda)
+    ];
+  }
+  itens=itens.sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
+  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${filtro==='salinha'?`${uiIcon('store','heading-icon')} Escala da salinha`:`${uiIcon('calendar','heading-icon')} Agenda interna + JIUDESC`}</h2><div class="member-agenda-modal">${itens.length?agendaAgrupadaHtml(itens):'<div class="games-empty">Nenhum compromisso interno cadastrado.</div>'}</div>`;
   modal.classList.add('open');
 }
 function abrirAvisosMembros(){
   if(!authMembroAprovado()){ atualizarAcessoAreaMembros(); go('membros'); return; }
   const av=avisosAtivos('membros');
-  mc.innerHTML=`<span class="chip ${av.some(x=>isSim(x.URGENTE))?'live':''}">${av.length} ${av.length===1?'AVISO INTERNO':'AVISOS INTERNOS'}</span><h2>${uiIcon('alert','heading-icon')} Avisos internos</h2><div class="modal-list">${av.length?av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso interno')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join(''):'<div><strong>Nenhum aviso interno ativo</strong><small>Os avisos exclusivos para membros aparecerão aqui.</small></div>'}</div>`;
+  const conflitos=conflitosJiudescPendentes();
+  const total=av.length+conflitos.length;
+  mc.innerHTML=`<span class="chip ${conflitos.some(x=>['MUITO ALTO','ALTO'].includes(normalizarTexto(x.NIVEL)))||av.some(x=>isSim(x.URGENTE))?'live':''}">${total} ALERTAS</span><h2>${uiIcon('alert','heading-icon')} Alertas e conflitos</h2>${conflitos.length?`<div class="section-head"><div><i></i><h3>CONFLITOS DE ATLETAS</h3></div></div><div class="modal-list">${conflitos.map(conflitoJiudescHtml).join('')}</div>`:''}${av.length?`<div class="section-head"><div><i></i><h3>AVISOS INTERNOS</h3></div></div><div class="modal-list">${av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso interno')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join('')}</div>`:''}${!total?'<div class="games-empty">Nenhum alerta interno pendente.</div>':''}`;
   modal.classList.add('open');
+}
+function escalaJiudescDataLabel(data){
+  const d=parseBrDate(data);
+  if(!d) return String(data||'');
+  const dia=d.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','').toUpperCase();
+  const dataCurta=d.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}).replace('.','').toUpperCase();
+  return `${dia} • ${dataCurta}`;
+}
+function escalaJiudescStatus(e){
+  const status=normalizarTexto(e.STATUS_ESCALA);
+  const confirmado=isSim(e.CONFIRMADO) && status!=='A DEFINIR';
+  if(confirmado) return {classe:'confirmed',label:'CONFIRMADO'};
+  if(status.includes('PRE-SELECIONADO')) return {classe:'pending',label:'PRÉ-SELECIONADO'};
+  return {classe:'pending',label:'A DEFINIR'};
+}
+function escalaJiudescFaseVisivel(e){
+  const fase=String(e.FASE||'').trim();
+  if(!fase) return '';
+  // "ETAPA 1/2" em Natação é controle de sessão do cronograma, não fase esportiva.
+  if(/^ETAPA\s+\d+/i.test(fase)) return '';
+  return fase;
+}
+function escalaJiudescObsUtil(e){
+  const obs=String(e.OBSERVACAO||'').trim();
+  if(!obs) return '';
+  if(/^CONFIRMADO pelo usuário/i.test(obs)) return '';
+  return obs;
+}
+function escalaJiudescCardHtml(e){
+  const status=escalaJiudescStatus(e);
+  const principal=String(e.RESPONSAVEL_PRINCIPAL||'').trim();
+  const apoio=String(e.RESPONSAVEL_APOIO||'').trim();
+  const fase=escalaJiudescFaseVisivel(e);
+  const prioridade=String(e.PRIORIDADE||'').trim();
+  const local=String(e.LOCAL||'').trim();
+  const risco=normalizarTexto(e.RISCO_ATLETA);
+  const obs=escalaJiudescObsUtil(e);
+  const titulo=e.MODALIDADE||modalidadeNome(e.ID_MODALIDADE)||'Compromisso CCT';
+
+  return `<article class="jiu-scale-card ${status.classe}">
+    <div class="jiu-scale-time">
+      <strong>${escapeHtml(e.HORA||'--:--')}</strong>
+      <small>${escapeHtml(e.ID_MODALIDADE||'JIUDESC')}</small>
+    </div>
+    <div class="jiu-scale-card-main">
+      <div class="jiu-scale-card-head">
+        <div>
+          <h3>${escapeHtml(titulo)}</h3>
+          <div class="jiu-scale-meta">
+            ${fase?`<span>${escapeHtml(fase)}</span>`:''}
+            ${local?`<span>${uiIcon('map-pin','inline-icon')} ${escapeHtml(local)}</span>`:''}
+            ${prioridade && normalizarTexto(prioridade)!=='NORMAL'?`<span>${escapeHtml(prioridade)}</span>`:''}
+          </div>
+        </div>
+        <span class="jiu-scale-status ${status.classe}">${status.label}</span>
+      </div>
+
+      <div class="jiu-scale-people">
+        <div>
+          <small>RESPONSÁVEL</small>
+          <strong>${escapeHtml(principal||'A definir')}</strong>
+        </div>
+        ${apoio?`<div><small>APOIO</small><strong>${escapeHtml(apoio)}</strong></div>`:''}
+      </div>
+
+      ${risco && risco!=='NÃO'?`<div class="jiu-scale-alert">${uiIcon('alert','inline-icon')} <span>${escapeHtml(e.ATLETAS_COM_RISCO||e.RISCO_ATLETA||'Atenção operacional')}</span></div>`:''}
+      ${obs?`<p class="jiu-scale-note">${escapeHtml(obs)}</p>`:''}
+    </div>
+  </article>`;
+}
+function escalaJiudescBoardHtml(escalas){
+  const confirmadas=escalas.filter(e=>escalaJiudescStatus(e).classe==='confirmed').length;
+  const pendentes=escalas.length-confirmadas;
+  const porData=new Map();
+  escalas.forEach(e=>{
+    const data=String(e.DATA||'').trim()||'SEM DATA';
+    if(!porData.has(data)) porData.set(data,[]);
+    porData.get(data).push(e);
+  });
+
+  return `<div class="jiu-scale-board">
+    <div class="jiu-scale-summary">
+      <div><strong>${escalas.length}</strong><span>frentes futuras</span></div>
+      <div><strong>${confirmadas}</strong><span>confirmadas</span></div>
+      <div class="${pendentes?'has-pending':''}"><strong>${pendentes}</strong><span>não confirmadas</span></div>
+    </div>
+
+    <div class="jiu-scale-days">
+      ${[...porData.entries()].map(([data,linhas])=>`
+        <section class="jiu-scale-day">
+          <div class="jiu-scale-day-head">
+            <div><span>${uiIcon('calendar','inline-icon')}</span><strong>${escapeHtml(escalaJiudescDataLabel(data))}</strong></div>
+            <small>${linhas.length} ${linhas.length===1?'frente':'frentes'}</small>
+          </div>
+          <div class="jiu-scale-list">${linhas.map(escalaJiudescCardHtml).join('')}</div>
+        </section>`).join('')}
+    </div>
+  </div>`;
 }
 function abrirRepresentacoesMembros(){
   if(!authMembroAprovado()){ atualizarAcessoAreaMembros(); go('membros'); return; }
-  const itens=apiData.jogos.filter(j=>jogoEhRepresentacaoCCT(j)).sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
-  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${uiIcon('trophy','heading-icon')} Representações CCT</h2><div>${itens.length?itens.map(j=>matchCard(j)).join(''):'<div class="games-empty"><strong>Nenhuma representação CCT cadastrada.</strong><span>Os jogos marcados para representação aparecerão aqui.</span></div>'}</div>`;
+  const escalas=escalaJiudescFutura();
+  if(escalas.length){
+    mc.innerHTML=`
+      <div class="jiu-scale-modal-head">
+        <span class="chip">MEMBROS • JIUDESC 2026</span>
+        <div class="jiu-scale-title">
+          <span>${uiIcon('trophy')}</span>
+          <div>
+            <h2>Escala operacional</h2>
+            <p>Responsáveis, horários e status das frentes da CCT.</p>
+          </div>
+        </div>
+      </div>
+      ${escalaJiudescBoardHtml(escalas)}`;
+  }else{
+    const legados=apiData.jogos.filter(j=>jogoEhRepresentacaoCCT(j)).sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
+    mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${uiIcon('trophy','heading-icon')} Representações CCT</h2><div>${legados.length?legados.map(j=>matchCard(j)).join(''):'<div class="games-empty"><strong>Nenhuma escala futura cadastrada.</strong></div>'}</div>`;
+  }
   modal.classList.add('open');
 }
 function renderizarAreaMembros(){
   const hoje=new Date();
   const agendaM=somenteMembros(apiData.agenda);
-  const hojeCount=agendaM.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA_INICIO),hoje)).length;
-  const reps=apiData.jogos.filter(j=>jogoEhRepresentacaoCCT(j));
-  const repsFuturas=reps.filter(j=>{const d=parseBrDate(j.DATA,j.HORA);return d && d.getTime()>=Date.now() && !isFinalizado(j);});
+  const agendaJiu=apiData.agenda_cct_jiudesc||[];
+  const hojeCount=
+    agendaM.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA_INICIO),hoje)).length+
+    agendaJiu.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA),hoje)).length;
+
+  const escalas=escalaJiudescFutura();
+  const pendentes=escalas.filter(e=>!isSim(e.CONFIRMADO) || normalizarTexto(e.STATUS_ESCALA)==='A DEFINIR');
+  const conflitos=conflitosJiudescPendentes();
   const alertas=avisosAtivos('membros');
 
   const elHoje=$('#memberTodayCount'), elRep=$('#memberRepCount'), elAv=$('#memberAlertCount');
   if(elHoje) elHoje.textContent=hojeCount;
-  if(elRep) elRep.textContent=repsFuturas.length;
-  if(elAv) elAv.textContent=alertas.length;
+  if(elRep) elRep.textContent=pendentes.length;
+  if(elAv) elAv.textContent=conflitos.length+alertas.length;
 
   const lista=$('#memberRepresentationsList');
   if(lista){
-    const proximas=repsFuturas.sort((a,b)=>parseBrDate(a.DATA,a.HORA)-parseBrDate(b.DATA,b.HORA)).slice(0,4);
-    lista.innerHTML=proximas.length?proximas.map(j=>{
-      const dados=responsavelRepresentacaoDados(j);
-      const nome=dados.nome||'Responsável a definir';
-      const foto=normalizeImageUrl(dados.foto||'');
+    const proximas=escalas.slice(0,4);
+    lista.innerHTML=proximas.length?proximas.map(e=>{
+      const nome=e.RESPONSAVEL_PRINCIPAL||'Responsável a definir';
       const iniciais=nome.split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase();
-      return `<div>${foto?`<img src="${escapeHtml(foto)}" alt="">`:`<div class="avatar-placeholder">${escapeHtml(iniciais||'CCT')}</div>`}<span><strong>${escapeHtml(nome)}</strong><small>${escapeHtml(competitionName(j.ID_COMPETICAO))} • ${escapeHtml(modalidadeNome(j.ID_MODALIDADE))} • ${escapeHtml(j.DATA||'')} ${escapeHtml(j.HORA||'')}</small></span></div>`;
-    }).join(''):'<div class="games-empty">Nenhuma representação futura cadastrada.</div>';
+      const risco=normalizarTexto(e.RISCO_ATLETA);
+      return `<div><div class="avatar-placeholder">${escapeHtml(iniciais||'CCT')}</div><span><strong>${escapeHtml(nome)}</strong><small>${escapeHtml([e.MODALIDADE,e.DATA,e.HORA,e.LOCAL].filter(Boolean).join(' • '))}</small>${risco&&risco!=='NÃO'?`<small>⚠ ${escapeHtml(risco)} — ${escapeHtml(e.ATLETAS_COM_RISCO||'')}</small>`:''}</span></div>`;
+    }).join(''):'<div class="games-empty">Nenhuma escala futura cadastrada.</div>';
   }
 }
 function bindAreaMembros(){
@@ -3006,7 +3992,7 @@ function renderizarModulosGerais(){
 
   // Eventos também precisam ser renderizados quando a lista está vazia.
   // Assim o app troca o "carregando..." pelo estado vazio corretamente.
-  cctEvents=[...(apiData.eventos||[])].sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||eventDateValue(a)-eventDateValue(b));
+  cctEvents=[...somentePublicadosPublicos(apiData.eventos)].sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||eventDateValue(a)-eventDateValue(b));
 
   const all=$('#eventsContainer');
   const home=$('#homeEventContainer');
@@ -3029,7 +4015,7 @@ function renderizarModulosGerais(){
   renderizarAtalhosUteisHome();
 }
 function abrirAjuda(){
-  const contato=somentePublicos(apiData.pessoas).find(p=>String(p.ATIVO||'SIM').toUpperCase()!=='NÃO' && (linkSeguro(p.LINK_WHATSAPP)||p.EMAIL));
+  const contato=somentePublicadosPublicos(apiData.pessoas).find(p=>String(p.ATIVO||'SIM').toUpperCase()!=='NÃO' && (linkSeguro(p.LINK_WHATSAPP)||p.EMAIL));
   const contatoHtml=contato?(linkSeguro(contato.LINK_WHATSAPP)?`<a class="help-contact" href="${escapeHtml(contato.LINK_WHATSAPP)}" target="_blank" rel="noopener">${uiIcon('mail','inline-icon')} FALAR COM A ATLÉTICA ›</a>`:`<a class="help-contact" href="mailto:${escapeHtml(contato.EMAIL)}">${uiIcon('mail','inline-icon')} FALAR COM A ATLÉTICA ›</a>`):'';
   mc.innerHTML=`<span class="chip">AJUDA</span><h2>Como usar a ATLÉTICA CCT</h2><div class="help-sections"><section><strong>${uiIcon('home','inline-icon')} Instalar no celular</strong><p><b>iPhone:</b> abra no Safari, toque em Compartilhar e escolha “Adicionar à Tela de Início”.<br><b>Android:</b> abra no Chrome e use “Adicionar à tela inicial” ou “Instalar app”.</p></section><section><strong>${uiIcon('user','inline-icon')} Personalizar seu perfil</strong><p>Em Perfil, selecione as modalidades que você joga ou acompanha. “Minha Programação” adapta a agenda ao tipo de perfil: atleta, torcedor(a) ou membro da Atlética. Benefícios de sócio(a) são liberados pela Atlética no painel administrativo.</p></section><section><strong>${uiIcon('trophy','inline-icon')} Jogos e competições</strong><p>Use Jogos para acompanhar partidas, classificação, cenários e destaques de cada campeonato.</p></section><section><strong>${uiIcon('bell','inline-icon')} Avisos</strong><p>O sino reúne avisos ativos. Mudanças urgentes de horário, local e informações importantes aparecem em destaque.</p></section><section><strong>${uiIcon('lock','inline-icon')} Área da Atlética</strong><p>É destinada aos membros para agenda interna, representações, documentos, avisos, equipe e formulários.</p></section></div>${contatoHtml}`;
   modal.classList.add('open'); closeDrawer();
@@ -3074,6 +4060,7 @@ function parceiroVisivelParaPerfil(x){
 }
 function parceirosPublicos(){
   return apiData.conteudos
+    .filter(registroPublicado)
     .filter(x=>categoriaTem(x.CATEGORIA,['PARCEIRO','PATROCIN']))
     .filter(parceiroVisivelParaPerfil)
     .sort((a,b)=>(isSim(b.DESTAQUE)-isSim(a.DESTAQUE))||((Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)));
