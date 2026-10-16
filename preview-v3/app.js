@@ -3244,6 +3244,9 @@ function inicioDoDiaAtual(){
   const d=new Date(); return new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
 }
 
+function normalizarTexto(v){
+  return String(v||'').trim().toUpperCase();
+}
 function normalizarNomeAgenda(v){
   return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
 }
