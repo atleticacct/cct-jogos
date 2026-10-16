@@ -293,8 +293,8 @@ function inicializarAutenticacaoCCT(){
 }
 
 function competicaoPreferidaLocal(){
-  try{ return localStorage.getItem(COMPETITION_KEY)||'INTERLAJE-2026'; }
-  catch(e){ return 'INTERLAJE-2026'; }
+  try{ return localStorage.getItem(COMPETITION_KEY)||'JIUDESC-2026'; }
+  catch(e){ return 'JIUDESC-2026'; }
 }
 function salvarCompeticaoPreferida(id){
   try{ localStorage.setItem(COMPETITION_KEY,String(id||'')); }catch(e){}
@@ -503,7 +503,7 @@ function matchCard(jogo,{home=false}={}){
         </div>
       </div>
       <div class="match-foot">
-        <span>${uiIcon('map-pin','inline-icon')} ${escapeHtml(jogo.LOCAL||'Local a definir')}</span>
+        ${jogo.LOCAL?`<span>${uiIcon('map-pin','inline-icon')} ${escapeHtml(jogo.LOCAL)}</span>`:''}
         <span>${escapeHtml(jogo.DATA||'')}</span>
       </div>
       ${cenario ? `<button class="scenario-link" type="button" data-open-scenario-modality="${escapeHtml(jogo.ID_MODALIDADE)}">${uiIcon('target','inline-icon')} Situação da classificação <b>›</b></button>` : ''}
@@ -931,7 +931,7 @@ function classificacaoFasesFinaisHtml(){
     const cct=jogoTemCCT(j);
     return `<div class="knockout-match ${cct?'is-cct':''}">
       <div class="knockout-teams"><strong>${escapeHtml(j.EQUIPE_A||'A DEFINIR')}</strong><span>${escapeHtml(centro)}</span><strong>${escapeHtml(j.EQUIPE_B||'A DEFINIR')}</strong></div>
-      <div class="knockout-meta"><span>${escapeHtml(j.DATA||'Data a definir')}</span><span>${escapeHtml(j.LOCAL||'Local a definir')}</span><em>${escapeHtml(finalizado?'FINALIZADO':(j.STATUS||'AGENDADO'))}</em></div>
+      <div class="knockout-meta"><span>${escapeHtml(j.DATA||'Data a definir')}</span>${j.LOCAL?`<span>${escapeHtml(j.LOCAL)}</span>`:''}<em>${escapeHtml(finalizado?'FINALIZADO':(j.STATUS||'AGENDADO'))}</em></div>
     </div>`;
   };
 
@@ -965,7 +965,7 @@ function renderizarClassificacao(){
   renderizarSeletorClassificacao();
 
   if(!jogosUI.classificacaoModalidade){
-    container.innerHTML=competicaoEmPreviaInterna(jogosUI.competicao)
+    container.innerHTML=(jogosUI.competicao==='JIUDESC-2026' || competicaoEmPreviaInterna(jogosUI.competicao))
       ? '<div class="games-empty"><strong>Classificação por modalidade ainda não iniciada.</strong><span>Ela será formada automaticamente conforme os primeiros resultados oficiais do JIUDESC forem lançados.</span></div>'
       : '<div class="games-empty">Esta competição ainda não possui classificação por modalidade publicada.</div>';
     return;
@@ -2511,7 +2511,7 @@ function renderizarDestaques(){
         </div>
         ${foto?`<img class="highlight-photo" src="${escapeHtml(foto)}" alt="${escapeHtml(nome||d.TITULO||'Destaque CCT')}" />`:''}
       </article>`;
-  }).join('') : '<div class="games-empty">Nenhum destaque publicado para esta competição ainda.</div>';
+  }).join('') : (jogosUI.competicao==='JIUDESC-2026' ? '<div class="games-empty"><strong>Nenhum destaque ainda.</strong><span>Medalhas, títulos, recordes e conquistas aparecerão após os resultados oficiais.</span></div>' : '<div class="games-empty">Nenhum destaque publicado para esta competição ainda.</div>');
 }
 
 function renderizarAbaCompeticao(){
@@ -2949,7 +2949,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=495',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=496',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -2958,7 +2958,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV495';
+        const chave='cctSwReloadV496';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
