@@ -436,10 +436,8 @@ function centroCodigo(v){
 function centroMarcaHtml(v,classe='centre-logo'){
   const codigo=centroCodigo(v);
   if(!codigo) return '';
-  const src=CENTRO_LOGOS[codigo];
-  return src
-    ? `<img class="${classe}" src="${src}" alt="Logo ${escapeHtml(codigo)}" loading="lazy" />`
-    : `<span class="${classe} centre-logo-fallback" aria-label="${escapeHtml(codigo)}">${escapeHtml(codigo)}</span>`;
+  const src=CENTRO_LOGOS[codigo] || 'assets/centros/fallback.svg';
+  return `<img class="${classe}" src="${src}" alt="${CENTRO_LOGOS[codigo]?`Logo ${escapeHtml(codigo)}`:''}" loading="lazy" onerror="this.onerror=null;this.src='assets/centros/fallback.svg';this.alt='';" />`;
 }
 
 function isFinalizado(jogo){
@@ -2995,7 +2993,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=4100',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=4101',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -3004,7 +3002,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV4100';
+        const chave='cctSwReloadV4101';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
