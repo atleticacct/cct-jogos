@@ -1262,3 +1262,68 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
   .scenario-live-row{grid-template-columns:minmax(58px,1.25fr) 31px 52px 62px}
   .scenario-live-row span:last-child{grid-column:1/-1;text-align:left;padding-left:0;color:#6f7d73}
 }
+
+
+/* V4.9.3 — Escala JIUDESC profissional */
+.jiu-scale-modal-head{padding-right:34px;margin-bottom:14px}
+.jiu-scale-title{display:flex;align-items:center;gap:12px;margin-top:12px}
+.jiu-scale-title>span{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(145deg,#193321,#102016);border:1px solid #31553c;color:var(--green);flex:0 0 46px}
+.jiu-scale-title>span .ui-icon{width:24px;height:24px}
+.jiu-scale-title h2{margin:0!important;font-size:26px!important;line-height:1.05}
+.jiu-scale-title p{margin:5px 0 0!important;color:#8f9c93!important;font-size:10px!important;line-height:1.45!important}
+
+.jiu-scale-board{display:grid;gap:16px}
+.jiu-scale-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.jiu-scale-summary>div{border:1px solid #2a3d31;border-radius:14px;background:linear-gradient(145deg,#121a15,#0d130f);padding:11px 12px;min-width:0}
+.jiu-scale-summary strong{display:block;color:#eaf6ed;font-size:20px;line-height:1}
+.jiu-scale-summary span{display:block;margin-top:5px;color:#819087;font-size:8px;font-weight:800;letter-spacing:.35px;text-transform:uppercase}
+.jiu-scale-summary .has-pending{border-color:#51472b;background:linear-gradient(145deg,#191711,#11130f)}
+.jiu-scale-summary .has-pending strong{color:#f2d37d}
+
+.jiu-scale-days{display:grid;gap:18px}
+.jiu-scale-day{display:grid;gap:8px}
+.jiu-scale-day-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 2px}
+.jiu-scale-day-head>div{display:flex;align-items:center;gap:6px;color:#dce8df}
+.jiu-scale-day-head>div>span{display:grid;place-items:center;color:#74de91}
+.jiu-scale-day-head strong{font-size:10px;letter-spacing:.75px}
+.jiu-scale-day-head small{color:#728078;font-size:8px;font-weight:800;text-transform:uppercase}
+
+.jiu-scale-list{display:grid;gap:9px}
+.jiu-scale-card{display:grid;grid-template-columns:74px minmax(0,1fr);overflow:hidden;border:1px solid #29382f;border-radius:17px;background:linear-gradient(145deg,#121915,#0c120e);box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.jiu-scale-card.confirmed{border-color:#315d3d;background:radial-gradient(circle at 100% 0,rgba(35,209,96,.06),transparent 34%),linear-gradient(145deg,#131d16,#0c120e)}
+.jiu-scale-card.pending{border-color:#413e31}
+.jiu-scale-time{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:14px 8px;border-right:1px solid #28372e;background:rgba(255,255,255,.012)}
+.jiu-scale-time strong{font-size:18px;letter-spacing:.2px;color:#f2f7f3}
+.jiu-scale-time small{max-width:62px;text-align:center;color:#718078;font-size:7px;font-weight:900;letter-spacing:.6px;line-height:1.25}
+
+.jiu-scale-card-main{padding:13px 14px;min-width:0}
+.jiu-scale-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.jiu-scale-card-head>div{min-width:0}
+.jiu-scale-card-head h3{margin:0;font-size:14px;line-height:1.2;color:#f2f6f3}
+.jiu-scale-meta{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:6px}
+.jiu-scale-meta span{display:inline-flex;align-items:center;gap:2px;color:#839188;font-size:8px;font-weight:750}
+.jiu-scale-meta span+span:before{content:"•";margin-right:3px;color:#46534b}
+.jiu-scale-status{flex:0 0 auto;border-radius:999px;padding:5px 7px;font-size:7px;font-weight:950;letter-spacing:.55px}
+.jiu-scale-status.confirmed{background:#173c23;border:1px solid #2f6340;color:#9eedb4}
+.jiu-scale-status.pending{background:#272319;border:1px solid #524a31;color:#e7ca78}
+
+.jiu-scale-people{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:11px}
+.jiu-scale-people>div{padding:9px 10px;border:1px solid #27362d;border-radius:11px;background:#0e1511}
+.jiu-scale-people small{display:block;color:#68776e;font-size:7px;font-weight:900;letter-spacing:.7px;margin-bottom:3px}
+.jiu-scale-people strong{display:block;color:#dce9df;font-size:10px;line-height:1.3;white-space:normal}
+
+.jiu-scale-alert{display:flex;align-items:flex-start;gap:5px;margin-top:9px;border-radius:10px;padding:8px 9px;background:#211c12;border:1px solid #4f4327;color:#e2c873;font-size:8px;line-height:1.4}
+.jiu-scale-alert .ui-icon{flex:0 0 auto;margin-top:1px}
+.jiu-scale-note{margin:9px 0 0!important;padding-top:8px;border-top:1px solid #253229;color:#7e8c83!important;font-size:8px!important;line-height:1.5!important}
+
+@media(max-width:520px){
+  .jiu-scale-title h2{font-size:22px!important}
+  .jiu-scale-summary{grid-template-columns:repeat(3,1fr)}
+  .jiu-scale-summary>div{padding:10px 9px}
+  .jiu-scale-summary strong{font-size:18px}
+  .jiu-scale-card{grid-template-columns:64px minmax(0,1fr)}
+  .jiu-scale-time strong{font-size:16px}
+  .jiu-scale-card-main{padding:12px}
+  .jiu-scale-card-head{display:grid;grid-template-columns:minmax(0,1fr) auto}
+  .jiu-scale-people{grid-template-columns:1fr}
+}
