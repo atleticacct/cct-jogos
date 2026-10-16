@@ -41,6 +41,9 @@
     <div class="row"><span>Pessoa reconhecida</span><strong id="nome">—</strong></div>
     <div class="row"><span>Jogos JIUDESC recebidos</span><strong id="jiudesc">—</strong></div>
     <div class="row"><span>Pessoas internas recebidas</span><strong id="pessoas">—</strong></div>
+    <div class="row"><span>Agenda CCT JIUDESC</span><strong id="agendaJiu">—</strong></div>
+    <div class="row"><span>Escala responsáveis JIUDESC</span><strong id="escalaJiu">—</strong></div>
+    <div class="row"><span>Conflitos CCT JIUDESC</span><strong id="conflitosJiu">—</strong></div>
     <div class="actions" style="margin-top:16px">
       <button id="logout" type="button">SAIR</button>
       <small id="note"></small>
@@ -124,8 +127,14 @@ async function testar(){
     $("nome").textContent=a.pessoa?.NOME||a.nome||"Não cadastrado";
     $("jiudesc").textContent=String(contarJIUDESC(dados));
     $("pessoas").textContent=String(contarPessoasInternas(dados));
+    $("agendaJiu").textContent=String((dados.agenda_cct_jiudesc||[]).length);
+    $("escalaJiu").textContent=String((dados.escala_responsaveis_jiudesc||[]).length);
+    $("conflitosJiu").textContent=String((dados.conflitos_cct_jiudesc||[]).length);
 
-    const ok=a.membro===true && dados.escopo==="interno" && contarJIUDESC(dados)>0;
+    const ok=a.membro===true && dados.escopo==="interno" &&
+      (dados.agenda_cct_jiudesc||[]).length>0 &&
+      (dados.escala_responsaveis_jiudesc||[]).length>0 &&
+      (dados.conflitos_cct_jiudesc||[]).length>0;
     setStatus(ok?"MEMBRO VALIDADO ✓":"LOGIN OK, SEM ACESSO DE MEMBRO",ok?"ok":"bad");
     $("note").textContent=ok?"Fluxo autenticado aprovado.":"Confira o e-mail cadastrado em PESSOAS.";
   }catch(err){
@@ -141,6 +150,7 @@ $("logout").addEventListener("click",async()=>{
   await auth.signOut();
   $("email").textContent="—"; $("scope").textContent="—"; $("socio").textContent="—"; $("membro").textContent="—";
   $("nome").textContent="—"; $("jiudesc").textContent="—"; $("pessoas").textContent="—";
+  $("agendaJiu").textContent="—"; $("escalaJiu").textContent="—"; $("conflitosJiu").textContent="—";
   setStatus("Sessão encerrada","wait"); $("note").textContent="";
 });
 </script>
