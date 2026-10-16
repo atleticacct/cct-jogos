@@ -366,7 +366,9 @@ function jogoPublico(jogo){
 // O escopo público continua exigindo PUBLICADO = SIM na competição e no jogo.
 function competicaoEmPreviaInterna(id){
   const c=apiData.competicoes.find(x=>x.ID_COMPETICAO===id);
-  return !!(authMembroAprovado() && c && !registroPublicado(c));
+  const status=normalizarTexto(c?.STATUS);
+  const arquivada=['ENCERRADO','FINALIZADO','ARQUIVADO'].includes(status);
+  return !!(authMembroAprovado() && c && !registroPublicado(c) && !arquivada);
 }
 function competicaoVisivelNoEscopo(c){
   return !!c && (registroPublicado(c) || competicaoEmPreviaInterna(c.ID_COMPETICAO));
@@ -2957,7 +2959,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=497',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=498',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -2966,7 +2968,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV497';
+        const chave='cctSwReloadV498';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
