@@ -17,6 +17,7 @@ let cctEvents = []; // declarado cedo: o cache pode renderizar Eventos imediatam
 
 
 const PROFILE_KEY = 'cctProfileV2';
+const COMPETITION_KEY = 'cctCompetitionV1';
 const MODALIDADE_IDS = {
   'Futsal Feminino':'FUT-F',
   'Futsal Masculino':'FUT-M',
@@ -272,8 +273,16 @@ function inicializarAutenticacaoCCT(){
   }
 }
 
+function competicaoPreferidaLocal(){
+  try{ return localStorage.getItem(COMPETITION_KEY)||'INTERLAJE-2026'; }
+  catch(e){ return 'INTERLAJE-2026'; }
+}
+function salvarCompeticaoPreferida(id){
+  try{ localStorage.setItem(COMPETITION_KEY,String(id||'')); }catch(e){}
+}
+
 let jogosUI = {
-  competicao: 'INTERLAJE-2026',
+  competicao: competicaoPreferidaLocal(),
   tipo: 'todos',
   dataFiltro: 'todos',
   modalidadeFiltro: '',
@@ -318,6 +327,19 @@ function competitionName(id){
   const c=apiData.competicoes.find(x=>x.ID_COMPETICAO===id);
   if(c) return `${c.NOME || id}${c.ANO ? ' '+c.ANO : ''}`;
   return id==='INTERLAJE-2026' ? 'Interlaje 2026' : id;
+}
+
+// V4.9.1 — um dado público só pode aparecer quando o próprio registro
+// e a competição correspondente estiverem publicados no painel.
+function registroPublicado(x){
+  return !!x && (!('PUBLICADO' in x) || isSim(x.PUBLICADO));
+}
+function competicaoPublicada(id){
+  const c=apiData.competicoes.find(x=>x.ID_COMPETICAO===id);
+  return registroPublicado(c);
+}
+function jogoPublico(jogo){
+  return registroPublicado(jogo) && competicaoPublicada(jogo?.ID_COMPETICAO);
 }
 
 function modalidadeNome(id){
@@ -461,7 +483,7 @@ function jogoCombinaModalidadeBase(jogo,prefixo){
 function jogosDoTipo(){
   const sports=profileSportIds();
   return apiData.jogos
-    .filter(j=>j.ID_COMPETICAO===jogosUI.competicao)
+    .filter(j=>jogoPublico(j) && j.ID_COMPETICAO===jogosUI.competicao)
     .filter(j=>{
       if(jogosUI.tipo==='representacoes') return jogoEhRepresentacaoCCT(j);
       if(jogosUI.tipo==='meus') return jogoTemCCT(j) && sports.includes(j.ID_MODALIDADE);
@@ -510,7 +532,7 @@ function renderizarFiltrosModalidades(){
 }
 
 function atualizarContadoresTiposJogos(){
-  const todos=apiData.jogos.filter(j=>j.ID_COMPETICAO===jogosUI.competicao);
+  const todos=apiData.jogos.filter(j=>jogoPublico(j) && j.ID_COMPETICAO===jogosUI.competicao);
   const sports=profileSportIds();
   const meus=todos.filter(j=>jogoTemCCT(j) && sports.includes(j.ID_MODALIDADE));
   const reps=todos.filter(j=>jogoEhRepresentacaoCCT(j));
@@ -561,7 +583,7 @@ function renderizarProximoJogoHome(){
   const now=new Date();
   const sports=selectedSportIds();
   let candidatos=apiData.jogos
-    .filter(j=>jogoTemCCT(j) && !isFinalizado(j))
+    .filter(j=>jogoPublico(j) && jogoTemCCT(j) && !isFinalizado(j))
     .map(j=>({j,d:parseBrDate(j.DATA,j.HORA)}))
     .filter(x=>x.d && x.d.getTime()>=now.getTime())
     .sort((a,b)=>a.d-b.d);
@@ -2513,6 +2535,7 @@ function abrirSeletorCompeticao(){
 
   $$('[data-competition-id]').forEach(btn=>btn.addEventListener('click',()=>{
     jogosUI.competicao=btn.dataset.competitionId;
+    salvarCompeticaoPreferida(jogosUI.competicao);
     jogosUI.dataFiltro='todos';
     jogosUI.modalidadeFiltro='';
     jogosUI.classificacaoModalidade='';
@@ -2557,8 +2580,12 @@ function aplicarDadosAPI(dados,{fonte='rede'}={}){
   apiData.eventos=dados.eventos||[];
   apiData.destaques=dados.destaques||[];
 
-  if(!apiData.competicoes.some(c=>c.ID_COMPETICAO===jogosUI.competicao) && apiData.competicoes[0]){
-    jogosUI.competicao=apiData.competicoes[0].ID_COMPETICAO;
+  const competicoesPublicadas=apiData.competicoes
+    .filter(registroPublicado)
+    .sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
+  if(!competicoesPublicadas.some(c=>c.ID_COMPETICAO===jogosUI.competicao)){
+    jogosUI.competicao=competicoesPublicadas[0]?.ID_COMPETICAO || 'INTERLAJE-2026';
+    salvarCompeticaoPreferida(jogosUI.competicao);
   }
 
   const nome=$('#competicaoNome');
@@ -2821,9 +2848,16 @@ function renderizarModalidadesPerfil(){
   const p=perfilAtual();
   const antigos=new Set((p.sports||[]).map(x=>MODALIDADE_IDS[x]||x));
   const selecionados=new Set((p.sportIds||[]).length?p.sportIds:antigos);
-  const mods=(apiData.modalidades||[])
+  const modsOrdenadas=(apiData.modalidades||[])
     .filter(m=>!('PUBLICADO' in m)||isSim(m.PUBLICADO))
     .sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||String(a.NOME||'').localeCompare(String(b.NOME||''),'pt-BR'));
+  const idsVistos=new Set();
+  const mods=modsOrdenadas.filter(m=>{
+    const id=String(m.ID_MODALIDADE||'').trim();
+    if(!id || idsVistos.has(id)) return false;
+    idsVistos.add(id);
+    return true;
+  });
   if(!mods.length){grid.innerHTML='<div class="games-empty">Nenhuma modalidade publicada.</div>'; atualizarResumoPerfil(); return;}
   grid.innerHTML=mods.map(m=>{
     const id=m.ID_MODALIDADE||''; const nome=m.NOME||modalidadeBase(id).nome||id; const naipe=m.NAIPE||'';
@@ -3193,7 +3227,7 @@ function programacaoPersonalizada(){
   // Atleta, torcedor e membro: jogos das modalidades escolhidas.
   if(sports.length){
     apiData.jogos
-      .filter(j=>jogoTemCCT(j) && sportsSet.has(j.ID_MODALIDADE) && !isFinalizado(j))
+      .filter(j=>jogoPublico(j) && jogoTemCCT(j) && sportsSet.has(j.ID_MODALIDADE) && !isFinalizado(j))
       .filter(j=>(parseBrDate(j.DATA,j.HORA)?.getTime()||0)>=inicio)
       .forEach(j=>itens.push(jogoComoAgenda(j,authMembroAprovado()&&jogoEhRepresentacaoCCT(j))));
   }
@@ -3424,7 +3458,7 @@ function renderizarHeroHome(){
   if(title)title.textContent=competitionName(comp.ID_COMPETICAO);
   if(text)text.textContent='Acompanhe jogos, classificação, destaques e tudo da CCT.';
   if(badge)badge.textContent=isSim(comp.DESTAQUE)?'EM DESTAQUE':(comp.STATUS||'COMPETIÇÃO');
-  if(btn)btn.onclick=()=>{jogosUI.competicao=comp.ID_COMPETICAO; jogosUI.aba='jogos'; go('jogos'); const nome=$('#competicaoNome');if(nome)nome.textContent=competitionName(comp.ID_COMPETICAO);renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();};
+  if(btn)btn.onclick=()=>{jogosUI.competicao=comp.ID_COMPETICAO; salvarCompeticaoPreferida(jogosUI.competicao); jogosUI.aba='jogos'; go('jogos'); const nome=$('#competicaoNome');if(nome)nome.textContent=competitionName(comp.ID_COMPETICAO);renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();};
 }
 function mediaItensPublicos(){
   return somentePublicos(apiData.conteudos).filter(x=>categoriaTem(x.CATEGORIA,['MID','FOTO','VIDEO','GALERIA'])).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
@@ -3441,7 +3475,7 @@ function renderizarMidiaHome(){
   c.innerHTML=itens.map(x=>{const [ico,cta]=mediaTipoMeta(x);const img=normalizeImageUrl(x.IMAGEM_URL)||'assets/volei-praia-1.jpg';const link=linkSeguro(x.LINK);return `<article class="home-media-card ${link?'is-clickable':''}" style="--media:url('${img.replace(/'/g,"%27")}')" ${link?`data-media-link="${escapeHtml(link)}"`:''}><span>${ico}</span><div><strong>${escapeHtml(x.TITULO||'Mídia CCT')}</strong>${link?`<small>${escapeHtml(x.TEXTO_BOTAO||cta)}</small>`:`<small>${escapeHtml(x.DESCRICAO||'Conteúdo da CCT')}</small>`}</div></article>`;}).join('');
   c.querySelectorAll('[data-media-link]').forEach(el=>el.addEventListener('click',()=>window.open(el.dataset.mediaLink,'_blank','noopener')));
 }
-function renderizarCompeticoesHome(){ const c=$('#homeCompetitionsContainer'); if(!c)return; const comps=apiData.competicoes.filter(x=>!('PUBLICADO'in x)||isSim(x.PUBLICADO)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)); c.innerHTML=comps.length?comps.map(x=>`<article class="visual-card competition-home-card" style="--bg:url('${normalizeImageUrl(x.IMAGEM_URL)||'assets/levantamento-1.jpg'}')" data-home-competition="${escapeHtml(x.ID_COMPETICAO)}"><div><span class="chip ${isSim(x.DESTAQUE)?'live':''}">${escapeHtml(x.STATUS||'COMPETIÇÃO')}</span><h4>${escapeHtml(x.NOME||x.ID_COMPETICAO)}</h4><p>${escapeHtml(x.ANO||'')}</p></div></article>`).join(''):'<div class="games-empty">Nenhuma competição publicada.</div>'; c.querySelectorAll('[data-home-competition]').forEach(el=>el.addEventListener('click',()=>{jogosUI.competicao=el.dataset.homeCompetition; go('jogos'); renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();})); }
+function renderizarCompeticoesHome(){ const c=$('#homeCompetitionsContainer'); if(!c)return; const comps=apiData.competicoes.filter(x=>!('PUBLICADO'in x)||isSim(x.PUBLICADO)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)); c.innerHTML=comps.length?comps.map(x=>`<article class="visual-card competition-home-card" style="--bg:url('${normalizeImageUrl(x.IMAGEM_URL)||'assets/levantamento-1.jpg'}')" data-home-competition="${escapeHtml(x.ID_COMPETICAO)}"><div><span class="chip ${isSim(x.DESTAQUE)?'live':''}">${escapeHtml(x.STATUS||'COMPETIÇÃO')}</span><h4>${escapeHtml(x.NOME||x.ID_COMPETICAO)}</h4><p>${escapeHtml(x.ANO||'')}</p></div></article>`).join(''):'<div class="games-empty">Nenhuma competição publicada.</div>'; c.querySelectorAll('[data-home-competition]').forEach(el=>el.addEventListener('click',()=>{jogosUI.competicao=el.dataset.homeCompetition; salvarCompeticaoPreferida(jogosUI.competicao); go('jogos'); renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();})); }
 
 
 function renderizarAtalhosUteisHome(){
