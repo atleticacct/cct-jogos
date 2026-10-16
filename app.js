@@ -406,6 +406,12 @@ function jogoTemCCT(jogo){
          String(jogo.EQUIPE_B||'').trim().toUpperCase()==='CCT';
 }
 
+function nomeLadoJogo(jogo,lado){
+  const participante=String(lado==='A' ? (jogo.PARTICIPANTE_A||'') : (jogo.PARTICIPANTE_B||'')).trim();
+  const equipe=String(lado==='A' ? (jogo.EQUIPE_A||'') : (jogo.EQUIPE_B||'')).trim();
+  return participante || equipe || 'A DEFINIR';
+}
+
 function isFinalizado(jogo){
   return String(jogo.STATUS||'').trim().toUpperCase()==='FINALIZADO';
 }
@@ -475,6 +481,8 @@ function representacaoCctHtml(jogo){
 function matchCard(jogo,{home=false}={}){
   const cctA=String(jogo.EQUIPE_A||'').trim().toUpperCase()==='CCT';
   const cctB=String(jogo.EQUIPE_B||'').trim().toUpperCase()==='CCT';
+  const nomeA=nomeLadoJogo(jogo,'A');
+  const nomeB=nomeLadoJogo(jogo,'B');
   const fase=jogo.GRUPO ? `GRUPO ${jogo.GRUPO}` : (jogo.FASE||'');
   const status=jogo.STATUS||'';
   const comp=competitionName(jogo.ID_COMPETICAO);
@@ -491,7 +499,7 @@ function matchCard(jogo,{home=false}={}){
       <div class="teams">
         <div class="team ${cctA?'cct-team':''}">
           ${cctA?'<img src="assets/logo-jogos-cct.png" alt="CCT" />':''}
-          <strong>${escapeHtml(jogo.EQUIPE_A||'A DEFINIR')}</strong>
+          <strong>${escapeHtml(nomeA)}</strong>
         </div>
         <div class="score">
           <b>${escapeHtml(placarOuHora(jogo))}</b>
@@ -499,7 +507,7 @@ function matchCard(jogo,{home=false}={}){
         </div>
         <div class="team opponent ${cctB?'cct-team':''}">
           ${cctB?'<img src="assets/logo-jogos-cct.png" alt="CCT" />':''}
-          <strong>${escapeHtml(jogo.EQUIPE_B||'A DEFINIR')}</strong>
+          <strong>${escapeHtml(nomeB)}</strong>
         </div>
       </div>
       <div class="match-foot">
@@ -930,7 +938,7 @@ function classificacaoFasesFinaisHtml(){
     const centro=temPlacar ? `${j.PLACAR_A} × ${j.PLACAR_B}` : (j.HORA||'A definir');
     const cct=jogoTemCCT(j);
     return `<div class="knockout-match ${cct?'is-cct':''}">
-      <div class="knockout-teams"><strong>${escapeHtml(j.EQUIPE_A||'A DEFINIR')}</strong><span>${escapeHtml(centro)}</span><strong>${escapeHtml(j.EQUIPE_B||'A DEFINIR')}</strong></div>
+      <div class="knockout-teams"><strong>${escapeHtml(nomeLadoJogo(j,'A'))}</strong><span>${escapeHtml(centro)}</span><strong>${escapeHtml(nomeLadoJogo(j,'B'))}</strong></div>
       <div class="knockout-meta"><span>${escapeHtml(j.DATA||'Data a definir')}</span>${j.LOCAL?`<span>${escapeHtml(j.LOCAL)}</span>`:''}<em>${escapeHtml(finalizado?'FINALIZADO':(j.STATUS||'AGENDADO'))}</em></div>
     </div>`;
   };
@@ -996,7 +1004,7 @@ function proximoJogoCenarioHtml(idJogo){
   if(!idJogo) return '';
   const j=apiData.jogos.find(x=>x.ID_JOGO===idJogo);
   if(!j) return `<span>${escapeHtml(idJogo)}</span>`;
-  return `<span>${escapeHtml(j.DATA||'')} • ${escapeHtml(j.HORA||'')}<small>${escapeHtml((j.EQUIPE_A||'A DEFINIR')+' × '+(j.EQUIPE_B||'A DEFINIR'))}</small></span>`;
+  return `<span>${escapeHtml(j.DATA||'')} • ${escapeHtml(j.HORA||'')}<small>${escapeHtml(nomeLadoJogo(j,'A')+' × '+nomeLadoJogo(j,'B'))}</small></span>`;
 }
 
 function numeroCenarioGeral(v){
@@ -2949,7 +2957,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=496',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=497',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -2958,7 +2966,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV496';
+        const chave='cctSwReloadV497';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
@@ -3376,7 +3384,7 @@ function jogoComoAgenda(j,representacao=false){
     DATA:j.DATA,
     HORA_INICIO:j.HORA,
     TIPO:representacao?'REPRESENTAÇÃO CCT':'JOGO',
-    TITULO:`${j.EQUIPE_A||'A definir'} × ${j.EQUIPE_B||'A definir'}`,
+    TITULO:`${nomeLadoJogo(j,'A')} × ${nomeLadoJogo(j,'B')}`,
     ID_MODALIDADE:j.ID_MODALIDADE,
     LOCAL:j.LOCAL||'',
     DESCRICAO:[comp,representacao&&resp?`Responsável: ${resp}`:''].filter(Boolean).join(' • '),
