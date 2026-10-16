@@ -202,6 +202,7 @@ function atualizarInterfaceAuth(){
   const badges=document.querySelector('#profileAccessBadges');
   if(badges) badges.innerHTML=statusAcessoHtml();
   atualizarAcessoAreaMembros();
+  try{ if(typeof aplicarIdentidadePerfil==='function') aplicarIdentidadePerfil(); }catch(e){}
   try{ if(typeof renderizarAgenda==='function' && document.querySelector('[data-screen="agenda"]')?.classList.contains('active')) renderizarAgenda(); }catch(e){}
 }
 
@@ -2756,37 +2757,60 @@ async function requisitarApiPublicaCCT(){
   return {dados,autenticada:false};
 }
 
-async function requisitarApiAutenticadaCCT(){
-  const user=cctAuthState.user;
-  if(!user?.getIdToken) return requisitarApiPublicaCCT();
+async function respostaJsonApiCCT(resposta){
+  if(!resposta.ok) throw new Error('HTTP '+resposta.status);
+  const texto=await resposta.text();
+  try{
+    return JSON.parse(texto);
+  }catch(e){
+    // O Apps Script ocasionalmente pode devolver uma página HTML transitória.
+    // Tratamos isso como falha recuperável, sem confundir o usuário com escopo público.
+    throw new Error('API_NAO_JSON');
+  }
+}
 
-  let token=await user.getIdToken(false);
-  let resposta=await fetch(API_URL,{
+async function postApiAutenticadaCCT(token){
+  const resposta=await fetch(API_URL,{
     method:'POST',
     headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
     body:new URLSearchParams({token}).toString(),
     cache:'no-store'
   });
+  return respostaJsonApiCCT(resposta);
+}
 
-  if(!resposta.ok) throw new Error('HTTP '+resposta.status);
-  let dados=await resposta.json();
+async function requisitarApiAutenticadaCCT(){
+  const user=cctAuthState.user;
+  if(!user?.getIdToken) return requisitarApiPublicaCCT();
 
-  // Um token pode expirar enquanto o PWA está aberto.
-  // Renova uma única vez antes de desistir.
-  if(dados?.sucesso===false && dados?.erro==='AUTENTICACAO_INVALIDA'){
-    token=await user.getIdToken(true);
-    resposta=await fetch(API_URL,{
-      method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
-      body:new URLSearchParams({token}).toString(),
-      cache:'no-store'
-    });
-    if(!resposta.ok) throw new Error('HTTP '+resposta.status);
-    dados=await resposta.json();
+  let token=await user.getIdToken(false);
+  let ultimoErro=null;
+
+  // V4.9.2.2: uma resposta HTML transitória do Apps Script não deve derrubar
+  // imediatamente o usuário para o escopo público. Fazemos uma única nova
+  // tentativa, com token renovado, antes de aplicar a falha fechada.
+  for(let tentativa=0;tentativa<2;tentativa++){
+    try{
+      let dados=await postApiAutenticadaCCT(token);
+
+      if(dados?.sucesso===false && dados?.erro==='AUTENTICACAO_INVALIDA' && tentativa===0){
+        token=await user.getIdToken(true);
+        continue;
+      }
+
+      if(dados?.sucesso===false) throw new Error(dados.erro||'API');
+      return {dados,autenticada:true};
+    }catch(erro){
+      ultimoErro=erro;
+      if(tentativa===0){
+        await new Promise(resolve=>setTimeout(resolve,350));
+        token=await user.getIdToken(true);
+        continue;
+      }
+    }
   }
 
-  if(dados?.sucesso===false) throw new Error(dados.erro||'API');
-  return {dados,autenticada:true};
+  throw ultimoErro||new Error('API autenticada indisponível');
 }
 
 async function requisitarApiCCT(){
@@ -2994,7 +3018,13 @@ function aplicarIdentidadePerfil(){
   const avatar=$('#profileAvatarImage');
   const avatarWrap=avatar?.closest('.profile-avatar-wrap');
   if(name) name.textContent=(p.name||'Seu nome').trim()||'Seu nome';
-  if(badge) badge.textContent=roleLabel(p.role);
+  if(badge){
+    badge.textContent=authMembroAprovado()
+      ? 'MEMBRO DA ATLÉTICA'
+      : authSocioAprovado()
+        ? 'SÓCIO(A) CCT'
+        : roleLabel(p.role);
+  }
   if(avatar){
     const foto=String(p.avatar||'').trim();
     if(foto){
