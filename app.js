@@ -672,16 +672,24 @@ function renderizarSeletorClassificacao(){
   select.innerHTML=ids.map(id=>`<option value="${escapeHtml(id)}" ${id===jogosUI.classificacaoModalidade?'selected':''}>${escapeHtml(modalidadeNome(id))}</option>`).join('');
 }
 
+function classificacaoLinhaNome(r){
+  const participante=String(r.PARTICIPANTE||'').trim();
+  const equipe=String(r.EQUIPE||'').trim();
+  const centro=String(r.CENTRO||'').trim();
+  return participante ? `${participante}${centro? ` (${centro})` : ''}` : equipe;
+}
+
 function classificacaoGrupoHtml(grupo,linhas){
   const ordenadas=[...linhas].sort((a,b)=>(Number(a.POSICAO)||999)-(Number(b.POSICAO)||999));
+  const individual=ordenadas.some(r=>String(r.PARTICIPANTE||'').trim());
   const linhaMobile=r=>{
-    const destaque=String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM' || String(r.EQUIPE||'').toUpperCase()==='CCT';
+    const destaque=String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM' || String(r.CENTRO||r.EQUIPE||'').toUpperCase()==='CCT';
     const saldo=String(r.SALDO??'').trim();
     const saldoTxt=saldo===''?'—':saldo;
     return `<div class="standing-mobile-row ${destaque?'cct-standing':''}">
       <span class="standing-mobile-pos">${escapeHtml(r.POSICAO||'—')}</span>
       <div class="standing-mobile-team">
-        <strong>${escapeHtml(r.EQUIPE||'')}</strong>
+        <strong>${escapeHtml(classificacaoLinhaNome(r))}</strong>
         <small>J ${escapeHtml(r.JOGOS||'0')} · V ${escapeHtml(r.VITORIAS||'0')} · E ${escapeHtml(r.EMPATES||'0')} · D ${escapeHtml(r.DERROTAS||'0')} · Saldo ${escapeHtml(saldoTxt)}</small>
       </div>
       <div class="standing-mobile-points"><b>${escapeHtml(r.PONTOS||'0')}</b><small>PTS</small></div>
@@ -691,26 +699,26 @@ function classificacaoGrupoHtml(grupo,linhas){
     <section class="classification-group">
       <div class="classification-group-title">
         <strong>${escapeHtml(grupo ? `Grupo ${grupo}` : 'Classificação')}</strong>
-        <small>${ordenadas.length} equipes</small>
+        <small>${ordenadas.length} ${individual?'participantes':'equipes'}</small>
       </div>
       <div class="standings-mobile" aria-label="Classificação compacta">
         ${ordenadas.map(linhaMobile).join('')}
       </div>
       <div class="standings standings-wide standings-desktop">
         <div class="stand-head">
-          <span>#</span><span>Equipe</span><span>J</span><span>V</span><span>E</span><span>D</span><span>Pts</span><span>Saldo</span>
+          <span>#</span><span>${individual?'Participante':'Equipe'}</span><span>J</span><span>V</span><span>E</span><span>D</span><span>Pts</span><span>Saldo</span>
         </div>
         ${ordenadas.map(r=>{
-          const destaque=String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM' || String(r.EQUIPE||'').toUpperCase()==='CCT';
+          const destaque=String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM' || String(r.CENTRO||r.EQUIPE||'').toUpperCase()==='CCT';
           return `<div class="${destaque?'qual cct-standing':''}">
-            <span>${escapeHtml(r.POSICAO||'')}</span>
-            <b>${escapeHtml(r.EQUIPE||'')}</b>
+            <span>${escapeHtml(r.POSICAO||'—')}</span>
+            <b>${escapeHtml(classificacaoLinhaNome(r))}</b>
             <span>${escapeHtml(r.JOGOS||'0')}</span>
             <span>${escapeHtml(r.VITORIAS||'0')}</span>
             <span>${escapeHtml(r.EMPATES||'0')}</span>
             <span>${escapeHtml(r.DERROTAS||'0')}</span>
             <strong>${escapeHtml(r.PONTOS||'0')}</strong>
-            <span>${escapeHtml(r.SALDO||'')}</span>
+            <span>${escapeHtml(r.SALDO||'0')}</span>
           </div>`;
         }).join('')}
       </div>
@@ -2959,7 +2967,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=498',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=499',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -2968,7 +2976,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV498';
+        const chave='cctSwReloadV499';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
