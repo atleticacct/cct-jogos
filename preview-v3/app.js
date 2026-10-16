@@ -3754,6 +3754,10 @@ function escalaJiudescFutura(){
 function conflitosJiudescPendentes(){
   const encerrados=['RESOLVIDO','CONCLUÍDO','CONCLUIDO','CANCELADO'];
   return (apiData.conflitos_cct_jiudesc||[])
+    // Simultaneidade entre modalidades/quadras distintas é cobertura operacional,
+    // não conflito. Mantemos esses registros na planilha para auditoria.
+    .filter(c=>normalizarTexto(c.TIPO)!=='AGENDA_SIMULTANEA')
+    .filter(c=>normalizarTexto(c.STATUS)!=='COBERTURA PARALELA')
     .filter(c=>!encerrados.includes(normalizarTexto(c.STATUS)))
     .sort((a,b)=>{
       const peso=x=>normalizarTexto(x.NIVEL)==='MUITO ALTO'?4:normalizarTexto(x.NIVEL)==='ALTO'?3:normalizarTexto(x.NIVEL)==='MÉDIO'?2:1;
@@ -3808,7 +3812,7 @@ function abrirAvisosMembros(){
   const av=avisosAtivos('membros');
   const conflitos=conflitosJiudescPendentes();
   const total=av.length+conflitos.length;
-  mc.innerHTML=`<span class="chip ${conflitos.some(x=>['MUITO ALTO','ALTO'].includes(normalizarTexto(x.NIVEL)))||av.some(x=>isSim(x.URGENTE))?'live':''}">${total} ALERTAS</span><h2>${uiIcon('alert','heading-icon')} Alertas e conflitos</h2>${conflitos.length?`<div class="section-head"><div><i></i><h3>JIUDESC</h3></div></div><div class="modal-list">${conflitos.map(conflitoJiudescHtml).join('')}</div>`:''}${av.length?`<div class="section-head"><div><i></i><h3>AVISOS INTERNOS</h3></div></div><div class="modal-list">${av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso interno')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join('')}</div>`:''}${!total?'<div class="games-empty">Nenhum alerta interno pendente.</div>':''}`;
+  mc.innerHTML=`<span class="chip ${conflitos.some(x=>['MUITO ALTO','ALTO'].includes(normalizarTexto(x.NIVEL)))||av.some(x=>isSim(x.URGENTE))?'live':''}">${total} ALERTAS</span><h2>${uiIcon('alert','heading-icon')} Alertas e conflitos</h2>${conflitos.length?`<div class="section-head"><div><i></i><h3>CONFLITOS DE ATLETAS</h3></div></div><div class="modal-list">${conflitos.map(conflitoJiudescHtml).join('')}</div>`:''}${av.length?`<div class="section-head"><div><i></i><h3>AVISOS INTERNOS</h3></div></div><div class="modal-list">${av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso interno')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join('')}</div>`:''}${!total?'<div class="games-empty">Nenhum alerta interno pendente.</div>':''}`;
   modal.classList.add('open');
 }
 function escalaJiudescDataLabel(data){
