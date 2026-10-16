@@ -2949,7 +2949,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=4922',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=493',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -2958,7 +2958,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV4922';
+        const chave='cctSwReloadV493';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
@@ -3811,12 +3811,119 @@ function abrirAvisosMembros(){
   mc.innerHTML=`<span class="chip ${conflitos.some(x=>['MUITO ALTO','ALTO'].includes(normalizarTexto(x.NIVEL)))||av.some(x=>isSim(x.URGENTE))?'live':''}">${total} ALERTAS</span><h2>${uiIcon('alert','heading-icon')} Alertas e conflitos</h2>${conflitos.length?`<div class="section-head"><div><i></i><h3>JIUDESC</h3></div></div><div class="modal-list">${conflitos.map(conflitoJiudescHtml).join('')}</div>`:''}${av.length?`<div class="section-head"><div><i></i><h3>AVISOS INTERNOS</h3></div></div><div class="modal-list">${av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso interno')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join('')}</div>`:''}${!total?'<div class="games-empty">Nenhum alerta interno pendente.</div>':''}`;
   modal.classList.add('open');
 }
+function escalaJiudescDataLabel(data){
+  const d=parseBrDate(data);
+  if(!d) return String(data||'');
+  const dia=d.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','').toUpperCase();
+  const dataCurta=d.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}).replace('.','').toUpperCase();
+  return `${dia} • ${dataCurta}`;
+}
+function escalaJiudescStatus(e){
+  const confirmado=isSim(e.CONFIRMADO) && normalizarTexto(e.STATUS_ESCALA)!=='A DEFINIR';
+  return confirmado
+    ? {classe:'confirmed',label:'CONFIRMADO'}
+    : {classe:'pending',label:'A DEFINIR'};
+}
+function escalaJiudescFaseVisivel(e){
+  const fase=String(e.FASE||'').trim();
+  if(!fase) return '';
+  // "ETAPA 1/2" em Natação é controle de sessão do cronograma, não fase esportiva.
+  if(/^ETAPA\s+\d+/i.test(fase)) return '';
+  return fase;
+}
+function escalaJiudescObsUtil(e){
+  const obs=String(e.OBSERVACAO||'').trim();
+  if(!obs) return '';
+  if(/^CONFIRMADO pelo usuário/i.test(obs)) return '';
+  return obs;
+}
+function escalaJiudescCardHtml(e){
+  const status=escalaJiudescStatus(e);
+  const principal=String(e.RESPONSAVEL_PRINCIPAL||'').trim();
+  const apoio=String(e.RESPONSAVEL_APOIO||'').trim();
+  const fase=escalaJiudescFaseVisivel(e);
+  const prioridade=String(e.PRIORIDADE||'').trim();
+  const local=String(e.LOCAL||'').trim();
+  const risco=normalizarTexto(e.RISCO_ATLETA);
+  const obs=escalaJiudescObsUtil(e);
+  const titulo=e.MODALIDADE||modalidadeNome(e.ID_MODALIDADE)||'Compromisso CCT';
+
+  return `<article class="jiu-scale-card ${status.classe}">
+    <div class="jiu-scale-time">
+      <strong>${escapeHtml(e.HORA||'--:--')}</strong>
+      <small>${escapeHtml(e.ID_MODALIDADE||'JIUDESC')}</small>
+    </div>
+    <div class="jiu-scale-card-main">
+      <div class="jiu-scale-card-head">
+        <div>
+          <h3>${escapeHtml(titulo)}</h3>
+          <div class="jiu-scale-meta">
+            ${fase?`<span>${escapeHtml(fase)}</span>`:''}
+            ${local?`<span>${uiIcon('map-pin','inline-icon')} ${escapeHtml(local)}</span>`:''}
+            ${prioridade && normalizarTexto(prioridade)!=='NORMAL'?`<span>${escapeHtml(prioridade)}</span>`:''}
+          </div>
+        </div>
+        <span class="jiu-scale-status ${status.classe}">${status.label}</span>
+      </div>
+
+      <div class="jiu-scale-people">
+        <div>
+          <small>RESPONSÁVEL</small>
+          <strong>${escapeHtml(principal||'A definir')}</strong>
+        </div>
+        ${apoio?`<div><small>APOIO</small><strong>${escapeHtml(apoio)}</strong></div>`:''}
+      </div>
+
+      ${risco && risco!=='NÃO'?`<div class="jiu-scale-alert">${uiIcon('alert','inline-icon')} <span>${escapeHtml(e.ATLETAS_COM_RISCO||e.RISCO_ATLETA||'Atenção operacional')}</span></div>`:''}
+      ${obs?`<p class="jiu-scale-note">${escapeHtml(obs)}</p>`:''}
+    </div>
+  </article>`;
+}
+function escalaJiudescBoardHtml(escalas){
+  const confirmadas=escalas.filter(e=>escalaJiudescStatus(e).classe==='confirmed').length;
+  const pendentes=escalas.length-confirmadas;
+  const porData=new Map();
+  escalas.forEach(e=>{
+    const data=String(e.DATA||'').trim()||'SEM DATA';
+    if(!porData.has(data)) porData.set(data,[]);
+    porData.get(data).push(e);
+  });
+
+  return `<div class="jiu-scale-board">
+    <div class="jiu-scale-summary">
+      <div><strong>${escalas.length}</strong><span>frentes futuras</span></div>
+      <div><strong>${confirmadas}</strong><span>confirmadas</span></div>
+      <div class="${pendentes?'has-pending':''}"><strong>${pendentes}</strong><span>a definir</span></div>
+    </div>
+
+    <div class="jiu-scale-days">
+      ${[...porData.entries()].map(([data,linhas])=>`
+        <section class="jiu-scale-day">
+          <div class="jiu-scale-day-head">
+            <div><span>${uiIcon('calendar','inline-icon')}</span><strong>${escapeHtml(escalaJiudescDataLabel(data))}</strong></div>
+            <small>${linhas.length} ${linhas.length===1?'frente':'frentes'}</small>
+          </div>
+          <div class="jiu-scale-list">${linhas.map(escalaJiudescCardHtml).join('')}</div>
+        </section>`).join('')}
+    </div>
+  </div>`;
+}
 function abrirRepresentacoesMembros(){
   if(!authMembroAprovado()){ atualizarAcessoAreaMembros(); go('membros'); return; }
   const escalas=escalaJiudescFutura();
   if(escalas.length){
-    const itens=escalas.map(escalaJiudescComoAgenda);
-    mc.innerHTML=`<span class="chip">MEMBROS • JIUDESC</span><h2>${uiIcon('trophy','heading-icon')} Escala operacional</h2><div class="member-agenda-modal">${agendaAgrupadaHtml(itens)}</div>`;
+    mc.innerHTML=`
+      <div class="jiu-scale-modal-head">
+        <span class="chip">MEMBROS • JIUDESC 2026</span>
+        <div class="jiu-scale-title">
+          <span>${uiIcon('trophy')}</span>
+          <div>
+            <h2>Escala operacional</h2>
+            <p>Responsáveis, horários e status das frentes da CCT.</p>
+          </div>
+        </div>
+      </div>
+      ${escalaJiudescBoardHtml(escalas)}`;
   }else{
     const legados=apiData.jogos.filter(j=>jogoEhRepresentacaoCCT(j)).sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
     mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${uiIcon('trophy','heading-icon')} Representações CCT</h2><div>${legados.length?legados.map(j=>matchCard(j)).join(''):'<div class="games-empty"><strong>Nenhuma escala futura cadastrada.</strong></div>'}</div>`;
