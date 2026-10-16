@@ -7,7 +7,7 @@ function uiIcon(name,extraClass=''){
 }
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbwKdhs9Qfkcbnv1fub8p6QFRJ-NWDN-dRZiYj3byaK0_OdTXP3PKksSEuLO27I1hjRkDA/exec';
-const API_CACHE_KEY = 'cctApiCacheV1';
+const API_CACHE_KEY = 'cctApiCacheV2';
 const API_CACHE_FRESH_MS = 2 * 60 * 1000; // 2 minutos
 const API_CACHE_MAX_MS = 7 * 24 * 60 * 60 * 1000; // fallback por até 7 dias
 const API_RETRY_GUARD_MS = 20 * 1000;
@@ -17,6 +17,7 @@ let cctEvents = []; // declarado cedo: o cache pode renderizar Eventos imediatam
 
 
 const PROFILE_KEY = 'cctProfileV2';
+const COMPETITION_KEY = 'cctCompetitionV1';
 const MODALIDADE_IDS = {
   'Futsal Feminino':'FUT-F',
   'Futsal Masculino':'FUT-M',
@@ -56,7 +57,11 @@ let apiData = {
   locais: [],
   pessoas: [],
   eventos: [],
-  destaques: []
+  destaques: [],
+  agenda_cct_jiudesc: [],
+  escala_responsaveis_jiudesc: [],
+  conflitos_cct_jiudesc: [],
+  autorizacao: null
 };
 
 // V4.8.0 — indicador global de atualização dos dados.
@@ -170,10 +175,16 @@ function authLogado(){ return !!cctAuthState.user; }
 
 function resolverPermissoesAuth(){
   const email=emailNormalizado(cctAuthState.user?.email);
-  const pessoa=email ? (apiData.pessoas||[]).find(p=>pessoaAtivaAuth(p) && emailNormalizado(campoPessoa(p,'EMAIL','E_MAIL','E-MAIL'))===email) : null;
-  cctAuthState.pessoa=pessoa||null;
-  cctAuthState.socio=!!(pessoa && pessoaSocioAprovada(pessoa));
-  cctAuthState.membro=!!(pessoa && pessoaMembroAprovada(pessoa));
+  const autorizacao=apiData.autorizacao||null;
+  const mesmaConta=!!(
+    email &&
+    autorizacao &&
+    emailNormalizado(autorizacao.email)===email
+  );
+
+  cctAuthState.pessoa=mesmaConta ? (autorizacao.pessoa||null) : null;
+  cctAuthState.socio=!!(mesmaConta && autorizacao.socio);
+  cctAuthState.membro=!!(mesmaConta && autorizacao.membro);
   atualizarInterfaceAuth();
 }
 
@@ -262,7 +273,15 @@ function inicializarAutenticacaoCCT(){
     firebase.auth().onAuthStateChanged(user=>{
       cctAuthState.user=user||null;
       cctAuthState.ready=true;
+      apiData.autorizacao=null;
       resolverPermissoesAuth();
+
+      // A API pública não expõe PESSOAS internas.
+      // Depois do login, buscamos uma resposta autenticada com o Firebase ID token.
+      // No logout, voltamos imediatamente ao escopo público.
+      if(typeof atualizarDadosAPIRede==='function'){
+        atualizarDadosAPIRede({silencioso:true,forcar:true});
+      }
     });
   }catch(e){
     console.error('Firebase CCT:',e);
@@ -272,8 +291,16 @@ function inicializarAutenticacaoCCT(){
   }
 }
 
+function competicaoPreferidaLocal(){
+  try{ return localStorage.getItem(COMPETITION_KEY)||'INTERLAJE-2026'; }
+  catch(e){ return 'INTERLAJE-2026'; }
+}
+function salvarCompeticaoPreferida(id){
+  try{ localStorage.setItem(COMPETITION_KEY,String(id||'')); }catch(e){}
+}
+
 let jogosUI = {
-  competicao: 'INTERLAJE-2026',
+  competicao: competicaoPreferidaLocal(),
   tipo: 'todos',
   dataFiltro: 'todos',
   modalidadeFiltro: '',
@@ -318,6 +345,19 @@ function competitionName(id){
   const c=apiData.competicoes.find(x=>x.ID_COMPETICAO===id);
   if(c) return `${c.NOME || id}${c.ANO ? ' '+c.ANO : ''}`;
   return id==='INTERLAJE-2026' ? 'Interlaje 2026' : id;
+}
+
+// V4.9.1 — um dado público só pode aparecer quando o próprio registro
+// e a competição correspondente estiverem publicados no painel.
+function registroPublicado(x){
+  return !!x && (!('PUBLICADO' in x) || isSim(x.PUBLICADO));
+}
+function competicaoPublicada(id){
+  const c=apiData.competicoes.find(x=>x.ID_COMPETICAO===id);
+  return registroPublicado(c);
+}
+function jogoPublico(jogo){
+  return registroPublicado(jogo) && competicaoPublicada(jogo?.ID_COMPETICAO);
 }
 
 function modalidadeNome(id){
@@ -461,7 +501,7 @@ function jogoCombinaModalidadeBase(jogo,prefixo){
 function jogosDoTipo(){
   const sports=profileSportIds();
   return apiData.jogos
-    .filter(j=>j.ID_COMPETICAO===jogosUI.competicao)
+    .filter(j=>jogoPublico(j) && j.ID_COMPETICAO===jogosUI.competicao)
     .filter(j=>{
       if(jogosUI.tipo==='representacoes') return jogoEhRepresentacaoCCT(j);
       if(jogosUI.tipo==='meus') return jogoTemCCT(j) && sports.includes(j.ID_MODALIDADE);
@@ -510,7 +550,7 @@ function renderizarFiltrosModalidades(){
 }
 
 function atualizarContadoresTiposJogos(){
-  const todos=apiData.jogos.filter(j=>j.ID_COMPETICAO===jogosUI.competicao);
+  const todos=apiData.jogos.filter(j=>jogoPublico(j) && j.ID_COMPETICAO===jogosUI.competicao);
   const sports=profileSportIds();
   const meus=todos.filter(j=>jogoTemCCT(j) && sports.includes(j.ID_MODALIDADE));
   const reps=todos.filter(j=>jogoEhRepresentacaoCCT(j));
@@ -561,7 +601,7 @@ function renderizarProximoJogoHome(){
   const now=new Date();
   const sports=selectedSportIds();
   let candidatos=apiData.jogos
-    .filter(j=>jogoTemCCT(j) && !isFinalizado(j))
+    .filter(j=>jogoPublico(j) && jogoTemCCT(j) && !isFinalizado(j))
     .map(j=>({j,d:parseBrDate(j.DATA,j.HORA)}))
     .filter(x=>x.d && x.d.getTime()>=now.getTime())
     .sort((a,b)=>a.d-b.d);
@@ -2513,6 +2553,7 @@ function abrirSeletorCompeticao(){
 
   $$('[data-competition-id]').forEach(btn=>btn.addEventListener('click',()=>{
     jogosUI.competicao=btn.dataset.competitionId;
+    salvarCompeticaoPreferida(jogosUI.competicao);
     jogosUI.dataFiltro='todos';
     jogosUI.modalidadeFiltro='';
     jogosUI.classificacaoModalidade='';
@@ -2535,7 +2576,7 @@ function aplicarDadosAPI(dados,{fonte='rede'}={}){
 
   apiFreshness.fonte=fonte;
   apiFreshness.ultimaAlteracao=ultimaAlteracaoDadosCct(dados);
-  if(fonte==='rede'){
+  if(String(fonte).startsWith('rede')){
     apiFreshness.redeConfirmada=true;
     apiFreshness.erroRede=false;
     apiFreshness.verificando=false;
@@ -2553,12 +2594,20 @@ function aplicarDadosAPI(dados,{fonte='rede'}={}){
   apiData.conteudos=dados.conteudos||[];
   apiData.locais=dados.locais||[];
   apiData.pessoas=dados.pessoas||[];
-  resolverPermissoesAuth();
   apiData.eventos=dados.eventos||[];
   apiData.destaques=dados.destaques||[];
+  apiData.agenda_cct_jiudesc=dados.agenda_cct_jiudesc||[];
+  apiData.escala_responsaveis_jiudesc=dados.escala_responsaveis_jiudesc||[];
+  apiData.conflitos_cct_jiudesc=dados.conflitos_cct_jiudesc||[];
+  apiData.autorizacao=dados.autorizacao||null;
+  resolverPermissoesAuth();
 
-  if(!apiData.competicoes.some(c=>c.ID_COMPETICAO===jogosUI.competicao) && apiData.competicoes[0]){
-    jogosUI.competicao=apiData.competicoes[0].ID_COMPETICAO;
+  const competicoesPublicadas=apiData.competicoes
+    .filter(registroPublicado)
+    .sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
+  if(!competicoesPublicadas.some(c=>c.ID_COMPETICAO===jogosUI.competicao)){
+    jogosUI.competicao=competicoesPublicadas[0]?.ID_COMPETICAO || 'INTERLAJE-2026';
+    salvarCompeticaoPreferida(jogosUI.competicao);
   }
 
   const nome=$('#competicaoNome');
@@ -2595,10 +2644,12 @@ function lerCacheAPI(){
 
 function salvarCacheAPI(dados){
   try{
+    const dadosPublicos={...dados};
+    delete dadosPublicos.autorizacao;
     localStorage.setItem(API_CACHE_KEY,JSON.stringify({
-      versao:1,
+      versao:2,
       salvoEm:Date.now(),
-      dados
+      dados:dadosPublicos
     }));
   }catch(e){
     console.warn('Não foi possível salvar o cache CCT:',e);
@@ -2618,10 +2669,74 @@ function mostrarErroAPI(){
   if(des) des.innerHTML='<div class="games-empty">Não foi possível atualizar os destaques agora.</div>';
 }
 
-async function atualizarDadosAPIRede({silencioso=false}={}){
+async function requisitarApiPublicaCCT(){
+  const resposta=await fetch(API_URL,{cache:'no-store'});
+  if(!resposta.ok) throw new Error('HTTP '+resposta.status);
+  const dados=await resposta.json();
+  if(dados?.sucesso===false) throw new Error(dados.erro||'API');
+  return {dados,autenticada:false};
+}
+
+async function requisitarApiAutenticadaCCT(){
+  const user=cctAuthState.user;
+  if(!user?.getIdToken) return requisitarApiPublicaCCT();
+
+  let token=await user.getIdToken(false);
+  let resposta=await fetch(API_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+    body:new URLSearchParams({token}).toString(),
+    cache:'no-store'
+  });
+
+  if(!resposta.ok) throw new Error('HTTP '+resposta.status);
+  let dados=await resposta.json();
+
+  // Um token pode expirar enquanto o PWA está aberto.
+  // Renova uma única vez antes de desistir.
+  if(dados?.sucesso===false && dados?.erro==='AUTENTICACAO_INVALIDA'){
+    token=await user.getIdToken(true);
+    resposta=await fetch(API_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+      body:new URLSearchParams({token}).toString(),
+      cache:'no-store'
+    });
+    if(!resposta.ok) throw new Error('HTTP '+resposta.status);
+    dados=await resposta.json();
+  }
+
+  if(dados?.sucesso===false) throw new Error(dados.erro||'API');
+  return {dados,autenticada:true};
+}
+
+async function requisitarApiCCT(){
+  if(cctAuthState.ready && authLogado()){
+    try{
+      return await requisitarApiAutenticadaCCT();
+    }catch(erro){
+      // Falha fechada: sem validação de token não mantemos dados internos.
+      console.warn('API autenticada indisponível; usando escopo público.',erro);
+      apiData.autorizacao=null;
+      resolverPermissoesAuth();
+      return requisitarApiPublicaCCT();
+    }
+  }
+  return requisitarApiPublicaCCT();
+}
+
+async function atualizarDadosAPIRede({silencioso=false,forcar=false}={}){
   const agora=Date.now();
-  if(apiAtualizacaoPromise) return apiAtualizacaoPromise;
-  if(silencioso && agora-ultimaTentativaApi<API_RETRY_GUARD_MS) return null;
+
+  // Se o login/logout acontecer enquanto uma leitura pública ainda está em voo,
+  // uma atualização forçada precisa esperar e rodar novamente com o novo escopo.
+  // Sem isso, a restauração rápida da sessão Firebase pode herdar apenas o GET público.
+  if(apiAtualizacaoPromise){
+    if(!forcar) return apiAtualizacaoPromise;
+    try{ await apiAtualizacaoPromise; }catch(e){}
+  }
+
+  if(!forcar && silencioso && agora-ultimaTentativaApi<API_RETRY_GUARD_MS) return null;
   ultimaTentativaApi=agora;
   apiFreshness.verificando=true;
   apiFreshness.erroRede=false;
@@ -2629,12 +2744,13 @@ async function atualizarDadosAPIRede({silencioso=false}={}){
 
   apiAtualizacaoPromise=(async()=>{
     try{
-      const resposta=await fetch(API_URL,{cache:'no-store'});
-      if(!resposta.ok) throw new Error('HTTP '+resposta.status);
-      const dados=await resposta.json();
-      if(dados?.sucesso===false) throw new Error(dados.erro||'API');
-      salvarCacheAPI(dados);
-      aplicarDadosAPI(dados,{fonte:'rede'});
+      const {dados,autenticada}=await requisitarApiCCT();
+
+      // Respostas autenticadas podem conter dados internos.
+      // Nunca persistimos isso no localStorage.
+      if(!autenticada) salvarCacheAPI(dados);
+
+      aplicarDadosAPI(dados,{fonte:autenticada?'rede autenticada':'rede'});
       return dados;
     }catch(erro){
       console.error('Erro ao atualizar API CCT:',erro);
@@ -2821,9 +2937,17 @@ function renderizarModalidadesPerfil(){
   const p=perfilAtual();
   const antigos=new Set((p.sports||[]).map(x=>MODALIDADE_IDS[x]||x));
   const selecionados=new Set((p.sportIds||[]).length?p.sportIds:antigos);
-  const mods=(apiData.modalidades||[])
-    .filter(m=>!('PUBLICADO' in m)||isSim(m.PUBLICADO))
+  const modsOrdenadas=(apiData.modalidades||[])
+    .filter(registroPublicado)
+    .filter(m=>!m.ID_COMPETICAO || competicaoPublicada(m.ID_COMPETICAO))
     .sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||String(a.NOME||'').localeCompare(String(b.NOME||''),'pt-BR'));
+  const idsVistos=new Set();
+  const mods=modsOrdenadas.filter(m=>{
+    const id=String(m.ID_MODALIDADE||'').trim();
+    if(!id || idsVistos.has(id)) return false;
+    idsVistos.add(id);
+    return true;
+  });
   if(!mods.length){grid.innerHTML='<div class="games-empty">Nenhuma modalidade publicada.</div>'; atualizarResumoPerfil(); return;}
   grid.innerHTML=mods.map(m=>{
     const id=m.ID_MODALIDADE||''; const nome=m.NOME||modalidadeBase(id).nome||id; const naipe=m.NAIPE||'';
@@ -3074,6 +3198,7 @@ function ehMembros(x){ return visibilidade(x?.VISIBILIDADE)==='MEMBROS'; }
 function ehPublico(x){ return !ehMembros(x); } // compatível com registros antigos sem VISIBILIDADE
 function somentePublicos(arr){ return (arr||[]).filter(ehPublico); }
 function somenteMembros(arr){ return (arr||[]).filter(ehMembros); }
+function somentePublicadosPublicos(arr){ return somentePublicos(arr).filter(registroPublicado); }
 function categoriaTem(valor, termos=[]){
   const c=String(valor||'').trim().toUpperCase();
   return termos.some(t=>c.includes(String(t).toUpperCase()));
@@ -3119,6 +3244,9 @@ function inicioDoDiaAtual(){
   const d=new Date(); return new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
 }
 
+function normalizarTexto(v){
+  return String(v||'').trim().toUpperCase();
+}
 function normalizarNomeAgenda(v){
   return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
 }
@@ -3182,7 +3310,7 @@ function programacaoPersonalizada(){
 
   // Atleta e membro: treinos/compromissos públicos ligados às modalidades escolhidas.
   if(role==='atleta' || role==='membro'){
-    somentePublicos(apiData.agenda).forEach(a=>{
+    somentePublicadosPublicos(apiData.agenda).forEach(a=>{
       const mod=String(a.ID_MODALIDADE||'').trim();
       if(mod && sportsSet.has(mod) && dataVal(a.DATA,a.HORA_INICIO)>=inicio){
         itens.push({...a,_ORIGEM:'ESPORTE',_ID_UNICO:`AGENDA:${a.ID_AGENDA||[a.DATA,a.HORA_INICIO,a.TITULO,mod].join('|')}`});
@@ -3193,14 +3321,13 @@ function programacaoPersonalizada(){
   // Atleta, torcedor e membro: jogos das modalidades escolhidas.
   if(sports.length){
     apiData.jogos
-      .filter(j=>jogoTemCCT(j) && sportsSet.has(j.ID_MODALIDADE) && !isFinalizado(j))
+      .filter(j=>jogoPublico(j) && jogoTemCCT(j) && sportsSet.has(j.ID_MODALIDADE) && !isFinalizado(j))
       .filter(j=>(parseBrDate(j.DATA,j.HORA)?.getTime()||0)>=inicio)
       .forEach(j=>itens.push(jogoComoAgenda(j,authMembroAprovado()&&jogoEhRepresentacaoCCT(j))));
   }
 
   // Eventos públicos entram para todos os tipos de perfil.
-  somentePublicos(apiData.eventos)
-    .filter(e=>!('PUBLICADO' in e)||isSim(e.PUBLICADO))
+  somentePublicadosPublicos(apiData.eventos)
     .filter(e=>dataVal(e.DATA,e.HORA||'00:00')>=inicio)
     .forEach(e=>itens.push(eventoComoAgenda(e)));
 
@@ -3211,7 +3338,12 @@ function programacaoPersonalizada(){
       .filter(a=>agendaInternaPertenceAoPerfil(a,p))
       .forEach(a=>itens.push({...a,_ORIGEM:'INTERNA',_ID_UNICO:`INTERNA:${a.ID_AGENDA||[a.DATA,a.HORA_INICIO,a.TITULO].join('|')}`}));
 
-    // Representações CCT futuras também entram na programação do membro.
+    // Operação JIUDESC interna entra na programação do membro.
+    (apiData.agenda_cct_jiudesc||[])
+      .filter(a=>dataVal(a.DATA,a.HORA)>=inicio)
+      .forEach(a=>itens.push(agendaCctJiudescComoAgenda(a)));
+
+    // Representações legadas continuam compatíveis.
     apiData.jogos
       .filter(j=>jogoEhRepresentacaoCCT(j) && !isFinalizado(j))
       .filter(j=>(parseBrDate(j.DATA,j.HORA)?.getTime()||0)>=inicio)
@@ -3282,7 +3414,7 @@ function renderizarAgenda(){
   }
 
   if(contexto) contexto.innerHTML='';
-  const linhas=somentePublicos(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
+  const linhas=somentePublicadosPublicos(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
   const temAgenda=linhas.length>0;
 
   // Quando a agenda geral estiver vazia, ela usa exatamente o mesmo padrão visual de Eventos:
@@ -3314,7 +3446,7 @@ $$('[data-go="agenda"]').forEach(b=>b.addEventListener('click',()=>{
 
 function avisosAtivos(escopo='publico'){
   const now=Date.now();
-  const base=escopo==='membros'?somenteMembros(apiData.avisos):somentePublicos(apiData.avisos);
+  const base=escopo==='membros'?somenteMembros(apiData.avisos):somentePublicadosPublicos(apiData.avisos);
   return base.filter(a=>{
     const ini=a.DATA_INICIO?dataVal(a.DATA_INICIO,a.HORA_INICIO||'00:00'):0;
     const fim=a.DATA_FIM?dataVal(a.DATA_FIM,a.HORA_FIM||'23:59'):Number.MAX_SAFE_INTEGER;
@@ -3327,7 +3459,7 @@ function renderizarAvisos(){
 }
 function abrirAvisos(){ const av=avisosAtivos(); mc.innerHTML=`<span class="chip ${av.some(x=>isSim(x.URGENTE))?'live':''}">${av.length} ${av.length===1?'AVISO':'AVISOS'}</span><h2>${uiIcon('bell','heading-icon')} Avisos</h2><div class="modal-list">${av.length?av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso CCT')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join(''):'<div><strong>Nenhum aviso ativo</strong><small>Quando houver novidades elas aparecerão aqui.</small></div>'}</div>`; modal.classList.add('open'); }
 function conteudosFiltrados(categoria='',escopo='publico'){
-  let itens=escopo==='membros'?somenteMembros(apiData.conteudos):somentePublicos(apiData.conteudos);
+  let itens=escopo==='membros'?somenteMembros(apiData.conteudos):somentePublicadosPublicos(apiData.conteudos);
   const chave=String(categoria||'').toUpperCase();
   if(chave){
     const mapas={
@@ -3401,13 +3533,13 @@ function abrirConteudos(categoria='',titulo='Conteúdos',escopo='publico'){
   mc.innerHTML=`<span class="chip">${escopo==='membros'?'MEMBROS':'CCT'}</span><h2>${escapeHtml(titulo)}</h2><div class="modal-list dynamic-content-list">${conteudosHtml(categoria,escopo)}</div>`; modal.classList.add('open'); closeDrawer();
 }
 function abrirLocais(escopo='publico'){
-  const itens=(escopo==='membros'?somenteMembros(apiData.locais):somentePublicos(apiData.locais)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
+  const itens=(escopo==='membros'?somenteMembros(apiData.locais):somentePublicadosPublicos(apiData.locais)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
   const interno=escopo==='membros';
   mc.innerHTML=`<div class="hub-head"><span class="chip">${interno?'MEMBROS':'LOCAIS CCT'}</span><div class="hub-title"><span>${uiIcon('map-pin')}</span><div><h2>${interno?'Locais internos':'Onde a CCT acontece'}</h2><p>${interno?'Pontos de encontro, apoio e organização da diretoria.':'Ginásios, quadras, eventos e pontos importantes para você chegar sem dúvida.'}</p></div></div></div><div class="places-hub-list">${itens.length?itens.map(x=>{const img=normalizeImageUrl(x.IMAGEM_URL);const link=linkSeguro(x.LINK_MAPS);const meta=[x.TIPO,x.ENDERECO].filter(Boolean).join(' • ');return `<article class="place-hub-card">${img?`<img src="${escapeHtml(img)}" alt="">`:`<span class="place-icon">${uiIcon('map-pin')}</span>`}<div><small>${escapeHtml(x.TIPO|| (interno?'INTERNO':'LOCAL CCT'))}</small><strong>${escapeHtml(x.NOME||'Local')}</strong>${meta?`<p>${escapeHtml(meta)}</p>`:''}${x.OBSERVACAO?`<em>${escapeHtml(x.OBSERVACAO)}</em>`:''}${link?`<a href="${escapeHtml(link)}" target="_blank" rel="noopener">ABRIR NO MAPA ›</a>`:''}</div></article>`}).join(''):hubEmpty('map-pin',interno?'Nenhum local interno cadastrado':'Nenhum local publicado',interno?'Os pontos de organização da equipe aparecerão aqui.':'Os locais de jogos e eventos serão publicados aqui.')}</div>`;
   modal.classList.add('open'); closeDrawer();
 }
 function abrirContatos(escopo='publico'){
-  const base=escopo==='membros'?somenteMembros(apiData.pessoas):somentePublicos(apiData.pessoas);
+  const base=escopo==='membros'?somenteMembros(apiData.pessoas):somentePublicadosPublicos(apiData.pessoas);
   const itens=base.filter(x=>String(x.ATIVO||'SIM').toUpperCase()!=='NÃO');
   const interno=escopo==='membros';
   mc.innerHTML=`<div class="hub-head"><span class="chip">${interno?'MEMBROS':'CONTATOS CCT'}</span><div class="hub-title"><span>${uiIcon('mail')}</span><div><h2>${interno?'Equipe interna':'Fale com a CCT'}</h2><p>${interno?'Diretoria, responsáveis e contatos de organização.':'Encontre rapidamente a pessoa certa para esportes, eventos, parcerias ou atendimento geral.'}</p></div></div></div><div class="contacts-hub-list">${itens.length?itens.map(p=>{const foto=normalizeImageUrl(p.FOTO_URL);const whats=linkSeguro(p.LINK_WHATSAPP);const cargo=[p.CARGO,p.TIPO].filter(Boolean).join(' • ');return `<article class="contact-hub-card">${foto?`<img src="${escapeHtml(foto)}" alt="">`:`<span class="contact-hub-avatar">${escapeHtml((p.NOME||'C').charAt(0))}</span>`}<div><small>${escapeHtml(p.TIPO||'CCT')}</small><strong>${escapeHtml(p.NOME||'Contato CCT')}</strong>${cargo?`<p>${escapeHtml(cargo)}</p>`:''}<div class="contact-actions">${whats?`<a href="${escapeHtml(whats)}" target="_blank" rel="noopener">WHATSAPP ›</a>`:''}${p.EMAIL?`<a href="mailto:${escapeHtml(p.EMAIL)}">E-MAIL ›</a>`:''}</div></div></article>`}).join(''):hubEmpty('mail','Nenhum contato publicado','Os canais oficiais da CCT aparecerão aqui.')}</div>`;
@@ -3424,10 +3556,10 @@ function renderizarHeroHome(){
   if(title)title.textContent=competitionName(comp.ID_COMPETICAO);
   if(text)text.textContent='Acompanhe jogos, classificação, destaques e tudo da CCT.';
   if(badge)badge.textContent=isSim(comp.DESTAQUE)?'EM DESTAQUE':(comp.STATUS||'COMPETIÇÃO');
-  if(btn)btn.onclick=()=>{jogosUI.competicao=comp.ID_COMPETICAO; jogosUI.aba='jogos'; go('jogos'); const nome=$('#competicaoNome');if(nome)nome.textContent=competitionName(comp.ID_COMPETICAO);renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();};
+  if(btn)btn.onclick=()=>{jogosUI.competicao=comp.ID_COMPETICAO; salvarCompeticaoPreferida(jogosUI.competicao); jogosUI.aba='jogos'; go('jogos'); const nome=$('#competicaoNome');if(nome)nome.textContent=competitionName(comp.ID_COMPETICAO);renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();};
 }
 function mediaItensPublicos(){
-  return somentePublicos(apiData.conteudos).filter(x=>categoriaTem(x.CATEGORIA,['MID','FOTO','VIDEO','GALERIA'])).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
+  return somentePublicadosPublicos(apiData.conteudos).filter(x=>categoriaTem(x.CATEGORIA,['MID','FOTO','VIDEO','GALERIA'])).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
 }
 function mediaTipoMeta(x){
   const c=String(x.CATEGORIA||'').toUpperCase(); if(c.includes('VIDEO'))return ['▶','ASSISTA AGORA']; if(c.includes('FOTO')||c.includes('GALERIA'))return ['▧','CONFIRA AS FOTOS']; return ['▧','VER CONTEÚDO'];
@@ -3441,7 +3573,7 @@ function renderizarMidiaHome(){
   c.innerHTML=itens.map(x=>{const [ico,cta]=mediaTipoMeta(x);const img=normalizeImageUrl(x.IMAGEM_URL)||'assets/volei-praia-1.jpg';const link=linkSeguro(x.LINK);return `<article class="home-media-card ${link?'is-clickable':''}" style="--media:url('${img.replace(/'/g,"%27")}')" ${link?`data-media-link="${escapeHtml(link)}"`:''}><span>${ico}</span><div><strong>${escapeHtml(x.TITULO||'Mídia CCT')}</strong>${link?`<small>${escapeHtml(x.TEXTO_BOTAO||cta)}</small>`:`<small>${escapeHtml(x.DESCRICAO||'Conteúdo da CCT')}</small>`}</div></article>`;}).join('');
   c.querySelectorAll('[data-media-link]').forEach(el=>el.addEventListener('click',()=>window.open(el.dataset.mediaLink,'_blank','noopener')));
 }
-function renderizarCompeticoesHome(){ const c=$('#homeCompetitionsContainer'); if(!c)return; const comps=apiData.competicoes.filter(x=>!('PUBLICADO'in x)||isSim(x.PUBLICADO)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)); c.innerHTML=comps.length?comps.map(x=>`<article class="visual-card competition-home-card" style="--bg:url('${normalizeImageUrl(x.IMAGEM_URL)||'assets/levantamento-1.jpg'}')" data-home-competition="${escapeHtml(x.ID_COMPETICAO)}"><div><span class="chip ${isSim(x.DESTAQUE)?'live':''}">${escapeHtml(x.STATUS||'COMPETIÇÃO')}</span><h4>${escapeHtml(x.NOME||x.ID_COMPETICAO)}</h4><p>${escapeHtml(x.ANO||'')}</p></div></article>`).join(''):'<div class="games-empty">Nenhuma competição publicada.</div>'; c.querySelectorAll('[data-home-competition]').forEach(el=>el.addEventListener('click',()=>{jogosUI.competicao=el.dataset.homeCompetition; go('jogos'); renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();})); }
+function renderizarCompeticoesHome(){ const c=$('#homeCompetitionsContainer'); if(!c)return; const comps=apiData.competicoes.filter(x=>!('PUBLICADO'in x)||isSim(x.PUBLICADO)).sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)); c.innerHTML=comps.length?comps.map(x=>`<article class="visual-card competition-home-card" style="--bg:url('${normalizeImageUrl(x.IMAGEM_URL)||'assets/levantamento-1.jpg'}')" data-home-competition="${escapeHtml(x.ID_COMPETICAO)}"><div><span class="chip ${isSim(x.DESTAQUE)?'live':''}">${escapeHtml(x.STATUS||'COMPETIÇÃO')}</span><h4>${escapeHtml(x.NOME||x.ID_COMPETICAO)}</h4><p>${escapeHtml(x.ANO||'')}</p></div></article>`).join(''):'<div class="games-empty">Nenhuma competição publicada.</div>'; c.querySelectorAll('[data-home-competition]').forEach(el=>el.addEventListener('click',()=>{jogosUI.competicao=el.dataset.homeCompetition; salvarCompeticaoPreferida(jogosUI.competicao); go('jogos'); renderizarFiltrosModalidades();renderizarSeletorClassificacao();renderizarAbaCompeticao();})); }
 
 
 function renderizarAtalhosUteisHome(){
@@ -3450,8 +3582,8 @@ function renderizarAtalhosUteisHome(){
   if(!section||!container) return;
 
   const faltandoConteudoHome=[
-    !somentePublicos(apiData.agenda).length,
-    !(apiData.eventos||[]).length,
+    !somentePublicadosPublicos(apiData.agenda).length,
+    !somentePublicadosPublicos(apiData.eventos).length,
     !mediaItensPublicos().length
   ].some(Boolean);
 
@@ -3461,7 +3593,7 @@ function renderizarAtalhosUteisHome(){
   if(conteudosFiltrados('DOCUMENT','publico').length) atalhos.push({id:'docs',icone:'file',titulo:'Documentos',texto:'Regulamentos e arquivos oficiais'});
   if(conteudosFiltrados('FORM','publico').length) atalhos.push({id:'forms',icone:'form',titulo:'Pedidos e Formulários',texto:'Acesse pedidos e formulários ativos'});
   if(parceirosPublicos().length) atalhos.push({id:'partners',icone:'handshake',titulo:'Parceiros',texto:'Conheça quem fortalece a CCT'});
-  const locais=somentePublicos(apiData.locais).filter(x=>!('PUBLICADO' in x)||isSim(x.PUBLICADO));
+  const locais=somentePublicadosPublicos(apiData.locais);
   if(locais.length) atalhos.push({id:'places',icone:'map-pin',titulo:'Locais',texto:'Veja sedes e locais das competições'});
 
   if(!atalhos.length){ section.hidden=true; container.innerHTML=''; return; }
@@ -3477,48 +3609,138 @@ function renderizarAtalhosUteisHome(){
   }));
 }
 
+function agendaCctJiudescComoAgenda(a){
+  const adversario=String(a.ADVERSARIO||'').trim();
+  const fase=String(a.FASE||'').trim();
+  const titulo=[a.MODALIDADE||modalidadeNome(a.ID_MODALIDADE),adversario?('× '+adversario):''].filter(Boolean).join(' ');
+  const descricao=[
+    fase,
+    a.GRUPO?('Grupo '+a.GRUPO):'',
+    a.STATUS_AGENDA,
+    a.RESPONSAVEL_CCT?('Responsável: '+a.RESPONSAVEL_CCT):'',
+    a.RISCO_ATLETA && normalizarTexto(a.RISCO_ATLETA)!=='NÃO'?('Risco: '+a.RISCO_ATLETA):'',
+    a.OBSERVACAO
+  ].filter(Boolean).join(' • ');
+  return {
+    DATA:a.DATA,
+    HORA_INICIO:a.HORA,
+    TIPO:'OPERAÇÃO JIUDESC',
+    TITULO:titulo||'Compromisso CCT',
+    ID_MODALIDADE:a.ID_MODALIDADE||'',
+    LOCAL:a.LOCAL||'',
+    DESCRICAO:descricao,
+    _ORIGEM:'INTERNA',
+    _ID_UNICO:'JIUDESC:'+(a.ID_JOGO_EVENTO||[a.DATA,a.HORA,a.ID_MODALIDADE].join('|'))
+  };
+}
+function escalaJiudescFutura(){
+  const agora=Date.now();
+  return (apiData.escala_responsaveis_jiudesc||[])
+    .filter(e=>{
+      const d=parseBrDate(e.DATA,e.HORA);
+      return d && d.getTime()>=agora;
+    })
+    .sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
+}
+function conflitosJiudescPendentes(){
+  const encerrados=['RESOLVIDO','CONCLUÍDO','CONCLUIDO','CANCELADO'];
+  return (apiData.conflitos_cct_jiudesc||[])
+    .filter(c=>!encerrados.includes(normalizarTexto(c.STATUS)))
+    .sort((a,b)=>{
+      const peso=x=>normalizarTexto(x.NIVEL)==='MUITO ALTO'?4:normalizarTexto(x.NIVEL)==='ALTO'?3:normalizarTexto(x.NIVEL)==='MÉDIO'?2:1;
+      const p=peso(b)-peso(a); if(p) return p;
+      return dataVal(a.DATA,a.HORA_A)-dataVal(b.DATA,b.HORA_A);
+    });
+}
+function conflitoJiudescHtml(c){
+  const nivel=normalizarTexto(c.NIVEL);
+  const classe=nivel==='MUITO ALTO'?'danger':nivel==='ALTO'?'warning':'';
+  const titulo=c.ATLETA?c.ATLETA:(c.TIPO==='AGENDA_SIMULTANEA'?'Agenda simultânea':'Conflito operacional');
+  return `<div class="content-item member-conflict ${classe}"><div><strong>${escapeHtml(titulo)}</strong><small>${escapeHtml([c.DATA,c.HORA_A,c.NIVEL].filter(Boolean).join(' • '))}</small><p>${escapeHtml([c.EVENTO_A,c.EVENTO_B].filter(Boolean).join(' → '))}</p>${c.ACAO_RECOMENDADA?`<small>${escapeHtml(c.ACAO_RECOMENDADA)}</small>`:''}</div></div>`;
+}
+function escalaJiudescComoAgenda(e){
+  const resp=[e.RESPONSAVEL_PRINCIPAL,e.RESPONSAVEL_APOIO].filter(Boolean).join(' + ');
+  return {
+    DATA:e.DATA,
+    HORA_INICIO:e.HORA,
+    TIPO:'ESCALA JIUDESC',
+    TITULO:e.MODALIDADE||modalidadeNome(e.ID_MODALIDADE)||'Compromisso CCT',
+    ID_MODALIDADE:e.ID_MODALIDADE||'',
+    LOCAL:e.LOCAL||'',
+    DESCRICAO:[
+      e.FASE,
+      'Prioridade: '+(e.PRIORIDADE||'NORMAL'),
+      resp?('Responsável: '+resp):'Responsável a definir',
+      e.STATUS_ESCALA,
+      e.OBSERVACAO
+    ].filter(Boolean).join(' • '),
+    _ORIGEM:'INTERNA',
+    _ID_UNICO:'ESCALA:'+(e.ID_EVENTO||[e.DATA,e.HORA,e.ID_MODALIDADE].join('|'))
+  };
+}
+
 function abrirAgendaMembros(filtro=''){
   if(!authMembroAprovado()){ atualizarAcessoAreaMembros(); go('membros'); return; }
-  let itens=somenteMembros(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
-  if(filtro==='salinha') itens=itens.filter(a=>categoriaTem([a.TIPO,a.TITULO,a.LOCAL].join(' '),['SALINHA','ATEND']));
-  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${filtro==='salinha'?`${uiIcon('store','heading-icon')} Escala da salinha`:`${uiIcon('calendar','heading-icon')} Agenda interna`}</h2><div class="member-agenda-modal">${itens.length?agendaAgrupadaHtml(itens):'<div class="games-empty">Nenhum compromisso interno publicado.</div>'}</div>`;
+  let itens=somenteMembros(apiData.agenda);
+  if(filtro==='salinha'){
+    itens=itens.filter(a=>categoriaTem([a.TIPO,a.TITULO,a.LOCAL].join(' '),['SALINHA','ATEND']));
+  }else{
+    itens=[
+      ...itens,
+      ...(apiData.agenda_cct_jiudesc||[]).map(agendaCctJiudescComoAgenda)
+    ];
+  }
+  itens=itens.sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
+  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${filtro==='salinha'?`${uiIcon('store','heading-icon')} Escala da salinha`:`${uiIcon('calendar','heading-icon')} Agenda interna + JIUDESC`}</h2><div class="member-agenda-modal">${itens.length?agendaAgrupadaHtml(itens):'<div class="games-empty">Nenhum compromisso interno cadastrado.</div>'}</div>`;
   modal.classList.add('open');
 }
 function abrirAvisosMembros(){
   if(!authMembroAprovado()){ atualizarAcessoAreaMembros(); go('membros'); return; }
   const av=avisosAtivos('membros');
-  mc.innerHTML=`<span class="chip ${av.some(x=>isSim(x.URGENTE))?'live':''}">${av.length} ${av.length===1?'AVISO INTERNO':'AVISOS INTERNOS'}</span><h2>${uiIcon('alert','heading-icon')} Avisos internos</h2><div class="modal-list">${av.length?av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso interno')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join(''):'<div><strong>Nenhum aviso interno ativo</strong><small>Os avisos exclusivos para membros aparecerão aqui.</small></div>'}</div>`;
+  const conflitos=conflitosJiudescPendentes();
+  const total=av.length+conflitos.length;
+  mc.innerHTML=`<span class="chip ${conflitos.some(x=>['MUITO ALTO','ALTO'].includes(normalizarTexto(x.NIVEL)))||av.some(x=>isSim(x.URGENTE))?'live':''}">${total} ALERTAS</span><h2>${uiIcon('alert','heading-icon')} Alertas e conflitos</h2>${conflitos.length?`<div class="section-head"><div><i></i><h3>JIUDESC</h3></div></div><div class="modal-list">${conflitos.map(conflitoJiudescHtml).join('')}</div>`:''}${av.length?`<div class="section-head"><div><i></i><h3>AVISOS INTERNOS</h3></div></div><div class="modal-list">${av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso interno')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join('')}</div>`:''}${!total?'<div class="games-empty">Nenhum alerta interno pendente.</div>':''}`;
   modal.classList.add('open');
 }
 function abrirRepresentacoesMembros(){
   if(!authMembroAprovado()){ atualizarAcessoAreaMembros(); go('membros'); return; }
-  const itens=apiData.jogos.filter(j=>jogoEhRepresentacaoCCT(j)).sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
-  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${uiIcon('trophy','heading-icon')} Representações CCT</h2><div>${itens.length?itens.map(j=>matchCard(j)).join(''):'<div class="games-empty"><strong>Nenhuma representação CCT cadastrada.</strong><span>Os jogos marcados para representação aparecerão aqui.</span></div>'}</div>`;
+  const escalas=escalaJiudescFutura();
+  if(escalas.length){
+    const itens=escalas.map(escalaJiudescComoAgenda);
+    mc.innerHTML=`<span class="chip">MEMBROS • JIUDESC</span><h2>${uiIcon('trophy','heading-icon')} Escala operacional</h2><div class="member-agenda-modal">${agendaAgrupadaHtml(itens)}</div>`;
+  }else{
+    const legados=apiData.jogos.filter(j=>jogoEhRepresentacaoCCT(j)).sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
+    mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${uiIcon('trophy','heading-icon')} Representações CCT</h2><div>${legados.length?legados.map(j=>matchCard(j)).join(''):'<div class="games-empty"><strong>Nenhuma escala futura cadastrada.</strong></div>'}</div>`;
+  }
   modal.classList.add('open');
 }
 function renderizarAreaMembros(){
   const hoje=new Date();
   const agendaM=somenteMembros(apiData.agenda);
-  const hojeCount=agendaM.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA_INICIO),hoje)).length;
-  const reps=apiData.jogos.filter(j=>jogoEhRepresentacaoCCT(j));
-  const repsFuturas=reps.filter(j=>{const d=parseBrDate(j.DATA,j.HORA);return d && d.getTime()>=Date.now() && !isFinalizado(j);});
+  const agendaJiu=apiData.agenda_cct_jiudesc||[];
+  const hojeCount=
+    agendaM.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA_INICIO),hoje)).length+
+    agendaJiu.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA),hoje)).length;
+
+  const escalas=escalaJiudescFutura();
+  const pendentes=escalas.filter(e=>!isSim(e.CONFIRMADO) || normalizarTexto(e.STATUS_ESCALA)==='A DEFINIR');
+  const conflitos=conflitosJiudescPendentes();
   const alertas=avisosAtivos('membros');
 
   const elHoje=$('#memberTodayCount'), elRep=$('#memberRepCount'), elAv=$('#memberAlertCount');
   if(elHoje) elHoje.textContent=hojeCount;
-  if(elRep) elRep.textContent=repsFuturas.length;
-  if(elAv) elAv.textContent=alertas.length;
+  if(elRep) elRep.textContent=pendentes.length;
+  if(elAv) elAv.textContent=conflitos.length+alertas.length;
 
   const lista=$('#memberRepresentationsList');
   if(lista){
-    const proximas=repsFuturas.sort((a,b)=>parseBrDate(a.DATA,a.HORA)-parseBrDate(b.DATA,b.HORA)).slice(0,4);
-    lista.innerHTML=proximas.length?proximas.map(j=>{
-      const dados=responsavelRepresentacaoDados(j);
-      const nome=dados.nome||'Responsável a definir';
-      const foto=normalizeImageUrl(dados.foto||'');
+    const proximas=escalas.slice(0,4);
+    lista.innerHTML=proximas.length?proximas.map(e=>{
+      const nome=e.RESPONSAVEL_PRINCIPAL||'Responsável a definir';
       const iniciais=nome.split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase();
-      return `<div>${foto?`<img src="${escapeHtml(foto)}" alt="">`:`<div class="avatar-placeholder">${escapeHtml(iniciais||'CCT')}</div>`}<span><strong>${escapeHtml(nome)}</strong><small>${escapeHtml(competitionName(j.ID_COMPETICAO))} • ${escapeHtml(modalidadeNome(j.ID_MODALIDADE))} • ${escapeHtml(j.DATA||'')} ${escapeHtml(j.HORA||'')}</small></span></div>`;
-    }).join(''):'<div class="games-empty">Nenhuma representação futura cadastrada.</div>';
+      const risco=normalizarTexto(e.RISCO_ATLETA);
+      return `<div><div class="avatar-placeholder">${escapeHtml(iniciais||'CCT')}</div><span><strong>${escapeHtml(nome)}</strong><small>${escapeHtml([e.MODALIDADE,e.DATA,e.HORA,e.LOCAL].filter(Boolean).join(' • '))}</small>${risco&&risco!=='NÃO'?`<small>⚠ ${escapeHtml(risco)} — ${escapeHtml(e.ATLETAS_COM_RISCO||'')}</small>`:''}</span></div>`;
+    }).join(''):'<div class="games-empty">Nenhuma escala futura cadastrada.</div>';
   }
 }
 function bindAreaMembros(){
@@ -3549,7 +3771,7 @@ function renderizarModulosGerais(){
 
   // Eventos também precisam ser renderizados quando a lista está vazia.
   // Assim o app troca o "carregando..." pelo estado vazio corretamente.
-  cctEvents=[...(apiData.eventos||[])].sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||eventDateValue(a)-eventDateValue(b));
+  cctEvents=[...somentePublicadosPublicos(apiData.eventos)].sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)||eventDateValue(a)-eventDateValue(b));
 
   const all=$('#eventsContainer');
   const home=$('#homeEventContainer');
@@ -3572,7 +3794,7 @@ function renderizarModulosGerais(){
   renderizarAtalhosUteisHome();
 }
 function abrirAjuda(){
-  const contato=somentePublicos(apiData.pessoas).find(p=>String(p.ATIVO||'SIM').toUpperCase()!=='NÃO' && (linkSeguro(p.LINK_WHATSAPP)||p.EMAIL));
+  const contato=somentePublicadosPublicos(apiData.pessoas).find(p=>String(p.ATIVO||'SIM').toUpperCase()!=='NÃO' && (linkSeguro(p.LINK_WHATSAPP)||p.EMAIL));
   const contatoHtml=contato?(linkSeguro(contato.LINK_WHATSAPP)?`<a class="help-contact" href="${escapeHtml(contato.LINK_WHATSAPP)}" target="_blank" rel="noopener">${uiIcon('mail','inline-icon')} FALAR COM A ATLÉTICA ›</a>`:`<a class="help-contact" href="mailto:${escapeHtml(contato.EMAIL)}">${uiIcon('mail','inline-icon')} FALAR COM A ATLÉTICA ›</a>`):'';
   mc.innerHTML=`<span class="chip">AJUDA</span><h2>Como usar a ATLÉTICA CCT</h2><div class="help-sections"><section><strong>${uiIcon('home','inline-icon')} Instalar no celular</strong><p><b>iPhone:</b> abra no Safari, toque em Compartilhar e escolha “Adicionar à Tela de Início”.<br><b>Android:</b> abra no Chrome e use “Adicionar à tela inicial” ou “Instalar app”.</p></section><section><strong>${uiIcon('user','inline-icon')} Personalizar seu perfil</strong><p>Em Perfil, selecione as modalidades que você joga ou acompanha. “Minha Programação” adapta a agenda ao tipo de perfil: atleta, torcedor(a) ou membro da Atlética. Benefícios de sócio(a) são liberados pela Atlética no painel administrativo.</p></section><section><strong>${uiIcon('trophy','inline-icon')} Jogos e competições</strong><p>Use Jogos para acompanhar partidas, classificação, cenários e destaques de cada campeonato.</p></section><section><strong>${uiIcon('bell','inline-icon')} Avisos</strong><p>O sino reúne avisos ativos. Mudanças urgentes de horário, local e informações importantes aparecem em destaque.</p></section><section><strong>${uiIcon('lock','inline-icon')} Área da Atlética</strong><p>É destinada aos membros para agenda interna, representações, documentos, avisos, equipe e formulários.</p></section></div>${contatoHtml}`;
   modal.classList.add('open'); closeDrawer();
@@ -3617,6 +3839,7 @@ function parceiroVisivelParaPerfil(x){
 }
 function parceirosPublicos(){
   return apiData.conteudos
+    .filter(registroPublicado)
     .filter(x=>categoriaTem(x.CATEGORIA,['PARCEIRO','PATROCIN']))
     .filter(parceiroVisivelParaPerfil)
     .sort((a,b)=>(isSim(b.DESTAQUE)-isSim(a.DESTAQUE))||((Number(a.ORDEM)||999)-(Number(b.ORDEM)||999)));
