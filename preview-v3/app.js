@@ -360,6 +360,25 @@ function jogoPublico(jogo){
   return registroPublicado(jogo) && competicaoPublicada(jogo?.ID_COMPETICAO);
 }
 
+// V4.9.2 — prévia interna de competições ainda não publicadas.
+// Somente membro autenticado pode enxergar uma competição não publicada.
+// O escopo público continua exigindo PUBLICADO = SIM na competição e no jogo.
+function competicaoEmPreviaInterna(id){
+  const c=apiData.competicoes.find(x=>x.ID_COMPETICAO===id);
+  return !!(authMembroAprovado() && c && !registroPublicado(c));
+}
+function competicaoVisivelNoEscopo(c){
+  return !!c && (registroPublicado(c) || competicaoEmPreviaInterna(c.ID_COMPETICAO));
+}
+function jogoVisivelNoEscopo(jogo){
+  if(jogoPublico(jogo)) return true;
+  return !!(jogo && competicaoEmPreviaInterna(jogo.ID_COMPETICAO));
+}
+function competitionNameUI(id){
+  const nome=competitionName(id);
+  return competicaoEmPreviaInterna(id) ? `${nome} • PRÉVIA INTERNA` : nome;
+}
+
 function modalidadeNome(id){
   const m=apiData.modalidades.find(x=>x.ID_MODALIDADE===id);
   if(m) return `${m.NOME || id}${m.NAIPE ? ' '+m.NAIPE : ''}`.trim();
@@ -501,7 +520,7 @@ function jogoCombinaModalidadeBase(jogo,prefixo){
 function jogosDoTipo(){
   const sports=profileSportIds();
   return apiData.jogos
-    .filter(j=>jogoPublico(j) && j.ID_COMPETICAO===jogosUI.competicao)
+    .filter(j=>jogoVisivelNoEscopo(j) && j.ID_COMPETICAO===jogosUI.competicao)
     .filter(j=>{
       if(jogosUI.tipo==='representacoes') return jogoEhRepresentacaoCCT(j);
       if(jogosUI.tipo==='meus') return jogoTemCCT(j) && sports.includes(j.ID_MODALIDADE);
@@ -550,7 +569,7 @@ function renderizarFiltrosModalidades(){
 }
 
 function atualizarContadoresTiposJogos(){
-  const todos=apiData.jogos.filter(j=>jogoPublico(j) && j.ID_COMPETICAO===jogosUI.competicao);
+  const todos=apiData.jogos.filter(j=>jogoVisivelNoEscopo(j) && j.ID_COMPETICAO===jogosUI.competicao);
   const sports=profileSportIds();
   const meus=todos.filter(j=>jogoTemCCT(j) && sports.includes(j.ID_MODALIDADE));
   const reps=todos.filter(j=>jogoEhRepresentacaoCCT(j));
@@ -2450,7 +2469,10 @@ function renderizarAbaCompeticao(){
   });
   $$('#competitionTabs [data-comp-tab]').forEach(btn=>btn.classList.toggle('selected',btn.dataset.compTab===jogosUI.aba));
   const titulo=$('#competicaoTitulo');
-  if(titulo) titulo.textContent=mapas[jogosUI.aba]?.[1]||'Jogos';
+  if(titulo){
+    const base=mapas[jogosUI.aba]?.[1]||'Jogos';
+    titulo.textContent=competicaoEmPreviaInterna(jogosUI.competicao) ? `${base} • Prévia interna` : base;
+  }
 
   if(jogosUI.aba==='jogos') renderizarJogos();
   if(jogosUI.aba==='classificacao') renderizarClassificacao();
@@ -2543,12 +2565,12 @@ function bindCompeticaoUI(){
 }
 
 function abrirSeletorCompeticao(){
-  const publicadas=apiData.competicoes.filter(c=>!('PUBLICADO' in c) || String(c.PUBLICADO).toUpperCase()==='SIM');
-  const comps=publicadas.length?publicadas:[{ID_COMPETICAO:jogosUI.competicao,NOME:competitionName(jogosUI.competicao)}];
+  const visiveis=apiData.competicoes.filter(competicaoVisivelNoEscopo);
+  const comps=visiveis.length?visiveis:[{ID_COMPETICAO:jogosUI.competicao,NOME:competitionName(jogosUI.competicao)}];
   const body=$('#modalContent');
   if(!body) return;
 
-  body.innerHTML=`<span class="chip">COMPETIÇÕES</span><h2>Escolha o campeonato</h2><div class="competition-list">${comps.map(c=>`<button class="competition-option ${c.ID_COMPETICAO===jogosUI.competicao?'active':''}" data-competition-id="${escapeHtml(c.ID_COMPETICAO)}"><span>${escapeHtml(c.NOME||c.ID_COMPETICAO)}<small>${escapeHtml(c.ANO||'')}</small></span><b>›</b></button>`).join('')}</div>`;
+  body.innerHTML=`<span class="chip">COMPETIÇÕES</span><h2>Escolha o campeonato</h2><div class="competition-list">${comps.map(c=>`<button class="competition-option ${c.ID_COMPETICAO===jogosUI.competicao?'active':''}" data-competition-id="${escapeHtml(c.ID_COMPETICAO)}"><span>${escapeHtml(c.NOME||c.ID_COMPETICAO)}<small>${escapeHtml([c.ANO,competicaoEmPreviaInterna(c.ID_COMPETICAO)?'PRÉVIA INTERNA':''].filter(Boolean).join(' • '))}</small></span><b>›</b></button>`).join('')}</div>`;
   $('#modal')?.classList.add('open');
 
   $$('[data-competition-id]').forEach(btn=>btn.addEventListener('click',()=>{
@@ -2562,7 +2584,7 @@ function abrirSeletorCompeticao(){
     const filtroModalidade=$('#modalidadeFiltro');
     if(filtroModalidade) filtroModalidade.value='';
     const nome=$('#competicaoNome');
-    if(nome) nome.textContent=competitionName(jogosUI.competicao);
+    if(nome) nome.textContent=competitionNameUI(jogosUI.competicao);
     $('#modal')?.classList.remove('open');
     renderizarFiltrosModalidades();
     renderizarSeletorClassificacao();
@@ -2602,16 +2624,16 @@ function aplicarDadosAPI(dados,{fonte='rede'}={}){
   apiData.autorizacao=dados.autorizacao||null;
   resolverPermissoesAuth();
 
-  const competicoesPublicadas=apiData.competicoes
-    .filter(registroPublicado)
+  const competicoesVisiveis=apiData.competicoes
+    .filter(competicaoVisivelNoEscopo)
     .sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
-  if(!competicoesPublicadas.some(c=>c.ID_COMPETICAO===jogosUI.competicao)){
-    jogosUI.competicao=competicoesPublicadas[0]?.ID_COMPETICAO || 'INTERLAJE-2026';
+  if(!competicoesVisiveis.some(c=>c.ID_COMPETICAO===jogosUI.competicao)){
+    jogosUI.competicao=competicoesVisiveis[0]?.ID_COMPETICAO || 'INTERLAJE-2026';
     salvarCompeticaoPreferida(jogosUI.competicao);
   }
 
   const nome=$('#competicaoNome');
-  if(nome) nome.textContent=competitionName(jogosUI.competicao);
+  if(nome) nome.textContent=competitionNameUI(jogosUI.competicao);
 
   renderizarFiltrosModalidades();
   renderizarSeletorClassificacao();
@@ -2846,7 +2868,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=475',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=492',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -2855,7 +2877,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV475';
+        const chave='cctSwReloadV492';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
