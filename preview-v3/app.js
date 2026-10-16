@@ -7,7 +7,7 @@ function uiIcon(name,extraClass=''){
 }
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbwKdhs9Qfkcbnv1fub8p6QFRJ-NWDN-dRZiYj3byaK0_OdTXP3PKksSEuLO27I1hjRkDA/exec';
-const API_CACHE_KEY = 'cctApiCacheV1';
+const API_CACHE_KEY = 'cctApiCacheV2';
 const API_CACHE_FRESH_MS = 2 * 60 * 1000; // 2 minutos
 const API_CACHE_MAX_MS = 7 * 24 * 60 * 60 * 1000; // fallback por até 7 dias
 const API_RETRY_GUARD_MS = 20 * 1000;
@@ -57,7 +57,8 @@ let apiData = {
   locais: [],
   pessoas: [],
   eventos: [],
-  destaques: []
+  destaques: [],
+  autorizacao: null
 };
 
 // V4.8.0 — indicador global de atualização dos dados.
@@ -171,10 +172,16 @@ function authLogado(){ return !!cctAuthState.user; }
 
 function resolverPermissoesAuth(){
   const email=emailNormalizado(cctAuthState.user?.email);
-  const pessoa=email ? (apiData.pessoas||[]).find(p=>pessoaAtivaAuth(p) && emailNormalizado(campoPessoa(p,'EMAIL','E_MAIL','E-MAIL'))===email) : null;
-  cctAuthState.pessoa=pessoa||null;
-  cctAuthState.socio=!!(pessoa && pessoaSocioAprovada(pessoa));
-  cctAuthState.membro=!!(pessoa && pessoaMembroAprovada(pessoa));
+  const autorizacao=apiData.autorizacao||null;
+  const mesmaConta=!!(
+    email &&
+    autorizacao &&
+    emailNormalizado(autorizacao.email)===email
+  );
+
+  cctAuthState.pessoa=mesmaConta ? (autorizacao.pessoa||null) : null;
+  cctAuthState.socio=!!(mesmaConta && autorizacao.socio);
+  cctAuthState.membro=!!(mesmaConta && autorizacao.membro);
   atualizarInterfaceAuth();
 }
 
@@ -263,7 +270,15 @@ function inicializarAutenticacaoCCT(){
     firebase.auth().onAuthStateChanged(user=>{
       cctAuthState.user=user||null;
       cctAuthState.ready=true;
+      apiData.autorizacao=null;
       resolverPermissoesAuth();
+
+      // A API pública não expõe PESSOAS internas.
+      // Depois do login, buscamos uma resposta autenticada com o Firebase ID token.
+      // No logout, voltamos imediatamente ao escopo público.
+      if(typeof atualizarDadosAPIRede==='function'){
+        atualizarDadosAPIRede({silencioso:true,forcar:true});
+      }
     });
   }catch(e){
     console.error('Firebase CCT:',e);
@@ -2576,9 +2591,10 @@ function aplicarDadosAPI(dados,{fonte='rede'}={}){
   apiData.conteudos=dados.conteudos||[];
   apiData.locais=dados.locais||[];
   apiData.pessoas=dados.pessoas||[];
-  resolverPermissoesAuth();
   apiData.eventos=dados.eventos||[];
   apiData.destaques=dados.destaques||[];
+  apiData.autorizacao=dados.autorizacao||null;
+  resolverPermissoesAuth();
 
   const competicoesPublicadas=apiData.competicoes
     .filter(registroPublicado)
@@ -2622,10 +2638,12 @@ function lerCacheAPI(){
 
 function salvarCacheAPI(dados){
   try{
+    const dadosPublicos={...dados};
+    delete dadosPublicos.autorizacao;
     localStorage.setItem(API_CACHE_KEY,JSON.stringify({
-      versao:1,
+      versao:2,
       salvoEm:Date.now(),
-      dados
+      dados:dadosPublicos
     }));
   }catch(e){
     console.warn('Não foi possível salvar o cache CCT:',e);
@@ -2645,10 +2663,66 @@ function mostrarErroAPI(){
   if(des) des.innerHTML='<div class="games-empty">Não foi possível atualizar os destaques agora.</div>';
 }
 
-async function atualizarDadosAPIRede({silencioso=false}={}){
+async function requisitarApiPublicaCCT(){
+  const resposta=await fetch(API_URL,{cache:'no-store'});
+  if(!resposta.ok) throw new Error('HTTP '+resposta.status);
+  const dados=await resposta.json();
+  if(dados?.sucesso===false) throw new Error(dados.erro||'API');
+  return {dados,autenticada:false};
+}
+
+async function requisitarApiAutenticadaCCT(){
+  const user=cctAuthState.user;
+  if(!user?.getIdToken) return requisitarApiPublicaCCT();
+
+  let token=await user.getIdToken(false);
+  let resposta=await fetch(API_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+    body:new URLSearchParams({token}).toString(),
+    cache:'no-store'
+  });
+
+  if(!resposta.ok) throw new Error('HTTP '+resposta.status);
+  let dados=await resposta.json();
+
+  // Um token pode expirar enquanto o PWA está aberto.
+  // Renova uma única vez antes de desistir.
+  if(dados?.sucesso===false && dados?.erro==='AUTENTICACAO_INVALIDA'){
+    token=await user.getIdToken(true);
+    resposta=await fetch(API_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+      body:new URLSearchParams({token}).toString(),
+      cache:'no-store'
+    });
+    if(!resposta.ok) throw new Error('HTTP '+resposta.status);
+    dados=await resposta.json();
+  }
+
+  if(dados?.sucesso===false) throw new Error(dados.erro||'API');
+  return {dados,autenticada:true};
+}
+
+async function requisitarApiCCT(){
+  if(cctAuthState.ready && authLogado()){
+    try{
+      return await requisitarApiAutenticadaCCT();
+    }catch(erro){
+      // Falha fechada: sem validação de token não mantemos dados internos.
+      console.warn('API autenticada indisponível; usando escopo público.',erro);
+      apiData.autorizacao=null;
+      resolverPermissoesAuth();
+      return requisitarApiPublicaCCT();
+    }
+  }
+  return requisitarApiPublicaCCT();
+}
+
+async function atualizarDadosAPIRede({silencioso=false,forcar=false}={}){
   const agora=Date.now();
   if(apiAtualizacaoPromise) return apiAtualizacaoPromise;
-  if(silencioso && agora-ultimaTentativaApi<API_RETRY_GUARD_MS) return null;
+  if(!forcar && silencioso && agora-ultimaTentativaApi<API_RETRY_GUARD_MS) return null;
   ultimaTentativaApi=agora;
   apiFreshness.verificando=true;
   apiFreshness.erroRede=false;
@@ -2656,12 +2730,13 @@ async function atualizarDadosAPIRede({silencioso=false}={}){
 
   apiAtualizacaoPromise=(async()=>{
     try{
-      const resposta=await fetch(API_URL,{cache:'no-store'});
-      if(!resposta.ok) throw new Error('HTTP '+resposta.status);
-      const dados=await resposta.json();
-      if(dados?.sucesso===false) throw new Error(dados.erro||'API');
-      salvarCacheAPI(dados);
-      aplicarDadosAPI(dados,{fonte:'rede'});
+      const {dados,autenticada}=await requisitarApiCCT();
+
+      // Respostas autenticadas podem conter dados internos.
+      // Nunca persistimos isso no localStorage.
+      if(!autenticada) salvarCacheAPI(dados);
+
+      aplicarDadosAPI(dados,{fonte:autenticada?'rede autenticada':'rede'});
       return dados;
     }catch(erro){
       console.error('Erro ao atualizar API CCT:',erro);
