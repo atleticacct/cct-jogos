@@ -746,6 +746,14 @@ function classificacaoGeralHtml(){
   const maiorConfirmado=Math.max(0,...linhas.map(r=>numeroCenarioGeral(r.PONTOS)??0));
   const haConfirmados=maiorConfirmado>0;
 
+  if(jogosUI.competicao==='JIUDESC-2026' && !haConfirmados){
+    return `
+      <div class="games-empty">
+        <strong>Classificação geral ainda não iniciada.</strong>
+        <span>Os ${linhas.length} centros já estão cadastrados. A ordem e a pontuação aparecerão automaticamente após os primeiros resultados oficiais.</span>
+      </div>`;
+  }
+
   return `
     <section class="general-ranking general-ranking-v45">
       <div class="general-ranking-head-v45">
@@ -956,7 +964,9 @@ function renderizarClassificacao(){
   renderizarSeletorClassificacao();
 
   if(!jogosUI.classificacaoModalidade){
-    container.innerHTML='<div class="games-empty">Esta competição ainda não possui classificação por modalidade publicada.</div>';
+    container.innerHTML=competicaoEmPreviaInterna(jogosUI.competicao)
+      ? '<div class="games-empty"><strong>Classificação por modalidade ainda não iniciada.</strong><span>Ela será formada automaticamente conforme os primeiros resultados oficiais do JIUDESC forem lançados.</span></div>'
+      : '<div class="games-empty">Esta competição ainda não possui classificação por modalidade publicada.</div>';
     return;
   }
 
@@ -1164,6 +1174,43 @@ function cenarioGeralHtml(){
     .map(v=>String(v||'').trim()).filter(Boolean);
   const atualizadoRaw=atualizacoes.find(v=>/\d{1,2}:\d{2}/.test(v)) || atualizacoes[0] || '';
   const atualizado=formatarAtualizacaoCenarioGeral(atualizadoRaw);
+
+  const jiudescSemResultados=(
+    jogosUI.competicao==='JIUDESC-2026' &&
+    !haPontuacaoConfirmada &&
+    (ptsMin===null || ptsMin===0) &&
+    (ptsMax===null || ptsMax===0)
+  );
+  if(jiudescSemResultados){
+    return `
+      <section class="general-scenario-card">
+        <div class="general-scenario-hero">
+          <div>
+            <span class="chip">GERAL DA COMPETIÇÃO</span>
+            <small>JIUDESC 2026</small>
+            <h3>AGUARDANDO PRIMEIROS RESULTADOS</h3>
+          </div>
+          <div class="general-position is-pending">
+            <strong>—</strong>
+            <span>posição ainda não definida</span>
+          </div>
+        </div>
+        <div class="general-scenario-metrics">
+          <div><small>CONFIRMADOS</small><strong>0</strong><span>CCT</span></div>
+          <div><small>CLASSIFICAÇÃO</small><strong>—</strong><span>aguardando resultados</span></div>
+        </div>
+        <div class="general-scenario-body">
+          <div>
+            <small>CENÁRIO ATUAL</small>
+            <p>O motor do JIUDESC está preparado, mas ainda não há resultados oficiais suficientes para calcular classificação, faixas de pontuação ou condições reais de título.</p>
+          </div>
+          <div class="general-needed is-incomplete">
+            <small>PRÓXIMA ATUALIZAÇÃO</small>
+            <strong>Assim que os primeiros resultados forem lançados, os cenários serão recalculados automaticamente.</strong>
+          </div>
+        </div>
+      </section>`;
+  }
 
   const textoPendencia=`${precisa} ${caminho}`.toUpperCase();
   const cenarioIncompleto=(
@@ -2364,6 +2411,11 @@ function renderizarCenarios(){
     .filter(c=>c.ID_COMPETICAO===jogosUI.competicao)
     .sort((a,b)=>modalidadeNome(a.ID_MODALIDADE).localeCompare(modalidadeNome(b.ID_MODALIDADE),'pt-BR'));
 
+  if(!linhas.length && competicaoEmPreviaInterna(jogosUI.competicao)){
+    container.innerHTML='<div class="games-empty"><strong>Cenários por modalidade ainda não disponíveis.</strong><span>Eles aparecerão conforme os resultados oficiais forem registrados e a classificação de cada modalidade começar a ser formada.</span></div>';
+    return;
+  }
+
   container.innerHTML=linhas.length ? linhas.map(c=>{
     const atual=resumoCenarioAtual(c);
     const precisa=resumoCenarioPrecisa(c);
@@ -2433,6 +2485,11 @@ function renderizarDestaques(){
     .filter(d=>d.ID_COMPETICAO===jogosUI.competicao)
     .filter(d=>!Object.prototype.hasOwnProperty.call(d,'PUBLICADO') || isSim(d.PUBLICADO))
     .sort((a,b)=>(Number(a.ORDEM)||999)-(Number(b.ORDEM)||999));
+
+  if(!linhas.length && competicaoEmPreviaInterna(jogosUI.competicao)){
+    container.innerHTML='<div class="games-empty"><strong>Nenhum destaque ainda.</strong><span>Medalhas, títulos, recordes e conquistas do JIUDESC aparecerão após os resultados oficiais.</span></div>';
+    return;
+  }
 
   container.innerHTML=linhas.length ? linhas.map(d=>{
     const foto=normalizeImageUrl(d.FOTO_URL||'');
