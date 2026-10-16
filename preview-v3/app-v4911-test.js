@@ -58,6 +58,9 @@ let apiData = {
   pessoas: [],
   eventos: [],
   destaques: [],
+  agenda_cct_jiudesc: [],
+  escala_responsaveis_jiudesc: [],
+  conflitos_cct_jiudesc: [],
   autorizacao: null
 };
 
@@ -2573,7 +2576,7 @@ function aplicarDadosAPI(dados,{fonte='rede'}={}){
 
   apiFreshness.fonte=fonte;
   apiFreshness.ultimaAlteracao=ultimaAlteracaoDadosCct(dados);
-  if(fonte==='rede'){
+  if(String(fonte).startsWith('rede')){
     apiFreshness.redeConfirmada=true;
     apiFreshness.erroRede=false;
     apiFreshness.verificando=false;
@@ -2593,6 +2596,9 @@ function aplicarDadosAPI(dados,{fonte='rede'}={}){
   apiData.pessoas=dados.pessoas||[];
   apiData.eventos=dados.eventos||[];
   apiData.destaques=dados.destaques||[];
+  apiData.agenda_cct_jiudesc=dados.agenda_cct_jiudesc||[];
+  apiData.escala_responsaveis_jiudesc=dados.escala_responsaveis_jiudesc||[];
+  apiData.conflitos_cct_jiudesc=dados.conflitos_cct_jiudesc||[];
   apiData.autorizacao=dados.autorizacao||null;
   resolverPermissoesAuth();
 
@@ -3321,7 +3327,12 @@ function programacaoPersonalizada(){
       .filter(a=>agendaInternaPertenceAoPerfil(a,p))
       .forEach(a=>itens.push({...a,_ORIGEM:'INTERNA',_ID_UNICO:`INTERNA:${a.ID_AGENDA||[a.DATA,a.HORA_INICIO,a.TITULO].join('|')}`}));
 
-    // Representações CCT futuras também entram na programação do membro.
+    // Operação JIUDESC interna entra na programação do membro.
+    (apiData.agenda_cct_jiudesc||[])
+      .filter(a=>dataVal(a.DATA,a.HORA)>=inicio)
+      .forEach(a=>itens.push(agendaCctJiudescComoAgenda(a)));
+
+    // Representações legadas continuam compatíveis.
     apiData.jogos
       .filter(j=>jogoEhRepresentacaoCCT(j) && !isFinalizado(j))
       .filter(j=>(parseBrDate(j.DATA,j.HORA)?.getTime()||0)>=inicio)
@@ -3587,48 +3598,138 @@ function renderizarAtalhosUteisHome(){
   }));
 }
 
+function agendaCctJiudescComoAgenda(a){
+  const adversario=String(a.ADVERSARIO||'').trim();
+  const fase=String(a.FASE||'').trim();
+  const titulo=[a.MODALIDADE||modalidadeNome(a.ID_MODALIDADE),adversario?('× '+adversario):''].filter(Boolean).join(' ');
+  const descricao=[
+    fase,
+    a.GRUPO?('Grupo '+a.GRUPO):'',
+    a.STATUS_AGENDA,
+    a.RESPONSAVEL_CCT?('Responsável: '+a.RESPONSAVEL_CCT):'',
+    a.RISCO_ATLETA && normalizarTexto(a.RISCO_ATLETA)!=='NÃO'?('Risco: '+a.RISCO_ATLETA):'',
+    a.OBSERVACAO
+  ].filter(Boolean).join(' • ');
+  return {
+    DATA:a.DATA,
+    HORA_INICIO:a.HORA,
+    TIPO:'OPERAÇÃO JIUDESC',
+    TITULO:titulo||'Compromisso CCT',
+    ID_MODALIDADE:a.ID_MODALIDADE||'',
+    LOCAL:a.LOCAL||'',
+    DESCRICAO:descricao,
+    _ORIGEM:'INTERNA',
+    _ID_UNICO:'JIUDESC:'+(a.ID_JOGO_EVENTO||[a.DATA,a.HORA,a.ID_MODALIDADE].join('|'))
+  };
+}
+function escalaJiudescFutura(){
+  const agora=Date.now();
+  return (apiData.escala_responsaveis_jiudesc||[])
+    .filter(e=>{
+      const d=parseBrDate(e.DATA,e.HORA);
+      return d && d.getTime()>=agora;
+    })
+    .sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
+}
+function conflitosJiudescPendentes(){
+  const encerrados=['RESOLVIDO','CONCLUÍDO','CONCLUIDO','CANCELADO'];
+  return (apiData.conflitos_cct_jiudesc||[])
+    .filter(c=>!encerrados.includes(normalizarTexto(c.STATUS)))
+    .sort((a,b)=>{
+      const peso=x=>normalizarTexto(x.NIVEL)==='MUITO ALTO'?4:normalizarTexto(x.NIVEL)==='ALTO'?3:normalizarTexto(x.NIVEL)==='MÉDIO'?2:1;
+      const p=peso(b)-peso(a); if(p) return p;
+      return dataVal(a.DATA,a.HORA_A)-dataVal(b.DATA,b.HORA_A);
+    });
+}
+function conflitoJiudescHtml(c){
+  const nivel=normalizarTexto(c.NIVEL);
+  const classe=nivel==='MUITO ALTO'?'danger':nivel==='ALTO'?'warning':'';
+  const titulo=c.ATLETA?c.ATLETA:(c.TIPO==='AGENDA_SIMULTANEA'?'Agenda simultânea':'Conflito operacional');
+  return `<div class="content-item member-conflict ${classe}"><div><strong>${escapeHtml(titulo)}</strong><small>${escapeHtml([c.DATA,c.HORA_A,c.NIVEL].filter(Boolean).join(' • '))}</small><p>${escapeHtml([c.EVENTO_A,c.EVENTO_B].filter(Boolean).join(' → '))}</p>${c.ACAO_RECOMENDADA?`<small>${escapeHtml(c.ACAO_RECOMENDADA)}</small>`:''}</div></div>`;
+}
+function escalaJiudescComoAgenda(e){
+  const resp=[e.RESPONSAVEL_PRINCIPAL,e.RESPONSAVEL_APOIO].filter(Boolean).join(' + ');
+  return {
+    DATA:e.DATA,
+    HORA_INICIO:e.HORA,
+    TIPO:'ESCALA JIUDESC',
+    TITULO:e.MODALIDADE||modalidadeNome(e.ID_MODALIDADE)||'Compromisso CCT',
+    ID_MODALIDADE:e.ID_MODALIDADE||'',
+    LOCAL:e.LOCAL||'',
+    DESCRICAO:[
+      e.FASE,
+      'Prioridade: '+(e.PRIORIDADE||'NORMAL'),
+      resp?('Responsável: '+resp):'Responsável a definir',
+      e.STATUS_ESCALA,
+      e.OBSERVACAO
+    ].filter(Boolean).join(' • '),
+    _ORIGEM:'INTERNA',
+    _ID_UNICO:'ESCALA:'+(e.ID_EVENTO||[e.DATA,e.HORA,e.ID_MODALIDADE].join('|'))
+  };
+}
+
 function abrirAgendaMembros(filtro=''){
   if(!authMembroAprovado()){ atualizarAcessoAreaMembros(); go('membros'); return; }
-  let itens=somenteMembros(apiData.agenda).sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
-  if(filtro==='salinha') itens=itens.filter(a=>categoriaTem([a.TIPO,a.TITULO,a.LOCAL].join(' '),['SALINHA','ATEND']));
-  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${filtro==='salinha'?`${uiIcon('store','heading-icon')} Escala da salinha`:`${uiIcon('calendar','heading-icon')} Agenda interna`}</h2><div class="member-agenda-modal">${itens.length?agendaAgrupadaHtml(itens):'<div class="games-empty">Nenhum compromisso interno publicado.</div>'}</div>`;
+  let itens=somenteMembros(apiData.agenda);
+  if(filtro==='salinha'){
+    itens=itens.filter(a=>categoriaTem([a.TIPO,a.TITULO,a.LOCAL].join(' '),['SALINHA','ATEND']));
+  }else{
+    itens=[
+      ...itens,
+      ...(apiData.agenda_cct_jiudesc||[]).map(agendaCctJiudescComoAgenda)
+    ];
+  }
+  itens=itens.sort((a,b)=>dataVal(a.DATA,a.HORA_INICIO)-dataVal(b.DATA,b.HORA_INICIO));
+  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${filtro==='salinha'?`${uiIcon('store','heading-icon')} Escala da salinha`:`${uiIcon('calendar','heading-icon')} Agenda interna + JIUDESC`}</h2><div class="member-agenda-modal">${itens.length?agendaAgrupadaHtml(itens):'<div class="games-empty">Nenhum compromisso interno cadastrado.</div>'}</div>`;
   modal.classList.add('open');
 }
 function abrirAvisosMembros(){
   if(!authMembroAprovado()){ atualizarAcessoAreaMembros(); go('membros'); return; }
   const av=avisosAtivos('membros');
-  mc.innerHTML=`<span class="chip ${av.some(x=>isSim(x.URGENTE))?'live':''}">${av.length} ${av.length===1?'AVISO INTERNO':'AVISOS INTERNOS'}</span><h2>${uiIcon('alert','heading-icon')} Avisos internos</h2><div class="modal-list">${av.length?av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso interno')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join(''):'<div><strong>Nenhum aviso interno ativo</strong><small>Os avisos exclusivos para membros aparecerão aqui.</small></div>'}</div>`;
+  const conflitos=conflitosJiudescPendentes();
+  const total=av.length+conflitos.length;
+  mc.innerHTML=`<span class="chip ${conflitos.some(x=>['MUITO ALTO','ALTO'].includes(normalizarTexto(x.NIVEL)))||av.some(x=>isSim(x.URGENTE))?'live':''}">${total} ALERTAS</span><h2>${uiIcon('alert','heading-icon')} Alertas e conflitos</h2>${conflitos.length?`<div class="section-head"><div><i></i><h3>JIUDESC</h3></div></div><div class="modal-list">${conflitos.map(conflitoJiudescHtml).join('')}</div>`:''}${av.length?`<div class="section-head"><div><i></i><h3>AVISOS INTERNOS</h3></div></div><div class="modal-list">${av.map(a=>`<div><strong>${escapeHtml(a.TITULO||'Aviso interno')}</strong><small>${escapeHtml(a.MENSAGEM||'')}</small>${linkSeguro(a.LINK)?`<a class="content-link" href="${escapeHtml(a.LINK)}" target="_blank" rel="noopener">${escapeHtml(a.TEXTO_BOTAO||'ABRIR')} ›</a>`:''}</div>`).join('')}</div>`:''}${!total?'<div class="games-empty">Nenhum alerta interno pendente.</div>':''}`;
   modal.classList.add('open');
 }
 function abrirRepresentacoesMembros(){
   if(!authMembroAprovado()){ atualizarAcessoAreaMembros(); go('membros'); return; }
-  const itens=apiData.jogos.filter(j=>jogoEhRepresentacaoCCT(j)).sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
-  mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${uiIcon('trophy','heading-icon')} Representações CCT</h2><div>${itens.length?itens.map(j=>matchCard(j)).join(''):'<div class="games-empty"><strong>Nenhuma representação CCT cadastrada.</strong><span>Os jogos marcados para representação aparecerão aqui.</span></div>'}</div>`;
+  const escalas=escalaJiudescFutura();
+  if(escalas.length){
+    const itens=escalas.map(escalaJiudescComoAgenda);
+    mc.innerHTML=`<span class="chip">MEMBROS • JIUDESC</span><h2>${uiIcon('trophy','heading-icon')} Escala operacional</h2><div class="member-agenda-modal">${agendaAgrupadaHtml(itens)}</div>`;
+  }else{
+    const legados=apiData.jogos.filter(j=>jogoEhRepresentacaoCCT(j)).sort((a,b)=>(parseBrDate(a.DATA,a.HORA)?.getTime()||0)-(parseBrDate(b.DATA,b.HORA)?.getTime()||0));
+    mc.innerHTML=`<span class="chip">MEMBROS</span><h2>${uiIcon('trophy','heading-icon')} Representações CCT</h2><div>${legados.length?legados.map(j=>matchCard(j)).join(''):'<div class="games-empty"><strong>Nenhuma escala futura cadastrada.</strong></div>'}</div>`;
+  }
   modal.classList.add('open');
 }
 function renderizarAreaMembros(){
   const hoje=new Date();
   const agendaM=somenteMembros(apiData.agenda);
-  const hojeCount=agendaM.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA_INICIO),hoje)).length;
-  const reps=apiData.jogos.filter(j=>jogoEhRepresentacaoCCT(j));
-  const repsFuturas=reps.filter(j=>{const d=parseBrDate(j.DATA,j.HORA);return d && d.getTime()>=Date.now() && !isFinalizado(j);});
+  const agendaJiu=apiData.agenda_cct_jiudesc||[];
+  const hojeCount=
+    agendaM.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA_INICIO),hoje)).length+
+    agendaJiu.filter(a=>sameDay(parseBrDate(a.DATA,a.HORA),hoje)).length;
+
+  const escalas=escalaJiudescFutura();
+  const pendentes=escalas.filter(e=>!isSim(e.CONFIRMADO) || normalizarTexto(e.STATUS_ESCALA)==='A DEFINIR');
+  const conflitos=conflitosJiudescPendentes();
   const alertas=avisosAtivos('membros');
 
   const elHoje=$('#memberTodayCount'), elRep=$('#memberRepCount'), elAv=$('#memberAlertCount');
   if(elHoje) elHoje.textContent=hojeCount;
-  if(elRep) elRep.textContent=repsFuturas.length;
-  if(elAv) elAv.textContent=alertas.length;
+  if(elRep) elRep.textContent=pendentes.length;
+  if(elAv) elAv.textContent=conflitos.length+alertas.length;
 
   const lista=$('#memberRepresentationsList');
   if(lista){
-    const proximas=repsFuturas.sort((a,b)=>parseBrDate(a.DATA,a.HORA)-parseBrDate(b.DATA,b.HORA)).slice(0,4);
-    lista.innerHTML=proximas.length?proximas.map(j=>{
-      const dados=responsavelRepresentacaoDados(j);
-      const nome=dados.nome||'Responsável a definir';
-      const foto=normalizeImageUrl(dados.foto||'');
+    const proximas=escalas.slice(0,4);
+    lista.innerHTML=proximas.length?proximas.map(e=>{
+      const nome=e.RESPONSAVEL_PRINCIPAL||'Responsável a definir';
       const iniciais=nome.split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase();
-      return `<div>${foto?`<img src="${escapeHtml(foto)}" alt="">`:`<div class="avatar-placeholder">${escapeHtml(iniciais||'CCT')}</div>`}<span><strong>${escapeHtml(nome)}</strong><small>${escapeHtml(competitionName(j.ID_COMPETICAO))} • ${escapeHtml(modalidadeNome(j.ID_MODALIDADE))} • ${escapeHtml(j.DATA||'')} ${escapeHtml(j.HORA||'')}</small></span></div>`;
-    }).join(''):'<div class="games-empty">Nenhuma representação futura cadastrada.</div>';
+      const risco=normalizarTexto(e.RISCO_ATLETA);
+      return `<div><div class="avatar-placeholder">${escapeHtml(iniciais||'CCT')}</div><span><strong>${escapeHtml(nome)}</strong><small>${escapeHtml([e.MODALIDADE,e.DATA,e.HORA,e.LOCAL].filter(Boolean).join(' • '))}</small>${risco&&risco!=='NÃO'?`<small>⚠ ${escapeHtml(risco)} — ${escapeHtml(e.ATLETAS_COM_RISCO||'')}</small>`:''}</span></div>`;
+    }).join(''):'<div class="games-empty">Nenhuma escala futura cadastrada.</div>';
   }
 }
 function bindAreaMembros(){
