@@ -416,7 +416,7 @@ function nomeLadoJogo(jogo,lado){
 
 const CENTRO_LOGOS={
   CAV:'assets/centros/cav.jpg',
-  CCT:'assets/centros/cct.png',
+  CCT:'assets/centros/cct.jpg',
   CEART:'assets/centros/ceart.jpg',
   CEAVI:'assets/centros/ceavi.jpg',
   CEFID:'assets/centros/cefid.jpg',
@@ -2993,7 +2993,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=4101',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=4102',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -3002,7 +3002,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV4101';
+        const chave='cctSwReloadV4102';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
