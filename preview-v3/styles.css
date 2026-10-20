@@ -1415,3 +1415,19 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
   .simc-score-entry{grid-template-columns:minmax(0,1fr) 10px minmax(0,1fr) auto;gap:5px}
   .simc-score-entry button.simc-clear{grid-column:1/-1}
 }
+
+/* V4.11.1 — parciais dos sets e médias no simulador */
+.simc-sets-editor{display:grid;gap:8px;padding:11px;border:1px solid #2f5538;border-radius:11px;background:#101b14}
+.simc-sets-editor>strong{font-size:10px;letter-spacing:.7px;color:#96e6a9}
+.simc-sets-labels,.simc-set-row{display:grid;grid-template-columns:57px minmax(0,1fr) 14px minmax(0,1fr);gap:8px;align-items:center;text-align:center}
+.simc-sets-labels{color:#91ac98;font-size:9px;font-weight:800}
+.simc-set-row>span:first-child{font-size:10px;color:#b2c5b7;text-align:left}
+.simc-set-row input{min-width:0;width:100%;box-sizing:border-box;border:1px solid #446b4d;background:#0b140e;color:#fff;font-weight:800;font-size:16px;text-align:center;padding:9px 4px;border-radius:9px}
+.simc-sets-editor>small{font-size:9px;line-height:1.5;color:#9daea2}
+.simc-sets-editor .simc-legacy{color:#efc981}
+.simc-actions{display:flex;flex-wrap:wrap;gap:7px}
+.simc-actions button{border:1px solid #40864d;border-radius:9px;background:#1b4a29;color:white;font-size:10px;font-weight:900;padding:11px 12px}
+.simc-actions button.simc-clear{background:#242017;color:#d7be85;border-color:#494333}
+.simc-set-summary{font-size:10px;color:#aac8ae;margin:0}
+.simc-coef-detail{font-size:9px;padding:1px 8px 9px 34px;border-bottom:1px solid #1c2c22;color:#9fb6a6;line-height:1.5}
+.simc-tie-note{padding:7px 11px;color:#e6c888}
