@@ -1341,3 +1341,77 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
   .standing-centre-logo{width:23px;height:23px;flex-basis:23px}
   .general-centre-logo{width:30px;height:30px;flex-basis:30px}
 }
+
+/* V4.11.0 — perfil: colunas realmente fluidas no iPhone */
+#sportGrid.sport-grid{width:100%;min-width:0;max-width:100%;grid-template-columns:repeat(2,minmax(0,1fr));box-sizing:border-box}
+#sportGrid.sport-grid .sport-choice{min-width:0;max-width:100%;width:100%;box-sizing:border-box;grid-template-columns:34px minmax(0,1fr) 22px!important;column-gap:8px!important;overflow:hidden}
+#sportGrid.sport-grid .sport-choice strong,
+#sportGrid.sport-grid .sport-choice small{min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:normal}
+#sportGrid.sport-grid .sport-choice b{min-width:0}
+.profile-card:has(#sportGrid){min-width:0;max-width:100%;box-sizing:border-box}
+
+/* V4.11.0 — cenários calculados por modalidade, isolados do oficial */
+.simc-shell{display:grid;gap:13px;min-width:0}
+.simc-intro{background:#102018;border:1px solid #315b40;border-radius:16px;padding:13px}
+.simc-intro>strong{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11px;letter-spacing:.5px}
+.simc-intro>strong span{color:#e5c883;border:1px solid #5b4c27;border-radius:6px;padding:3px 5px;font-size:8px}
+.simc-intro p{font-size:11px;color:#a7b8aa;line-height:1.55;margin:8px 0 0}
+.simc-select-wrap{display:grid;gap:5px}
+.simc-select-wrap label{font-size:9px;font-weight:900;color:#8da694;letter-spacing:1px}
+.simc-select-wrap select{width:100%;min-width:0;appearance:auto;border:1px solid #33543b;border-radius:12px;background:#111b14;color:#f7fff8;font-size:14px;padding:13px}
+.simc-stats{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.simc-stats>span{font-size:9px;color:#adbbb0;border-radius:9px;background:#111b15;padding:8px 9px}
+.simc-stats>span b{font-size:13px;color:white}
+.simc-stats button{border:1px solid #465243;background:#172018;color:#b9ccbd;border-radius:9px;padding:9px;font-size:9px;font-weight:800;margin-left:auto}
+.simc-stats button:disabled{opacity:.35}
+.simc-tables{display:grid;gap:11px;min-width:0}
+.simc-tables h3{font-size:14px;margin:3px 0 0}
+.simc-group{border:1px solid #2d3e31;border-radius:14px;overflow:hidden;background:#0d1510;min-width:0}
+.simc-group-title{padding:12px 11px;border-bottom:1px solid #26372d;display:grid;gap:3px}
+.simc-group-title strong{font-size:12px;color:#f4fbf5}
+.simc-group-title small{font-size:9px;color:#8eaa96}
+.simc-rank-head,.simc-rank-row{display:grid;grid-template-columns:25px minmax(0,1fr) 19px 19px 19px 19px 27px 30px;align-items:center;gap:2px;padding:10px 7px;min-width:0;text-align:center}
+.simc-rank-head{font-size:8px;color:#778c7c;font-weight:900;letter-spacing:.15px}
+.simc-rank-head span:nth-child(2){text-align:left}
+.simc-rank-row{border-top:1px solid #1c2c22;font-size:10px;color:#d2dfd4}
+.simc-rank-row.is-cct{background:#14271a}
+.simc-rank-row strong{font-size:12px;color:#8ceda5}
+.simc-rank-row .simc-pos{font-size:10px}
+.simc-team{display:flex;align-items:center;gap:6px;min-width:0;text-align:left}
+.simc-team>span:last-child{min-width:0;overflow-wrap:anywhere;font-size:11px;line-height:1.2}
+.simc-team .standing-centre-logo{width:22px;height:22px;flex:0 0 22px}
+.simc-note,.simc-footer{font-size:10px;line-height:1.5;color:#9bac9f;margin:2px 0}
+.simc-footer{border-top:1px solid #28362c;padding-top:11px}
+.simc-final-row{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px;border-top:1px solid #26372d;font-size:11px}
+.simc-final-row strong{font-size:10px;color:#7adf94}
+.simc-fixtures{display:grid;gap:8px}
+.simc-fixtures-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.simc-fixtures-head strong{font-size:13px}
+.simc-fixtures-head small{font-size:9px;color:#8fa698;white-space:nowrap}
+.simc-match{min-width:0;border:1px solid #2a382e;background:#0e1611;border-radius:12px;padding:11px;display:grid;gap:9px}
+.simc-match.simulado{border-color:#386748;background:#102319}
+.simc-match-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#81968a;font-size:9px}
+.simc-match-meta b{border-radius:6px;background:#202d23;color:#bfd3c2;padding:4px 6px;font-size:8px;letter-spacing:.4px}
+.simc-match.simulado .simc-match-meta b{color:#83eba2;background:#173c23}
+.simc-match-teams{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:9px}
+.simc-match-teams .simc-team:last-child{justify-content:flex-end;text-align:right;flex-direction:row-reverse}
+.simc-match-teams .simc-team:last-child>span:last-child{text-align:right}
+.simc-match-teams>b{font-size:13px;white-space:nowrap}
+.simc-score-entry{display:grid;grid-template-columns:minmax(0,1fr) 10px minmax(0,1fr) auto auto;gap:5px;align-items:end}
+.simc-score-entry label{min-width:0;font-size:8px;color:#9db3a3;display:grid;gap:4px;overflow-wrap:anywhere}
+.simc-score-entry input{min-width:0;max-width:100%;width:100%;box-sizing:border-box;text-align:center;border:1px solid #41654a;border-radius:9px;background:#0c160f;color:#fff;font-size:16px;font-weight:800;padding:9px 3px}
+.simc-score-entry>span{align-self:center;font-size:12px;text-align:center}
+.simc-score-entry button{border:1px solid #40864d;border-radius:9px;background:#1b4a29;color:white;font-size:9px;font-weight:900;padding:12px 7px;white-space:nowrap}
+.simc-score-entry button.simc-clear{border-color:#494333;background:#242017;color:#d7be85}
+.simc-error{color:#f7b29e;font-size:10px}
+.simc-error:empty{display:none}
+.simc-match-locked,.simc-phase{font-size:9px;color:#82968a}
+@media(max-width:390px){
+  #sportGrid.sport-grid{column-gap:7px}
+  #sportGrid.sport-grid .sport-choice{grid-template-columns:29px minmax(0,1fr) 19px!important;gap:6px!important;padding:8px!important}
+  #sportGrid.sport-grid .sport-icon{width:29px;height:29px}
+  .simc-rank-head,.simc-rank-row{grid-template-columns:21px minmax(0,1fr) repeat(4,16px) 24px 25px;padding:9px 5px}
+  .simc-team .standing-centre-logo{width:18px;height:18px;flex-basis:18px}
+  .simc-score-entry{grid-template-columns:minmax(0,1fr) 10px minmax(0,1fr) auto;gap:5px}
+  .simc-score-entry button.simc-clear{grid-column:1/-1}
+}
