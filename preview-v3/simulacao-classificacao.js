@@ -48,6 +48,8 @@ function simClassEhGrupo(j){return /GRUPO|CLASSIFICAT/.test(simClassNorm(j.FASE)
 function simClassTipo(mod){
   const t=simClassNorm(mod);
   if(t.startsWith('VOL'))return 'VOL';
+  if(t.startsWith('BAD'))return 'BAD';
+  if(t.startsWith('TME'))return 'TME';
   if(t.startsWith('FUT')||t.startsWith('FSC')||t.startsWith('SOC'))return 'EMPATE';
   if(t.startsWith('BAS'))return 'BAS';
   if(t.startsWith('HAN'))return 'HAN';
@@ -136,7 +138,8 @@ function simClassPontos(tipo,a,b){
     if(b===2&&a===0)return [0,3];
     return [0,0];
   }
-  if(tipo==='BAS')return a>b?[2,1]:[1,2];
+  if(tipo==='BAS'||tipo==='TME')return a>b?[2,1]:[1,2];
+  if(tipo==='BAD')return a>b?[3,1]:[1,3];
   if(tipo==='HAN')return a===b?[2,2]:(a>b?[3,1]:[1,3]);
   if(a===b)return tipo==='EMPATE'?[1,1]:[0,0];
   return a>b?[3,0]:[0,3];
@@ -160,7 +163,7 @@ function simClassDados(comp,mod){
       derrotas:simClassNum(r.DERROTAS),
       pro:simClassNum(vol&&hasPointsSets?r.PONTOS_SETS_PRO:r.PRO),
       contra:simClassNum(vol&&hasPointsSets?r.PONTOS_SETS_CONTRA:r.CONTRA),
-      pontosCompletos:!vol||!played||hasPointsSets||hasGenericPoints,
+      pontosCompletos:(!vol&&simClassTipo(mod)!=='TME')||!played||hasPointsSets||hasGenericPoints,
       setsV:simClassNum(r.SETS_VENCIDOS),setsP:simClassNum(r.SETS_PERDIDOS),
       original:simClassNum(r.POSICAO,999),oficial:r
     });
@@ -195,7 +198,8 @@ function simClassRankingGrupo(group,mod,comp,store){
     a.contra+=tipo==='VOL'?r.ptsB:r.b;
     b.pro+=tipo==='VOL'?r.ptsB:r.b;
     b.contra+=tipo==='VOL'?r.ptsA:r.a;
-    if(tipo==='VOL'){a.setsV+=r.a;a.setsP+=r.b;b.setsV+=r.b;b.setsP+=r.a;}
+    if(tipo==='VOL'||tipo==='TME'){a.setsV+=r.a;a.setsP+=r.b;b.setsV+=r.b;b.setsP+=r.a;}
+    if(tipo==='BAD'){if(r.a>r.b){a.setsV++;b.setsP++;}else if(r.b>r.a){b.setsV++;a.setsP++;}}
     if(r.a>r.b){a.vitorias++;b.derrotas++;}
     else if(r.a<r.b){b.vitorias++;a.derrotas++;}
     else{a.empates++;b.empates++;}
@@ -209,6 +213,18 @@ function simClassRankingGrupo(group,mod,comp,store){
       if(sets)return sets;
       if(a.pontosCompletos&&b.pontosCompletos)
         return simClassCompararCoef(a.pro,a.contra,b.pro,b.contra);
+      pendenteDesempate=true;return 0;
+    }
+    if(tipo==='BAD'){
+      if(a.vitorias!==b.vitorias)return b.vitorias-a.vitorias;
+      const setDifference=(b.setsV-b.setsP)-(a.setsV-a.setsP);
+      if(setDifference)return setDifference;
+      return (b.pro-b.contra)-(a.pro-a.contra);
+    }
+    if(tipo==='TME'){
+      const sets=simClassCompararCoef(a.setsV,a.setsV+a.setsP,b.setsV,b.setsV+b.setsP);
+      if(sets)return sets;
+      if(a.pontosCompletos&&b.pontosCompletos)return simClassCompararCoef(a.pro,a.pro+a.contra,b.pro,b.pro+b.contra);
       pendenteDesempate=true;return 0;
     }
     if(tipo==='HAN'){
@@ -347,7 +363,7 @@ function simClassProjecaoClassificados(dados,mod,comp,store){
   const minGroup=Math.min(...packs.map(x=>x.rank.rows.length));
   const sizesDiffer=packs.some(x=>x.rank.rows.length!==minGroup);
   const article33=/^(?:VOL|BAS|FUT|SOC|HAN)/.test(simClassNorm(mod));
-  const seconds=packs.map(p=>simClassComparativoSegundo(p,minGroup,mod,comp,store,article33&&sizesDiffer)).filter(Boolean);
+  const seconds=livres?packs.map(p=>simClassComparativoSegundo(p,minGroup,mod,comp,store,article33&&sizesDiffer)).filter(Boolean):[];
   seconds.sort((a,b)=>simClassCompareSecond(a,b,mod)||a.grupo.localeCompare(b.grupo));
   const qualificados=(!vagas?[]:[
     ...leaders.slice(0,vagas),
@@ -359,7 +375,7 @@ function simClassProjecaoClassificados(dados,mod,comp,store){
   const reason=[];
   const tieGroups=packs.filter(p=>p.rank.pendenteDesempate);
   if(tieGroups.length)reason.push('Há empates de grupo que ainda precisam de critérios adicionais.');
-  if(seconds.some(x=>x.incompletos))reason.push('Alguns jogos/parciais não permitem concluir o desempate entre segundos.');
+  if(livres&&seconds.length>livres&&seconds.some(x=>x.incompletos))reason.push('Há jogos ou parciais pendentes para desempatar os segundos colocados.');
   if(seconds.length>livres&&livres>0){
     const next=seconds[livres],prev=seconds[livres-1];
     if(next&&prev&&simClassCompareSecond(prev,next,mod)===0)
@@ -397,8 +413,8 @@ function simClassHtmlClassificados(p){
     '<span>'+(team.tipo==='MELHOR_SEGUNDO'?team.pontos+' pts*':team.pontos+' pts')+'</span></div>'
   ).join('');
   const ranking=p.qualificados.some(x=>simClassNorm(x.equipe)==='CCT')
-    ?'<div class="simc-qualified-cct is-in">CCT estaria na zona de classificação neste cenário.</div>'
-    :'<div class="simc-qualified-cct">CCT está fora da zona de classificação neste cenário.</div>';
+    ?'<div class="simc-qualified-cct is-in">CCT aparece na zona de classificação '+(pendente?'provisória; ainda há resultados ou critérios pendentes.':'deste cenário.')+'</div>'
+    :'<div class="simc-qualified-cct">CCT não aparece entre os classificados '+(pendente?'neste momento; há resultados ou critérios pendentes.':'deste cenário.')+'</div>';
   const caveats=p.avisos.length?'<div class="simc-qualified-warnings">'+p.avisos.map(x=>'<p>'+escapeHtml(x)+'</p>').join('')+'</div>':'';
   return '<section class="simc-qualified">'+summary+
     '<div class="simc-qualified-list">'+cards+'</div>'+ranking+
