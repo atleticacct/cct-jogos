@@ -582,8 +582,12 @@ function simClassificacaoRender(container,comp){
   simClassModalidadePorCompeticao[comp]=chosen;
   const {jogos,linhas,groups}=simClassDados(comp,chosen);
   const store=simClassStorage();
-  const predicted=jogos.filter(j=>simClassResultado(j,store,comp).fonte==='SIMULADO').length;
-  const official=jogos.filter(j=>simClassResultado(j,store,comp).fonte==='OFICIAL').length;
+  // O simulador opera exclusivamente sobre confrontos da fase de grupos.
+  // Jogos eliminatórios continuam disponíveis apenas na área oficial de Jogos,
+  // mas seguem sendo consultados para identificar o número de vagas na fase seguinte.
+  const jogosGrupo=jogos.filter(simClassEhGrupo);
+  const predicted=jogosGrupo.filter(j=>simClassResultado(j,store,comp).fonte==='SIMULADO').length;
+  const official=jogosGrupo.filter(j=>simClassResultado(j,store,comp).fonte==='OFICIAL').length;
   const selectedName=modalidadeNome(chosen);
   const modalidadeSelector='<div class="simc-select-wrap"><label for="simcModalidade">MODALIDADE</label>'+
     '<select id="simcModalidade" aria-label="Escolher modalidade para simular">'+
@@ -598,29 +602,32 @@ function simClassificacaoRender(container,comp){
     '</select></div>';
   if(simClassModalidadeFinalizada(linhas,jogos))
     return simClassRenderEncerrada(container,comp,chosen,modalidadeSelector,jogos,linhas);
-  const projecao=simClassProjecaoClassificados({jogos,linhas,groups},chosen,comp,store);
-  let tables=[...groups.values()].sort((a,b)=>a.group.localeCompare(b.group,'pt-BR')).map(g=>simClassTabelaGrupo(g,chosen,comp,store,projecao)).join('');
-  if(!tables)tables=simClassTabelaFinal(linhas);
-  const gamesGroups=[...groups.values()].sort((a,b)=>a.group.localeCompare(b.group,'pt-BR'))
-    .map(g=>simClassPartidasHtml(g.jogos,comp,chosen,store,'Resultados e próximos jogos — Grupo '+g.group)).join('');
-  const extra=jogos.filter(j=>!simClassEhGrupo(j));
+  const temFaseGrupos=jogosGrupo.length>0;
+  const projecao=temFaseGrupos?simClassProjecaoClassificados({jogos,linhas,groups},chosen,comp,store):null;
+  const tables=temFaseGrupos
+    ?[...groups.values()].sort((a,b)=>a.group.localeCompare(b.group,'pt-BR')).map(g=>simClassTabelaGrupo(g,chosen,comp,store,projecao)).join('')
+    :'';
+  const gamesGroups=temFaseGrupos
+    ?[...groups.values()].sort((a,b)=>a.group.localeCompare(b.group,'pt-BR'))
+      .map(g=>simClassPartidasHtml(g.jogos,comp,chosen,store,'Jogos da fase de grupos — Grupo '+g.group)).join('')
+    :'';
   container.innerHTML='<div class="simc-shell">'+
-    '<div class="simc-intro"><strong>CLASSIFICAÇÃO SIMULADA <span>NÃO OFICIAL</span></strong>'+
-    '<p>Os resultados reais são mantidos. Preencha os jogos futuros e aplique para atualizar a tabela, sem alterar os dados da organização.</p></div>'+
+    '<div class="simc-intro"><strong>FASE DE GRUPOS <span>SIMULAÇÃO NÃO OFICIAL</span></strong>'+
+    '<p>Simule apenas os jogos dos grupos: a classificação, os desempates e quem avançaria são atualizados sem alterar os resultados oficiais. Semifinais e finais não são simuladas.</p></div>'+
     modalidadeSelector+
-    '<div class="simc-stats"><span><b>'+official+'</b> jogos oficiais</span><span><b>'+predicted+'</b> jogos simulados</span>'+
-    '<button type="button" data-simc-reset'+(!predicted?' disabled':'')+'>ZERAR SIMULAÇÃO</button></div>'+
+    (temFaseGrupos?'<div class="simc-stats"><span><b>'+official+'</b> jogos oficiais na fase de grupos</span><span><b>'+predicted+'</b> jogos simulados</span>':'')+
+    (temFaseGrupos?'<button type="button" data-simc-reset'+(!predicted?' disabled':'')+'>ZERAR SIMULAÇÃO</button></div>':'')+
     simClassHtmlClassificados(projecao)+
-    (tables?'<div class="simc-tables"><h3>Classificação • '+escapeHtml(selectedName)+'</h3>'+tables+
-      '<p class="simc-note">Tabela de teste com resultados oficiais e simulados. No vôlei, são considerados pontos por set, confronto direto, coeficiente de sets e coeficiente de pontos; os critérios pendentes ficam sinalizados. A organização homologa a classificação final.</p></div>':
-      '<div class="games-empty">Sem classificação cadastrada para esta modalidade.</div>')+
-    gamesGroups+
-    simClassPartidasHtml(extra,comp,chosen,store,'Mata-mata e demais confrontos')+
-    (!jogos.length?'<p class="simc-note">Não há confrontos cadastrados nesta modalidade. A classificação publicada permanece disponível acima.</p>':'')+
+    (temFaseGrupos
+      ?(tables?'<div class="simc-tables"><h3>Classificação do grupo • '+escapeHtml(selectedName)+'</h3>'+tables+
+          '<p class="simc-note">Projeção apenas da fase de grupos. No vôlei, o desempate considera confronto direto, coeficiente de sets e coeficiente de pontos. A organização homologa a classificação oficial.</p></div>':
+          '<div class="games-empty">Sem classificação de grupos cadastrada para esta modalidade.</div>')+
+        gamesGroups
+      :'<div class="games-empty">Esta modalidade não possui jogos de fase de grupos cadastrados. A simulação de semifinais e finais não está disponível. Consulte os confrontos na área Jogos.</div>')+
     '<p class="simc-footer">As simulações ficam salvas somente neste aparelho e não são enviadas ao painel oficial. Jogos encerrados nunca são sobrescritos.</p></div>';
   const introTitle=document.querySelector('#cenariosIntroTitle'),introText=document.querySelector('#cenariosIntroText');
-  if(introTitle)introTitle.textContent='Classificação simulada por modalidade';
-  if(introText)introText.textContent='Resultados oficiais + placares futuros escolhidos por você.';
+  if(introTitle)introTitle.textContent='Cenários da fase de grupos';
+  if(introText)introText.textContent='Simule a classificação e veja quem avançaria, sem modificar a tabela oficial.';
   const selector=container.querySelector('#simcModalidade');
   selector?.addEventListener('change',()=>{
     simClassModalidadePorCompeticao[comp]=selector.value;
@@ -630,7 +637,7 @@ function simClassificacaoRender(container,comp){
   container.querySelectorAll('[data-simc-match]').forEach(card=>{
     const key=card.getAttribute('data-simc-match');
     card.querySelector('[data-simc-apply]')?.addEventListener('click',()=>{
-      const j=jogos.find(x=>simClassKey(comp,x)===key);if(!j||simClassFinalizado(j))return;
+      const j=jogosGrupo.find(x=>simClassKey(comp,x)===key);if(!j||simClassFinalizado(j))return;
       const msg=card.querySelector('[data-simc-error]');
       let dataResult=null,err='';
       if(simClassTipo(chosen)==='VOL'){
@@ -659,7 +666,7 @@ function simClassificacaoRender(container,comp){
   });
   container.querySelector('[data-simc-reset]')?.addEventListener('click',()=>{
     if(!window.confirm('Apagar todos os resultados simulados desta modalidade neste aparelho?'))return;
-    const data=simClassStorage(),keys=jogos.map(j=>simClassKey(comp,j));
+    const data=simClassStorage(),keys=jogosGrupo.map(j=>simClassKey(comp,j));
     keys.forEach(k=>delete data[k]);
     if(simClassSaveStorage(data))simClassificacaoRender(container,comp);
   });
