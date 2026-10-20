@@ -448,22 +448,74 @@ function simClassTabelaGrupo(g,mod,comp,store,projecao){
     (rank.pendenteDesempate?'<p class="simc-note simc-tie-note">Atenção: ainda há empate que depende de dados adicionais ou sorteio. A ordem mostrada não é homologada.</p>':'')+
     '</section>';
 }
-function simClassTabelaFinal(linhas){
-  const final=linhas.filter(r=>String(r.POSICAO||r.POSICAO_FINAL_ATUAL||'').trim())
-    .sort((a,b)=>simClassNum(a.POSICAO??a.POSICAO_FINAL_ATUAL,999)-simClassNum(b.POSICAO??b.POSICAO_FINAL_ATUAL,999));
-  if(!final.length)return '';
-  return '<section class="simc-group"><div class="simc-group-title"><strong>Classificação oficial publicada</strong><small>Esta modalidade não possui tabela de grupos para simular.</small></div>'+
-    final.map(r=>'<div class="simc-final-row"><b>'+escapeHtml(r.POSICAO||r.POSICAO_FINAL_ATUAL)+'º</b>'+
-    simClassEquipeHtml(r.EQUIPE||r.CENTRO||r.PARTICIPANTE)+
-    '<strong>'+escapeHtml(String(r.PONTOS??''))+' pts</strong></div>').join('')+'</section>';
-}
 
-function simClassPartidaHtml(j,comp,mod,store){
+function simClassModalidadeFinalizada(linhas,jogos){
+  if(!Array.isArray(linhas)||!linhas.length)return false;
+  const temPosicao=r=>String(r.POSICAO_FINAL_ATUAL??r.POSICAO??'').trim()!=='';
+  if(!linhas.every(temPosicao))return false;
+  const oficial=r=>['FINALIZADO','ENCERRADO','CONCLUIDO','HOMOLOGADO'].includes(simClassNorm(r.STATUS_FINAL_MODALIDADE));
+  if(linhas.every(oficial))return true;
+  // Fallback conservador: jogo final oficial registrado, todos os confrontos
+  // preenchidos e toda a classificação final publicada.
+  // Não basta que "os jogos cadastrados hoje" tenham acabado.
+  const temFinal=jogos.some(j=>{
+    const fase=simClassNorm(j.FASE);
+    return fase==='FINAL'||fase==='GRANDE FINAL';
+  });
+  return !!temFinal && jogos.length>0 && jogos.every(simClassFinalizado) &&
+    linhas.every(r=>String(r.POSICAO_FINAL_ATUAL??'').trim()!=='');
+}
+function simClassTabelaFinal(linhas,encerrada=false){
+  const final=linhas.filter(r=>String(r.POSICAO_FINAL_ATUAL??r.POSICAO??'').trim())
+    .sort((a,b)=>simClassNum(a.POSICAO_FINAL_ATUAL??a.POSICAO,999)-simClassNum(b.POSICAO_FINAL_ATUAL??b.POSICAO,999) ||
+      String(a.EQUIPE||a.CENTRO||'').localeCompare(String(b.EQUIPE||b.CENTRO||''),'pt-BR'));
+  if(!final.length)return '';
+  const head=encerrada?'CLASSIFICAÇÃO FINAL OFICIAL':'Classificação publicada';
+  const note=encerrada?'Resultados definitivos da modalidade; os cenários não alteram esta classificação.':
+    'Esta modalidade não possui tabela de grupos para simular.';
+  return '<section class="simc-group simc-official-final"><div class="simc-group-title"><strong>'+head+'</strong><small>'+escapeHtml(note)+'</small></div>'+
+    final.map(r=>{
+      const pos=String(r.POSICAO_FINAL_ATUAL??r.POSICAO);
+      const pts=String(r.PONTOS??'').trim();
+      const geral=String(r.PONTOS_GERAL_CONFIRMADOS??'').trim();
+      return '<div class="simc-final-row"><b>'+escapeHtml(pos)+'º</b>'+
+        simClassEquipeHtml(r.EQUIPE||r.CENTRO||r.PARTICIPANTE)+
+        '<div class="simc-final-score"><strong>'+escapeHtml(pts?(pts+' pts'):'—')+'</strong>'+
+        (geral?'<small>'+escapeHtml(geral)+' pts no geral</small>':'')+'</div></div>';
+    }).join('')+'</section>';
+}
+function simClassRenderEncerrada(container,comp,chosen,modalidadeSelector,jogos,linhas){
+  const name=modalidadeNome(chosen);
+  const oficiais=jogos.filter(simClassFinalizado).length;
+  container.innerHTML='<div class="simc-shell simc-finished">'+
+    '<div class="simc-finished-banner"><div class="simc-finished-status">✓ MODALIDADE FINALIZADA <span>OFICIAL</span></div>'+
+    '<h3>'+escapeHtml(name)+'</h3>'+
+    '<p>Esta competição já foi concluída. A classificação final está confirmada e não é possível simular novos placares nesta modalidade.</p></div>'+
+    modalidadeSelector+
+    simClassTabelaFinal(linhas,true)+
+    (jogos.length?
+      '<div class="simc-final-games-head"><strong>RESULTADOS REGISTRADOS</strong><small>'+oficiais+
+      ' resultado(s) oficial(is)</small></div>'+
+      simClassPartidasHtml(jogos,comp,chosen,{},'Partidas da modalidade',true):
+      '<p class="simc-note">Não há partidas individuais cadastradas para esta modalidade; a classificação final oficial está disponível acima.</p>')+
+    '<p class="simc-footer">A classificação final vem do painel oficial e não pode ser alterada por simulações salvas neste aparelho.</p></div>';
+  const introTitle=document.querySelector('#cenariosIntroTitle');
+  const introText=document.querySelector('#cenariosIntroText');
+  if(introTitle)introTitle.textContent='Modalidade finalizada';
+  if(introText)introText.textContent='Classificação final oficial e resultados confirmados.';
+  container.querySelector('#simcModalidade')?.addEventListener('change',ev=>{
+    simClassModalidadePorCompeticao[comp]=ev.target.value;
+    try{localStorage.setItem(SIM_CLASS_MODAL_KEY,JSON.stringify(simClassModalidadePorCompeticao));}catch(e){}
+    simClassificacaoRender(container,comp);
+  });
+  return true;
+}
+function simClassPartidaHtml(j,comp,mod,store,readonly=false){
   const result=simClassResultado(j,store,comp);
-  const key=simClassKey(comp,j),editable=result.fonte!=='OFICIAL'&&simClassEquipesDefinidas(j);
+  const key=simClassKey(comp,j),editable=!readonly && result.fonte!=='OFICIAL'&&simClassEquipesDefinidas(j);
   const volley=simClassTipo(mod)==='VOL';
   const cls=result.fonte==='OFICIAL'?'oficial':result.fonte==='SIMULADO'?'simulado':'pendente';
-  const badge=result.fonte==='OFICIAL'?'OFICIAL':result.fonte==='SIMULADO'?'SIMULADO':'A JOGAR';
+  const badge=result.fonte==='OFICIAL'?'OFICIAL':result.fonte==='SIMULADO'?'SIMULADO':readonly?'SEM PLACAR':'A JOGAR';
   const fase=String(j.FASE||'').trim();
   const score=result.temPlacar?result.a+' × '+result.b:'— × —';
   const prediction=store[key]||{};
@@ -502,19 +554,19 @@ function simClassPartidaHtml(j,comp,mod,store){
     (editable?entrada+'<small class="simc-error" data-simc-error aria-live="polite"></small>'
       :'<div class="simc-match-locked">'+(result.fonte==='OFICIAL'
         ?'Resultado oficial • não editável'
-        :'Aguardando definição das equipes para permitir simulação')+'</div>')+
+        :readonly?'Placar não registrado no painel oficial.': 'Aguardando definição das equipes para permitir simulação')+'</div>')+
     (fase&&!simClassEhGrupo(j)?'<small class="simc-phase">'+escapeHtml(fase)+'</small>':'')+
     '</article>';
 }
 
-function simClassPartidasHtml(lista,comp,mod,store,title){
+function simClassPartidasHtml(lista,comp,mod,store,title,readonly=false){
   if(!lista.length)return '';
   const jogos=[...lista].sort((a,b)=>{
     const da=parseBrDate(a.DATA,a.HORA)?.getTime()||0,db=parseBrDate(b.DATA,b.HORA)?.getTime()||0;
     return da-db||String(a.ID_JOGO||'').localeCompare(String(b.ID_JOGO||''));
   });
   return '<section class="simc-fixtures"><div class="simc-fixtures-head"><strong>'+escapeHtml(title)+'</strong><small>'+
-     jogos.length+' partida(s)</small></div>'+jogos.map(j=>simClassPartidaHtml(j,comp,mod,store)).join('')+'</section>';
+     jogos.length+' partida(s)</small></div>'+jogos.map(j=>simClassPartidaHtml(j,comp,mod,store,readonly)).join('')+'</section>';
 }
 function simClassificacaoRender(container,comp){
   const compJogos=(apiData.jogos||[]).filter(j=>j.ID_COMPETICAO===comp&&jogoVisivelNoEscopo(j));
@@ -535,8 +587,17 @@ function simClassificacaoRender(container,comp){
   const selectedName=modalidadeNome(chosen);
   const modalidadeSelector='<div class="simc-select-wrap"><label for="simcModalidade">MODALIDADE</label>'+
     '<select id="simcModalidade" aria-label="Escolher modalidade para simular">'+
-    mods.map(id=>'<option value="'+escapeHtml(id)+'"'+(id===chosen?' selected':'')+'>'+escapeHtml(modalidadeNome(id))+'</option>').join('')+
+    mods.map(id=>{
+      const encerrada=simClassModalidadeFinalizada(
+        compClass.filter(r=>r.ID_MODALIDADE===id),
+        compJogos.filter(j=>j.ID_MODALIDADE===id)
+      );
+      return '<option value="'+escapeHtml(id)+'"'+(id===chosen?' selected':'')+'>'+
+        escapeHtml(modalidadeNome(id)+(encerrada?' ✓ FINALIZADA':''))+'</option>';
+    }).join('')+
     '</select></div>';
+  if(simClassModalidadeFinalizada(linhas,jogos))
+    return simClassRenderEncerrada(container,comp,chosen,modalidadeSelector,jogos,linhas);
   const projecao=simClassProjecaoClassificados({jogos,linhas,groups},chosen,comp,store);
   let tables=[...groups.values()].sort((a,b)=>a.group.localeCompare(b.group,'pt-BR')).map(g=>simClassTabelaGrupo(g,chosen,comp,store,projecao)).join('');
   if(!tables)tables=simClassTabelaFinal(linhas);
