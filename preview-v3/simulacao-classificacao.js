@@ -251,13 +251,175 @@ function simClassEquipeHtml(nome){
   const logo=known.includes(code)?centroMarcaHtml(code,'standing-centre-logo'):'';
   return '<span class="simc-team">'+logo+'<span>'+escapeHtml(n)+'</span></span>';
 }
-function simClassTabelaGrupo(g,mod,comp,store){
+
+/* V4.11.3 — vagas projetadas, comparativo de segundos e aviso de cortes incertos.
+   Art.33 (§§3º-5º): com três grupos avança o melhor segundo; grupos de
+   tamanhos diferentes são equalizados sem jogos contra últimos colocados. */
+function simClassVagasMataMata(dados){
+  const jogos=dados.jogos.filter(j=>!simClassEhGrupo(j));
+  const fases=[
+    {match:/OITAVA/,expected:16},
+    {match:/QUARTA/,expected:8},
+    {match:/SEMI/,expected:4},
+    {match:/^(?:FINAL|GRANDE FINAL)$/,expected:2}
+  ];
+  for(const fase of fases){
+    const encontrados=jogos.filter(j=>fase.match.test(simClassNorm(j.FASE)));
+    if(encontrados.length)return {vagas:Math.min(fase.expected,encontrados.length*2),fase:fase.expected===16?'oitavas':fase.expected===8?'quartas':fase.expected===4?'semifinais':'final',fonte:'CHAVEAMENTO'};
+  }
+  return {vagas:0,fase:'',fonte:'SEM_MATA_MATA'};
+}
+function simClassWOFlag(r){
+  const st=simClassNorm(r?.STATUS_CLASSIFICACAO||'');
+  return ['SIM','S','TRUE','1'].includes(simClassNorm(r?.DESC_WO)) ||
+    /DESCLASSIFIC/.test(st);
+}
+function simClassComparativoSegundo(pack,minimo,mod,comp,store,aplicaEqualizacao){
+  const atual=pack.rank.rows[1];
+  if(!atual)return null;
+  const group=pack.group;
+  const dropCount=aplicaEqualizacao?Math.max(0,pack.rank.rows.length-minimo):0;
+  const excluidos=new Set(pack.rank.rows.slice(-dropCount || pack.rank.rows.length).map(x=>simClassNorm(x.equipe)));
+  if(!dropCount)excluidos.clear();
+  const equipe=simClassNorm(atual.equipe),tipo=simClassTipo(mod);
+  let pontos=0,jogos=0,vitorias=0,setsV=0,setsP=0,pro=0,contra=0,incompletos=0;
+  for(const j of group.jogos){
+    const a=simClassNorm(j.EQUIPE_A),b=simClassNorm(j.EQUIPE_B);
+    if(a!==equipe&&b!==equipe)continue;
+    if(excluidos.has(a)||excluidos.has(b))continue;
+    const out=simClassResultado(j,store,comp);
+    if(!out.temPlacar){incompletos++;continue;}
+    const ladoA=a===equipe,feito=ladoA?out.a:out.b,sofrido=ladoA?out.b:out.a;
+    const [ptsA,ptsB]=simClassPontos(tipo,out.a,out.b);
+    pontos+=ladoA?ptsA:ptsB;
+    jogos++;
+    if(feito>sofrido)vitorias++;
+    if(tipo==='VOL'){
+      setsV+=feito;setsP+=sofrido;
+      if(Array.isArray(out.sets)&&out.sets.length){
+        pro+=out.sets.reduce((v,set)=>v+(ladoA?set.a:set.b),0);
+        contra+=out.sets.reduce((v,set)=>v+(ladoA?set.b:set.a),0);
+      }else incompletos++;
+    }else{pro+=feito;contra+=sofrido;}
+  }
+  return {equipe:atual.equipe,grupo:group.group,stats:atual,
+    pontos,jogos,vitorias,setsV,setsP,pro,contra,incompletos,
+    igualados:dropCount>0,excluidos:[...excluidos]};
+}
+function simClassCompareSecond(a,b,mod){
+  if(a.pontos!==b.pontos)return b.pontos-a.pontos;
+  const tipo=simClassTipo(mod);
+  if(tipo==='VOL'){
+    if(a.incompletos||b.incompletos)return 0;
+    const sets=simClassCompararCoef(a.setsV,a.setsP,b.setsV,b.setsP);
+    if(sets)return sets;
+    return simClassCompararCoef(a.pro,a.contra,b.pro,b.contra);
+  }
+  if(tipo==='HAN'){
+    if(a.vitorias!==b.vitorias)return b.vitorias-a.vitorias;
+    let c=simClassCompararCoef(a.pro,a.contra,b.pro,b.contra);if(c)return c;
+    if(a.contra!==b.contra)return a.contra-b.contra;
+    if(a.pro!==b.pro)return b.pro-a.pro;
+    return 0;
+  }
+  if(tipo==='BAS')return (b.pro-b.contra)-(a.pro-a.contra);
+  if(tipo==='BAD'||tipo==='TME'){
+    if(a.vitorias!==b.vitorias)return b.vitorias-a.vitorias;
+    const avg=simClassCompararCoef(a.setsV,a.setsP,b.setsV,b.setsP);
+    if(avg)return avg;
+    return simClassCompararCoef(a.pro,a.contra,b.pro,b.contra);
+  }
+  const sd=(b.pro-b.contra)-(a.pro-a.contra);
+  if(sd)return sd;
+  if(a.pro!==b.pro)return b.pro-a.pro;
+  return 0;
+}
+function simClassProjecaoClassificados(dados,mod,comp,store){
+  const packs=[...dados.groups.values()].sort((a,b)=>a.group.localeCompare(b.group,'pt-BR'))
+    .map(group=>({group,rank:simClassRankingGrupo(group,mod,comp,store)}))
+    .filter(x=>x.rank.rows.length);
+  if(!packs.length)return null;
+  const chave=simClassVagasMataMata(dados);
+  const totalTimes=packs.reduce((n,x)=>n+x.rank.rows.length,0);
+  const vagas=Math.min(chave.vagas,totalTimes);
+  const leaders=packs.map(p=>({equipe:p.rank.rows[0].equipe,grupo:p.group.group,tipo:'LIDER',pontos:p.rank.rows[0].pontos,rank:p.rank}));
+  const livres=Math.max(0,vagas-leaders.length);
+  const minGroup=Math.min(...packs.map(x=>x.rank.rows.length));
+  const sizesDiffer=packs.some(x=>x.rank.rows.length!==minGroup);
+  const article33=/^(?:VOL|BAS|FUT|SOC|HAN)/.test(simClassNorm(mod));
+  const seconds=packs.map(p=>simClassComparativoSegundo(p,minGroup,mod,comp,store,article33&&sizesDiffer)).filter(Boolean);
+  seconds.sort((a,b)=>simClassCompareSecond(a,b,mod)||a.grupo.localeCompare(b.grupo));
+  const qualificados=(!vagas?[]:[
+    ...leaders.slice(0,vagas),
+    ...seconds.slice(0,livres).map(x=>({...x,tipo:'MELHOR_SEGUNDO',rank:packs.find(p=>p.group.group===x.grupo)?.rank}))
+  ]);
+  // Modalidades de pontos em fase de grupos para as quais a tabela é comparável
+  // com os critérios técnicos já implementados. Modalidades individuais e
+  // mata-matas especiais exibem a posição como projeção, nunca homologação.
+  const reason=[];
+  const tieGroups=packs.filter(p=>p.rank.pendenteDesempate);
+  if(tieGroups.length)reason.push('Há empates de grupo que ainda precisam de critérios adicionais.');
+  if(seconds.some(x=>x.incompletos))reason.push('Alguns jogos/parciais não permitem concluir o desempate entre segundos.');
+  if(seconds.length>livres&&livres>0){
+    const next=seconds[livres],prev=seconds[livres-1];
+    if(next&&prev&&simClassCompareSecond(prev,next,mod)===0)
+      reason.push('Há empate exatamente na última vaga entre os segundos colocados.');
+  }
+  const wos=packs.some(x=>x.rank.rows.some(r=>simClassWOFlag(r.oficial)));
+  if(wos)reason.push('W.O. registrado: a desclassificação e a exclusão de seus jogos dependem da apuração oficial.');
+  if(article33&&sizesDiffer&&livres){
+    reason.push('Comparação de segundos ajustada pelo Art. 33, §4º: descartados confrontos contra últimos dos grupos maiores.');
+    if(packs.some(p=>p.group.jogos.some(j=>simClassFinalizado(j)&&!simClassTemPlacar(j))))
+      reason.push('Há jogos concluídos sem placar numérico para conferir a equalização.');
+  }
+  const conclusivos=reason.filter(x=>/empate|W\.O\.|sem placar|não permitem/.test(x));
+  const uncertain=conclusivos.length>0;
+  const pending=packs.some(p=>p.rank.pendentes>0);
+  return {packs,chave,vagas,livres,leaders,seconds,qualificados,pendente:pending,incerto:uncertain,avisos:reason,aplicaEqualizacao:article33&&sizesDiffer&&livres>0};
+}
+function simClassHtmlClassificados(p){
+  if(!p)return '';
+  if(!p.vagas){
+    return '<div class="simc-qualified"><div class="simc-qualified-head"><strong>CLASSIFICAÇÃO ATUAL</strong><span>SEM MATA-MATA</span></div>'+
+     '<p>A modalidade não tem fase eliminatória cadastrada. Veja a classificação por grupo; não há vagas de semifinal para projetar.</p></div>';
+  }
+  const pendente=p.pendente||p.incerto;
+  const qtd=p.qualificados.length;
+  const summary='<div class="simc-qualified-head"><strong>QUEM CLASSIFICARIA AGORA</strong><span>SIMULAÇÃO • NÃO OFICIAL</span></div>'+
+    '<p>'+qtd+' vaga(s) na fase '+escapeHtml(p.chave.fase)+'. '+p.leaders.length+' líder(es) de grupo'+
+    (p.livres?' + '+p.livres+' melhor(es) segundo(s).':'.')+
+    (pendente?' <b>Há partidas ou critérios pendentes.</b>':'')+'</p>';
+  const cards=p.qualificados.map((team,i)=>
+    '<div class="simc-qualified-item'+(simClassNorm(team.equipe)==='CCT'?' is-cct':'')+
+    '"><div class="simc-qualified-number">'+(i+1)+'</div><div><small>'+
+    (team.tipo==='LIDER'?'LÍDER DO GRUPO '+escapeHtml(team.grupo):'MELHOR SEGUNDO • GRUPO '+escapeHtml(team.grupo))+
+    '</small><strong>'+simClassEquipeHtml(team.equipe)+'</strong></div>'+
+    '<span>'+(team.tipo==='MELHOR_SEGUNDO'?team.pontos+' pts*':team.pontos+' pts')+'</span></div>'
+  ).join('');
+  const ranking=p.qualificados.some(x=>simClassNorm(x.equipe)==='CCT')
+    ?'<div class="simc-qualified-cct is-in">CCT estaria na zona de classificação neste cenário.</div>'
+    :'<div class="simc-qualified-cct">CCT está fora da zona de classificação neste cenário.</div>';
+  const caveats=p.avisos.length?'<div class="simc-qualified-warnings">'+p.avisos.map(x=>'<p>'+escapeHtml(x)+'</p>').join('')+'</div>':'';
+  return '<section class="simc-qualified">'+summary+
+    '<div class="simc-qualified-list">'+cards+'</div>'+ranking+
+    (p.livres?'<small>* Pontos do segundo após equalização dos grupos quando aplicável.</small>':'')+
+    caveats+'</section>';
+}
+function simClassMarcacao(p,grupo,equipe){
+  if(!p?.vagas)return '';
+  const r=p.qualificados.find(x=>simClassNorm(x.equipe)===simClassNorm(equipe)&&x.grupo===grupo);
+  if(!r)return '';
+  return r.tipo==='LIDER'?'LÍDER • CLASSIFICARIA':'MELHOR 2º • CLASSIFICARIA';
+}
+
+function simClassTabelaGrupo(g,mod,comp,store,projecao){
   const rank=simClassRankingGrupo(g,mod,comp,store);
   const vol=rank.tipo==='VOL';
   const rows=rank.rows.map((r,i)=>'<div class="simc-rank-row'+(simClassNorm(r.equipe).startsWith('CCT')?' is-cct':'')+'">'+
     '<b class="simc-pos">'+(i+1)+'º</b>'+simClassEquipeHtml(r.equipe)+
     '<span>'+r.jogos+'</span><span>'+r.vitorias+'</span><span>'+r.empates+'</span><span>'+r.derrotas+'</span>'+
     '<strong>'+simClassNum(r.pontos)+'</strong><span>'+(vol?(r.setsV-r.setsP):(r.pro-r.contra))+'</span></div>'+
+    (simClassMarcacao(projecao,g.group,r.equipe)?'<div class="simc-qual-row">'+escapeHtml(simClassMarcacao(projecao,g.group,r.equipe))+'</div>':'')+
     (vol?'<div class="simc-coef-detail">Sets '+r.setsV+'–'+r.setsP+' • average '+simClassCoefTexto(r.setsV,r.setsP)+
       ' &nbsp;|&nbsp; Pontos '+(r.pontosCompletos?r.pro+'–'+r.contra+' • average '+simClassCoefTexto(r.pro,r.contra):'oficiais incompletos')+'</div>':'')
   ).join('');
@@ -359,7 +521,8 @@ function simClassificacaoRender(container,comp){
     '<select id="simcModalidade" aria-label="Escolher modalidade para simular">'+
     mods.map(id=>'<option value="'+escapeHtml(id)+'"'+(id===chosen?' selected':'')+'>'+escapeHtml(modalidadeNome(id))+'</option>').join('')+
     '</select></div>';
-  let tables=[...groups.values()].sort((a,b)=>a.group.localeCompare(b.group,'pt-BR')).map(g=>simClassTabelaGrupo(g,chosen,comp,store)).join('');
+  const projecao=simClassProjecaoClassificados({jogos,linhas,groups},chosen,comp,store);
+  let tables=[...groups.values()].sort((a,b)=>a.group.localeCompare(b.group,'pt-BR')).map(g=>simClassTabelaGrupo(g,chosen,comp,store,projecao)).join('');
   if(!tables)tables=simClassTabelaFinal(linhas);
   const gamesGroups=[...groups.values()].sort((a,b)=>a.group.localeCompare(b.group,'pt-BR'))
     .map(g=>simClassPartidasHtml(g.jogos,comp,chosen,store,'Resultados e próximos jogos — Grupo '+g.group)).join('');
@@ -370,6 +533,7 @@ function simClassificacaoRender(container,comp){
     modalidadeSelector+
     '<div class="simc-stats"><span><b>'+official+'</b> jogos oficiais</span><span><b>'+predicted+'</b> jogos simulados</span>'+
     '<button type="button" data-simc-reset'+(!predicted?' disabled':'')+'>ZERAR SIMULAÇÃO</button></div>'+
+    simClassHtmlClassificados(projecao)+
     (tables?'<div class="simc-tables"><h3>Classificação • '+escapeHtml(selectedName)+'</h3>'+tables+
       '<p class="simc-note">Tabela de teste com resultados oficiais e simulados. No vôlei, são considerados pontos por set, confronto direto, coeficiente de sets e coeficiente de pontos; os critérios pendentes ficam sinalizados. A organização homologa a classificação final.</p></div>':
       '<div class="games-empty">Sem classificação cadastrada para esta modalidade.</div>')+
