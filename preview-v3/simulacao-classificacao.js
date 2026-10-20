@@ -71,7 +71,7 @@ function simClassValidarSets(sets){
     if(a===null||b===null)return {ok:false,erro:'Preencha os dois lados de cada set disputado.'};
     const minimo=i===2?15:25;
     if(Math.max(a,b)<minimo || Math.abs(a-b)<2 ||
-      (Math.min(a,b)<minimo-1 && Math.max(a,b)!==minimo))
+      (Math.max(a,b)>minimo && Math.abs(a-b)!==2))
       return {ok:false,erro:(i+1)+'º set inválido: vencedor precisa chegar a '+minimo+' pontos e ter ao menos 2 de vantagem.'};
     rows.push({a,b});
   }
