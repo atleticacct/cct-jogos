@@ -318,7 +318,10 @@ let agendaUI = {
 function parseBrDate(data, hora='00:00'){
   const p=String(data||'').split('/').map(Number);
   if(p.length!==3 || p.some(Number.isNaN)) return null;
-  const h=String(hora||'00:00').split(':').map(Number);
+  // O boletim usa “SEQ” para finais que ocorrem na sequência, sem hora fixa.
+  // Ordenar esses registros ao fim do dia, sem inventar um horário de início no dado.
+  const horaTexto=String(hora||'00:00').trim().toUpperCase();
+  const h=horaTexto==='SEQ'?[23,59]:horaTexto.split(':').map(Number);
   return new Date(p[2],p[1]-1,p[0],h[0]||0,h[1]||0,0,0);
 }
 
@@ -2995,7 +2998,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=4117',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=4118',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -3004,7 +3007,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV4117';
+        const chave='cctSwReloadV4118';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
