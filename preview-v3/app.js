@@ -237,7 +237,7 @@ function atualizarAcessoAreaMembros(){
     return;
   }
   const email=cctAuthState.user?.email||'';
-  if(text) text.textContent='Sua conta está conectada, mas este e-mail ainda não possui autorização de membro da Atlética.';
+  if(text) text.textContent='Sua conta Google está conectada, mas o aplicativo ainda não validou sua autorização de membro. Confirme o e-mail conectado e tente sair e entrar novamente.';
   if(login) login.hidden=true;
   if(logout) logout.hidden=false;
   if(account){account.hidden=false;account.innerHTML=`<strong>${escapeHtml(cctAuthState.user?.displayName||'Conta Google')}</strong><span>${escapeHtml(email)}</span><small>${authSocioAprovado()?'Sócio(a) CCT validado • ':''}Aguardando autorização de membro</small>`;}
@@ -2998,7 +2998,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=4118',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=4119',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -3007,7 +3007,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV4118';
+        const chave='cctSwReloadV4119';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
@@ -3183,12 +3183,12 @@ function abrirEditorPerfil(){
     <h2>Editar perfil</h2>
     <div class="profile-editor">
       <label><span>Nome exibido</span><input id="profileNameInput" type="text" maxlength="40" value="${escapeHtml(p.name||'')}" placeholder="Seu nome"></label>
-      <label><span>Como você usa o app?</span><select id="profileRoleInput">
+      <label><span>Perfil esportivo (não define seu acesso restrito)</span><select id="profileRoleInput">
         <option value="Atleta" ${!p.role||!roleAtual.startsWith('torc')?'selected':''}>Atleta</option>
         <option value="Torcedor(a)" ${roleAtual.startsWith('torc')?'selected':''}>Torcedor(a)</option>
       </select></label>
       ${accessHtml}
-      <p>O perfil esportivo fica salvo neste aparelho. Sócio(a) e membro da Atlética são permissões vinculadas ao e-mail autorizado pela diretoria.</p>
+      <p>Você pode ser atleta e membro da Atlética ao mesmo tempo. Atleta/Torcedor personaliza sua experiência; o acesso à área restrita é liberado separadamente ao entrar com seu e-mail Google autorizado.</p>
       <button class="primary full" id="saveProfileIdentity" type="button">SALVAR PERFIL</button>
     </div>`;
 
