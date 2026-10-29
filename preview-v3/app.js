@@ -500,7 +500,7 @@ function representanteHtml(jogo){
   if(!jogoTemCCT(jogo)) return '';
   const d=representanteModalidadeDados(jogo);
   if(!d.nome) return '';
-  return pessoaJogoHtml(d.nome,d.foto,'REPRESENTANTE DA MODALIDADE','is-modality-rep');
+  return pessoaJogoHtml(d.nome,d.foto,(jogo.ID_COMPETICAO==='JIUDESC-2026'&&jogo.DATA==='31/10/2026')?'RESPONSÁVEL ESPORTIVO':'REPRESENTANTE DA MODALIDADE','is-modality-rep');
 }
 
 function representacaoCctHtml(jogo){
@@ -3821,7 +3821,10 @@ function conflitoJiudescHtml(c){
   return `<div class="content-item member-conflict ${classe}"><div><strong>${escapeHtml(titulo)}</strong><small>${escapeHtml([c.DATA,c.HORA_A,c.NIVEL].filter(Boolean).join(' • '))}</small><p>${escapeHtml([c.EVENTO_A,c.EVENTO_B].filter(Boolean).join(' → '))}</p>${c.ACAO_RECOMENDADA?`<small>${escapeHtml(c.ACAO_RECOMENDADA)}</small>`:''}</div></div>`;
 }
 function escalaJiudescComoAgenda(e){
-  const resp=[e.RESPONSAVEL_PRINCIPAL,e.RESPONSAVEL_APOIO].filter(Boolean).join(' + ');
+  const papeisConfirmados=String(e.OBSERVACAO||'').includes('Responsável esportivo:') && String(e.OBSERVACAO||'').includes('responsável QG:');
+  const resp=papeisConfirmados
+    ? ['Esportivo: '+(e.RESPONSAVEL_PRINCIPAL||'A definir'),'QG: '+(e.RESPONSAVEL_APOIO||'A definir')].join(' | ')
+    : [e.RESPONSAVEL_PRINCIPAL,e.RESPONSAVEL_APOIO].filter(Boolean).join(' + ');
   return {
     DATA:e.DATA,
     HORA_INICIO:e.HORA,
@@ -3832,7 +3835,7 @@ function escalaJiudescComoAgenda(e){
     DESCRICAO:[
       e.FASE,
       'Prioridade: '+(e.PRIORIDADE||'NORMAL'),
-      resp?('Responsável: '+resp):'Responsável a definir',
+      resp?(papeisConfirmados?resp:'Responsável: '+resp):'Responsável a definir',
       e.STATUS_ESCALA,
       e.OBSERVACAO
     ].filter(Boolean).join(' • '),
@@ -3895,6 +3898,7 @@ function escalaJiudescCardHtml(e){
   const status=escalaJiudescStatus(e);
   const principal=String(e.RESPONSAVEL_PRINCIPAL||'').trim();
   const apoio=String(e.RESPONSAVEL_APOIO||'').trim();
+  const papeisConfirmados=String(e.OBSERVACAO||'').includes('Responsável esportivo:') && String(e.OBSERVACAO||'').includes('responsável QG:');
   const fase=escalaJiudescFaseVisivel(e);
   const prioridade=String(e.PRIORIDADE||'').trim();
   const local=String(e.LOCAL||'').trim();
@@ -3922,10 +3926,10 @@ function escalaJiudescCardHtml(e){
 
       <div class="jiu-scale-people">
         <div>
-          <small>RESPONSÁVEL</small>
+          <small>${papeisConfirmados?'RESP. ESPORTIVO':'RESPONSÁVEL'}</small>
           <strong>${escapeHtml(principal||'A definir')}</strong>
         </div>
-        ${apoio?`<div><small>APOIO</small><strong>${escapeHtml(apoio)}</strong></div>`:''}
+        ${apoio?`<div><small>${papeisConfirmados?'RESP. QG':'APOIO'}</small><strong>${escapeHtml(apoio)}</strong></div>`:''}
       </div>
 
       ${risco && risco!=='NÃO'?`<div class="jiu-scale-alert">${uiIcon('alert','inline-icon')} <span>${escapeHtml(e.ATLETAS_COM_RISCO||e.RISCO_ATLETA||'Atenção operacional')}</span></div>`:''}
