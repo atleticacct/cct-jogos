@@ -416,10 +416,17 @@ function jogoTemCCT(jogo){
   return equipeEhCCT(jogo.EQUIPE_A) || equipeEhCCT(jogo.EQUIPE_B);
 }
 
+function nomeAtletaBadminton(mod,equipe){
+  const atletas={
+    'BAD-F':{'CCT1':'Isabela (CCT1)','CCT2':'Maria Júlia (CCT2)'},
+    'BAD-M':{'CCT1':'Juttel (CCT1)','CCT2':'Lucas (CCT2)'}
+  };
+  return atletas[String(mod||'')]?.[String(equipe||'').trim().toUpperCase()]||'';
+}
 function nomeLadoJogo(jogo,lado){
   const participante=String(lado==='A' ? (jogo.PARTICIPANTE_A||'') : (jogo.PARTICIPANTE_B||'')).trim();
   const equipe=String(lado==='A' ? (jogo.EQUIPE_A||'') : (jogo.EQUIPE_B||'')).trim();
-  return participante || equipe || 'A DEFINIR';
+  return participante || (jogo.ID_COMPETICAO==='JIUDESC-2026' && nomeAtletaBadminton(jogo.ID_MODALIDADE,equipe)) || equipe || 'A DEFINIR';
 }
 
 const CENTRO_LOGOS={
@@ -710,18 +717,21 @@ function classificacaoLinhaNome(r){
   const participante=String(r.PARTICIPANTE||'').trim();
   const equipe=String(r.EQUIPE||'').trim();
   const centro=String(r.CENTRO||'').trim();
-  return participante ? `${participante}${centro? ` (${centro})` : ''}` : equipe;
+  return participante ? `${participante}${centro? ` (${centro})` : ''}` : (r.ID_COMPETICAO==='JIUDESC-2026' && nomeAtletaBadminton(r.ID_MODALIDADE,equipe)) || equipe;
 }
 
 function classificacaoGrupoHtml(grupo,linhas){
   // CS2: pontos e desempate de grupos dependem do congresso técnico; exibir vitórias, não pontuação inventada.
   const csSemPontosValidados=jogosUI.competicao==='JIUDESC-2026' && jogosUI.classificacaoModalidade==='CS-L';
+  // Boletim 6: pontos conferidos, mas regra de W.O. e a vaga de CEART2 nas QF femininas estão em análise.
+  const badmintonConferencia=jogosUI.competicao==='JIUDESC-2026' && ['BAD-F','BAD-M'].includes(jogosUI.classificacaoModalidade);
+  const badmintonDivergencia=badmintonConferencia && jogosUI.classificacaoModalidade==='BAD-F' && grupo==='A';
   const ordenadas=[...linhas].sort((a,b)=>csSemPontosValidados
     ? ((Number(b.VITORIAS)||0)-(Number(a.VITORIAS)||0))
     : ((Number(a.POSICAO)||999)-(Number(b.POSICAO)||999)));
   const individual=ordenadas.some(r=>String(r.PARTICIPANTE||'').trim());
   const linhaMobile=r=>{
-    const destaque=String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM' || String(r.CENTRO||r.EQUIPE||'').toUpperCase()==='CCT';
+    const destaque=String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM' || equipeEhCCT(r.CENTRO||r.EQUIPE||'');
     const saldo=String(r.SALDO??'').trim();
     const saldoTxt=saldo===''?'—':saldo;
     return `<div class="standing-mobile-row ${destaque?'cct-standing':''}">
@@ -737,8 +747,9 @@ function classificacaoGrupoHtml(grupo,linhas){
     <section class="classification-group">
       <div class="classification-group-title">
         <strong>${escapeHtml(grupo ? `Grupo ${grupo}` : 'Classificação')}</strong>
-        <small>${ordenadas.length} ${individual?'participantes':'equipes'}${csSemPontosValidados?' · parcial por vitórias':''}</small>
+        <small>${ordenadas.length} ${individual?'participantes':'equipes'}${csSemPontosValidados?' · parcial por vitórias':''}${badmintonConferencia?' · classificação preliminar':''}</small>
       </div>
+      ${badmintonDivergencia?'<p class="profile-helper">⚠️ Classificação do Grupo A feminino sob conferência: CEART2 foi indicado nas quartas no Boletim 6, mas os resultados e W.O. não sustentam a vaga. Consulte os avisos.</p>':''}
       <div class="standings-mobile" aria-label="Classificação compacta">
         ${ordenadas.map(linhaMobile).join('')}
       </div>
@@ -747,7 +758,7 @@ function classificacaoGrupoHtml(grupo,linhas){
           <span>#</span><span>${individual?'Participante':'Equipe'}</span><span>J</span><span>V</span><span>E</span><span>D</span><span>${csSemPontosValidados?'Vit.':'Pts'}</span><span>Saldo</span>
         </div>
         ${ordenadas.map(r=>{
-          const destaque=String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM' || String(r.CENTRO||r.EQUIPE||'').toUpperCase()==='CCT';
+          const destaque=String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM' || equipeEhCCT(r.CENTRO||r.EQUIPE||'');
           return `<div class="${destaque?'qual cct-standing':''}">
             <span>${escapeHtml(r.POSICAO||'—')}</span>
             <b class="standing-team-label">${centroMarcaHtml(r.CENTRO||r.EQUIPE,'standing-centre-logo')}<span>${escapeHtml(classificacaoLinhaNome(r))}</span></b>
@@ -3007,7 +3018,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=4123',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=4124',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -3016,7 +3027,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV4123';
+        const chave='cctSwReloadV4124';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
