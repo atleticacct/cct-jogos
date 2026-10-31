@@ -709,7 +709,11 @@ function classificacaoLinhaNome(r){
 }
 
 function classificacaoGrupoHtml(grupo,linhas){
-  const ordenadas=[...linhas].sort((a,b)=>(Number(a.POSICAO)||999)-(Number(b.POSICAO)||999));
+  // CS2: pontos e desempate de grupos dependem do congresso técnico; exibir vitórias, não pontuação inventada.
+  const csSemPontosValidados=jogosUI.competicao==='JIUDESC-2026' && jogosUI.classificacaoModalidade==='CS-L';
+  const ordenadas=[...linhas].sort((a,b)=>csSemPontosValidados
+    ? ((Number(b.VITORIAS)||0)-(Number(a.VITORIAS)||0))
+    : ((Number(a.POSICAO)||999)-(Number(b.POSICAO)||999)));
   const individual=ordenadas.some(r=>String(r.PARTICIPANTE||'').trim());
   const linhaMobile=r=>{
     const destaque=String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM' || String(r.CENTRO||r.EQUIPE||'').toUpperCase()==='CCT';
@@ -721,21 +725,21 @@ function classificacaoGrupoHtml(grupo,linhas){
         <strong class="standing-team-label">${centroMarcaHtml(r.CENTRO||r.EQUIPE,'standing-centre-logo')}<span>${escapeHtml(classificacaoLinhaNome(r))}</span></strong>
         <small>J ${escapeHtml(r.JOGOS||'0')} · V ${escapeHtml(r.VITORIAS||'0')} · E ${escapeHtml(r.EMPATES||'0')} · D ${escapeHtml(r.DERROTAS||'0')} · Saldo ${escapeHtml(saldoTxt)}</small>
       </div>
-      <div class="standing-mobile-points"><b>${escapeHtml(r.PONTOS||'0')}</b><small>PTS</small></div>
+      <div class="standing-mobile-points"><b>${escapeHtml(csSemPontosValidados?(r.VITORIAS||'0'):(r.PONTOS||'0'))}</b><small>${csSemPontosValidados?'VIT.':'PTS'}</small></div>
     </div>`;
   };
   return `
     <section class="classification-group">
       <div class="classification-group-title">
         <strong>${escapeHtml(grupo ? `Grupo ${grupo}` : 'Classificação')}</strong>
-        <small>${ordenadas.length} ${individual?'participantes':'equipes'}</small>
+        <small>${ordenadas.length} ${individual?'participantes':'equipes'}${csSemPontosValidados?' · parcial por vitórias':''}</small>
       </div>
       <div class="standings-mobile" aria-label="Classificação compacta">
         ${ordenadas.map(linhaMobile).join('')}
       </div>
       <div class="standings standings-wide standings-desktop">
         <div class="stand-head">
-          <span>#</span><span>${individual?'Participante':'Equipe'}</span><span>J</span><span>V</span><span>E</span><span>D</span><span>Pts</span><span>Saldo</span>
+          <span>#</span><span>${individual?'Participante':'Equipe'}</span><span>J</span><span>V</span><span>E</span><span>D</span><span>${csSemPontosValidados?'Vit.':'Pts'}</span><span>Saldo</span>
         </div>
         ${ordenadas.map(r=>{
           const destaque=String(r.DESTAQUE_CCT||'').toUpperCase()==='SIM' || String(r.CENTRO||r.EQUIPE||'').toUpperCase()==='CCT';
@@ -746,7 +750,7 @@ function classificacaoGrupoHtml(grupo,linhas){
             <span>${escapeHtml(r.VITORIAS||'0')}</span>
             <span>${escapeHtml(r.EMPATES||'0')}</span>
             <span>${escapeHtml(r.DERROTAS||'0')}</span>
-            <strong>${escapeHtml(r.PONTOS||'0')}</strong>
+            <strong>${escapeHtml(csSemPontosValidados?(r.VITORIAS||'0'):(r.PONTOS||'0'))}</strong>
             <span>${escapeHtml(r.SALDO||'0')}</span>
           </div>`;
         }).join('')}
@@ -2998,7 +3002,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=4120',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=4121',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -3007,7 +3011,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV4120';
+        const chave='cctSwReloadV4121';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
