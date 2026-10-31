@@ -723,9 +723,10 @@ function classificacaoLinhaNome(r){
 function classificacaoGrupoHtml(grupo,linhas){
   // CS2: pontos e desempate de grupos dependem do congresso técnico; exibir vitórias, não pontuação inventada.
   const csSemPontosValidados=jogosUI.competicao==='JIUDESC-2026' && jogosUI.classificacaoModalidade==='CS-L';
-  // Boletim 6: pontos conferidos, mas regra de W.O. e a vaga de CEART2 nas QF femininas estão em análise.
-  const badmintonConferencia=jogosUI.competicao==='JIUDESC-2026' && ['BAD-F','BAD-M'].includes(jogosUI.classificacaoModalidade);
-  const badmintonDivergencia=badmintonConferencia && jogosUI.classificacaoModalidade==='BAD-F' && grupo==='A';
+  // Boletim 6 definitivo (31/10/2026): confrontos oficiais da organização prevalecem.
+  // Eventuais divergências técnicas de W.O. não alteram o chaveamento publicado.
+  const badmintonConferencia=false;
+  const badmintonDivergencia=false;
   const ordenadas=[...linhas].sort((a,b)=>csSemPontosValidados
     ? ((Number(b.VITORIAS)||0)-(Number(a.VITORIAS)||0))
     : ((Number(a.POSICAO)||999)-(Number(b.POSICAO)||999)));
@@ -747,7 +748,7 @@ function classificacaoGrupoHtml(grupo,linhas){
     <section class="classification-group">
       <div class="classification-group-title">
         <strong>${escapeHtml(grupo ? `Grupo ${grupo}` : 'Classificação')}</strong>
-        <small>${ordenadas.length} ${individual?'participantes':'equipes'}${csSemPontosValidados?' · parcial por vitórias':''}${badmintonConferencia?' · classificação preliminar':''}</small>
+        <small>${ordenadas.length} ${individual?'participantes':'equipes'}${csSemPontosValidados?' · parcial por vitórias':''}</small>
       </div>
       ${badmintonDivergencia?'<p class="profile-helper">⚠️ Classificação do Grupo A feminino sob conferência: CEART2 foi indicado nas quartas no Boletim 6, mas os resultados e W.O. não sustentam a vaga. Consulte os avisos.</p>':''}
       <div class="standings-mobile" aria-label="Classificação compacta">
