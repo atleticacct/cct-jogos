@@ -406,9 +406,14 @@ function modalidadeBase(id){
   return {prefixo,nome:nome||prefixo};
 }
 
+// Nas modalidades individuais o boletim identifica representantes como CCT1/CCT2.
+// Reconhecer essas variantes sem confundir com códigos de outros centros.
+function equipeEhCCT(equipe){
+  return /^CCT(?:\\s*\\d+)?$/i.test(String(equipe||'').trim());
+}
+
 function jogoTemCCT(jogo){
-  return String(jogo.EQUIPE_A||'').trim().toUpperCase()==='CCT' ||
-         String(jogo.EQUIPE_B||'').trim().toUpperCase()==='CCT';
+  return equipeEhCCT(jogo.EQUIPE_A) || equipeEhCCT(jogo.EQUIPE_B);
 }
 
 function nomeLadoJogo(jogo,lado){
@@ -510,8 +515,8 @@ function representacaoCctHtml(jogo){
 }
 
 function matchCard(jogo,{home=false}={}){
-  const cctA=String(jogo.EQUIPE_A||'').trim().toUpperCase()==='CCT';
-  const cctB=String(jogo.EQUIPE_B||'').trim().toUpperCase()==='CCT';
+  const cctA=equipeEhCCT(jogo.EQUIPE_A);
+  const cctB=equipeEhCCT(jogo.EQUIPE_B);
   const nomeA=nomeLadoJogo(jogo,'A');
   const nomeB=nomeLadoJogo(jogo,'B');
   const fase=jogo.GRUPO ? `GRUPO ${jogo.GRUPO}` : (jogo.FASE||'');
@@ -3002,7 +3007,7 @@ setTimeout(()=>$('#splash').classList.add('hide'),1500);
 if('serviceWorker' in navigator){
   window.addEventListener('load',async()=>{
     try{
-      const reg=await navigator.serviceWorker.register('sw.js?v=4122',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('sw.js?v=4123',{updateViaCache:'none'});
       reg.update().catch(()=>{});
       const ativar=worker=>{ if(worker?.state==='installed' && navigator.serviceWorker.controller) worker.postMessage({type:'SKIP_WAITING'}); };
       if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
@@ -3011,7 +3016,7 @@ if('serviceWorker' in navigator){
         worker?.addEventListener('statechange',()=>ativar(worker));
       });
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        const chave='cctSwReloadV4122';
+        const chave='cctSwReloadV4123';
         if(sessionStorage.getItem(chave)==='1') return;
         sessionStorage.setItem(chave,'1');
         location.reload();
