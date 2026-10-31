@@ -409,7 +409,7 @@ function modalidadeBase(id){
 // Nas modalidades individuais o boletim identifica representantes como CCT1/CCT2.
 // Reconhecer essas variantes sem confundir com códigos de outros centros.
 function equipeEhCCT(equipe){
-  return /^CCT(?:\\s*\\d+)?$/i.test(String(equipe||'').trim());
+  return /^CCT(?:\s*\d+)?$/i.test(String(equipe||'').trim());
 }
 
 function jogoTemCCT(jogo){
