@@ -684,13 +684,43 @@ function renderizarProximoJogoHome(){
     : '<div class="games-empty">Nenhum próximo jogo da CCT encontrado.</div>';
 }
 
+function modalidadeOficialJiudescHtml(id){
+  const fonte=(typeof JIUDESC_FINAIS_2026!=='undefined')?JIUDESC_FINAIS_2026:null;
+  const modalidade=fonte&&fonte[id];
+  if(!modalidade)return '';
+  const isCct=r=>r.centro==='CCT';
+  const colocacao=r=>r.posicao===1?'🥇':r.posicao===2?'🥈':r.posicao===3?'🥉':String(r.posicao)+'º';
+  return `<section class="jiu26-final-ranking" aria-label="Classificação oficial da modalidade">
+    <div class="jiu26-final-ranking-head"><span>🏆 BOLETIM 10 · RESULTADO OFICIAL</span><strong>${escapeHtml(modalidade.nome)}</strong><small>Classificação final por centro · pontos brutos antes dos coeficientes</small></div>
+    <div class="jiu26-final-ranking-list">${modalidade.resultados.map(r=>`<div class="jiu26-final-row ${isCct(r)?'jiu26-final-cct':''}">
+      <span class="jiu26-final-pos">${colocacao(r)}</span>
+      <strong>${centroMarcaHtml(r.centro,'standing-centre-logo')}<span>${escapeHtml(r.centro)}</span></strong>
+      <b>${r.pontos} <small>pts</small></b>
+    </div>`).join('')}</div>
+    <p class="jiu26-final-source">Fonte: JIUDESC 2026 · Boletim 10, 02/11/2026. Resultado final encerrado.</p>
+  </section>`;
+}
+function abrirClassificacaoFinalJiudesc(id=''){
+  jogosUI.competicao='JIUDESC-2026';
+  salvarCompeticaoPreferida(jogosUI.competicao);
+  jogosUI.aba='classificacao';
+  jogosUI.classificacaoTipo=id?'modalidade':'geral';
+  if(id)jogosUI.classificacaoModalidade=id;
+  go('jogos');
+  const nome=$('#competicaoNome');if(nome)nome.textContent=competitionName(jogosUI.competicao);
+  renderizarFiltrosModalidades();
+  renderizarAbaCompeticao();
+}
+
 function modalidadesClassificacao(){
-  return [...new Set(
-    apiData.classificacao
-      .filter(x=>x.ID_COMPETICAO===jogosUI.competicao)
-      .map(x=>x.ID_MODALIDADE)
-      .filter(Boolean)
-  )].sort((a,b)=>modalidadeNome(a).localeCompare(modalidadeNome(b),'pt-BR'));
+  const ids=apiData.classificacao
+    .filter(x=>x.ID_COMPETICAO===jogosUI.competicao)
+    .map(x=>x.ID_MODALIDADE)
+    .filter(Boolean);
+  if(jogosUI.competicao==='JIUDESC-2026' && typeof JIUDESC_FINAIS_2026!=='undefined'){
+    ids.push(...Object.keys(JIUDESC_FINAIS_2026));
+  }
+  return [...new Set(ids)].sort((a,b)=>modalidadeNome(a).localeCompare(modalidadeNome(b),'pt-BR'));
 }
 
 function renderizarSeletorClassificacao(){
@@ -1037,6 +1067,11 @@ function renderizarClassificacao(){
       ? '<div class="games-empty"><strong>Classificação por modalidade ainda não iniciada.</strong><span>Ela será formada automaticamente conforme os primeiros resultados oficiais do JIUDESC forem lançados.</span></div>'
       : '<div class="games-empty">Esta competição ainda não possui classificação por modalidade publicada.</div>';
     return;
+  }
+
+  if(jogosUI.competicao==='JIUDESC-2026'){
+    const oficial=modalidadeOficialJiudescHtml(jogosUI.classificacaoModalidade);
+    if(oficial){container.innerHTML=oficial;return;}
   }
 
   const linhas=apiData.classificacao.filter(x=>
