@@ -1471,3 +1471,34 @@ button{font:inherit}.app-shell{min-height:100vh;max-width:560px;margin:auto;back
 .simc-final-games-head strong{font-size:12px}
 .simc-final-games-head small{font-size:9px;color:#9dae9f}
 .simc-finished .simc-match input,.simc-finished [data-simc-apply]{display:none}
+
+/* JIUDESC 2026 — celebração oficial e classificação final por modalidade */
+.jiu26-home-champion{position:relative;overflow:hidden;margin:14px 0 22px;border:1px solid rgba(183,231,121,.38);border-radius:24px;background:radial-gradient(circle at 87% 12%,rgba(197,236,114,.22),transparent 45%),linear-gradient(140deg,#16361d,#0b1b10 68%);color:#f6ffed;box-shadow:0 14px 35px rgba(0,0,0,.22)}
+.jiu26-champion-shine{position:absolute;top:8px;right:12px;font-size:70px;opacity:.20;transform:rotate(13deg);pointer-events:none}
+.jiu26-champion-content{position:relative;padding:23px 20px 19px}
+.jiu26-champion-label{display:inline-block;font-size:10px;letter-spacing:.10em;font-weight:900;color:#cbe99a}
+.jiu26-champion-content h2{font-size:clamp(23px,5vw,34px);letter-spacing:-.025em;line-height:1.08;margin:11px 0;color:#efffb8;font-weight:1000}
+.jiu26-champion-content p{max-width:560px;font-size:13px;line-height:1.6;color:#dae8d7;margin:0 0 13px}
+.jiu26-champion-podium{display:flex;flex-wrap:wrap;gap:7px;margin:15px 0}
+.jiu26-champion-podium span{font-size:11px;padding:9px 11px;border-radius:10px;background:rgba(255,255,255,.085);font-weight:750}
+.jiu26-champion-podium span:first-child{color:#dfff9b;border:1px solid rgba(201,255,156,.38)}
+.jiu26-champion-actions{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 12px}
+.jiu26-champion-actions button{border:1px solid #78b75e;border-radius:12px;padding:11px 12px;background:#baf189;color:#112313;font-size:10px;letter-spacing:.02em;font-weight:950;cursor:pointer}
+.jiu26-champion-actions button+button{background:transparent;color:#d5f6be;border-color:#6f9d64}
+.jiu26-champion-content>small{display:block;color:#95ab93;font-size:10px}
+.jiu26-final-ranking{border:1px solid #2c4530;border-radius:17px;background:#0e1711;overflow:hidden;margin-top:15px}
+.jiu26-final-ranking-head{display:flex;flex-direction:column;gap:5px;padding:18px;background:linear-gradient(125deg,#1b4024,#101e15)}
+.jiu26-final-ranking-head>span{font-size:9px;font-weight:900;letter-spacing:.09em;color:#b8e68f}
+.jiu26-final-ranking-head>strong{font-size:19px;color:#eff7eb}
+.jiu26-final-ranking-head>small,.jiu26-final-source{font-size:10px;line-height:1.5;color:#a3b5a2}
+.jiu26-final-ranking-list{padding:10px;display:grid;gap:7px}
+.jiu26-final-row{display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:11px;padding:10px 12px;border:1px solid #243428;background:#151e17;border-radius:12px;min-height:52px}
+.jiu26-final-pos{font-size:16px;font-weight:900;color:#d0dbd1}
+.jiu26-final-row>strong{display:flex;align-items:center;gap:9px;min-width:0;font-size:14px}
+.jiu26-final-row>strong span:last-child{overflow:hidden;text-overflow:ellipsis}
+.jiu26-final-row>b{font-size:15px;color:#d2edb7;white-space:nowrap}
+.jiu26-final-row>b small{font-size:10px;font-weight:600;color:#879a85}
+.jiu26-final-cct{border-color:#97d27b;background:linear-gradient(110deg,#213f24,#172b1b)}
+.jiu26-final-cct>strong,.jiu26-final-cct>b{color:#d4ffab}
+.jiu26-final-source{margin:4px 15px 16px}
+@media(max-width:480px){.jiu26-champion-content{padding:20px 15px}.jiu26-champion-actions{flex-direction:column}.jiu26-champion-actions button{width:100%}.jiu26-final-row{gap:7px;padding:8px}.jiu26-champion-shine{font-size:58px}}
